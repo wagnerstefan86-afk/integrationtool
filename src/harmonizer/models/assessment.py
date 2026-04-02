@@ -1,15 +1,20 @@
 """Assessment and harmonization models.
 
-The assessment model captures the evaluation of a process (main or sub)
+The assessment model captures the evaluation of a stream or subprocess
 across multiple alignment dimensions, applies hard constraints, and
 produces a deterministic harmonization classification.
 
 Classification levels (ordered from most to least harmonizable):
-1. fully_centralizable - Process can be run identically across DE/AT
+1. fully_centralizable - Can be run identically across DE/AT
 2. central_method_local_execution - Central methodology, local execution
 3. partially_harmonizable - Some parts can be unified, others remain local
 4. minimum_standard_only - Only central minimum standards are feasible
 5. currently_not_harmonizable - Must remain fully local for now
+
+Prioritization levels for harmonization initiatives:
+- high_priority
+- medium_priority
+- low_priority
 """
 
 from enum import Enum
@@ -26,8 +31,14 @@ class HarmonizationClassification(str, Enum):
     CURRENTLY_NOT_HARMONIZABLE = "currently_not_harmonizable"
 
 
+class HarmonizationPriority(str, Enum):
+    HIGH = "high_priority"
+    MEDIUM = "medium_priority"
+    LOW = "low_priority"
+
+
 class AssessedObjectType(str, Enum):
-    MAIN_PROCESS = "main_process"
+    STREAM = "stream"
     SUBPROCESS = "subprocess"
 
 
@@ -52,13 +63,32 @@ class HardConstraint(str, Enum):
 class AssessmentAnswer(BaseModel):
     """A single dimension rating within an assessment.
 
-    Score range: 1 (no alignment / high local necessity) to 5 (full alignment / no local necessity).
+    Score range: 1 (no alignment / high local necessity) to 5 (full alignment).
     For local_necessity the scale is inverted conceptually:
       1 = high local necessity (bad for harmonization)
       5 = no local necessity (good for harmonization)
     """
     dimension: AlignmentDimension
     score: int = Field(ge=1, le=5)
+    rationale: str
+
+
+class PrioritizationInput(BaseModel):
+    """Input factors for harmonization initiative prioritization.
+
+    Each factor scored 1 (low) to 5 (high).
+    """
+    harmonization_potential: int = Field(ge=1, le=5)
+    operational_relevance: int = Field(ge=1, le=5)
+    governance_compliance_benefit: int = Field(ge=1, le=5)
+    implementation_effort: int = Field(ge=1, le=5)
+    dependencies: int = Field(ge=1, le=5)
+
+
+class PrioritizationResult(BaseModel):
+    """Computed prioritization for a harmonization initiative."""
+    priority: HarmonizationPriority
+    priority_score: float = Field(ge=0.0, le=1.0)
     rationale: str
 
 
@@ -75,9 +105,11 @@ class HarmonizationResult(BaseModel):
 
 
 class Assessment(BaseModel):
-    """Full assessment record for a process or subprocess."""
+    """Full assessment record for a stream or subprocess."""
     assessed_object_type: AssessedObjectType
     assessed_object_id: str
     answers: list[AssessmentAnswer] = Field(default_factory=list)
     hard_constraints: list[HardConstraint] = Field(default_factory=list)
+    prioritization: Optional[PrioritizationInput] = None
     result: Optional[HarmonizationResult] = None
+    prioritization_result: Optional[PrioritizationResult] = None

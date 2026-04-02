@@ -1,7 +1,7 @@
 """YAML data loader for process and assessment data.
 
-Loads process definitions and assessments from YAML files and
-validates them against the Pydantic models.
+Loads area, stream, subprocess, interface, and assessment definitions
+from YAML files and validates them against the Pydantic models.
 """
 
 from pathlib import Path
@@ -9,7 +9,7 @@ from typing import Any
 
 import yaml
 
-from harmonizer.models.process import MainProcess, SubProcess, ProcessInterface
+from harmonizer.models.process import Area, Stream, SubProcess, ProcessInterface
 from harmonizer.models.assessment import Assessment
 
 
@@ -19,19 +19,21 @@ def _load_yaml(path: Path) -> Any:
         return yaml.safe_load(f)
 
 
-def load_processes(path: Path) -> tuple[list[MainProcess], list[SubProcess], list[ProcessInterface]]:
-    """Load process definitions from a YAML file.
+def load_structure(path: Path) -> tuple[list[Area], list[Stream], list[SubProcess], list[ProcessInterface]]:
+    """Load organizational structure from a YAML file.
 
     Expected structure:
-        main_processes: [...]
+        areas: [...]
+        streams: [...]
         subprocesses: [...]
         interfaces: [...]
     """
     data = _load_yaml(path)
-    main_processes = [MainProcess(**mp) for mp in data.get("main_processes", [])]
+    areas = [Area(**a) for a in data.get("areas", [])]
+    streams = [Stream(**s) for s in data.get("streams", [])]
     subprocesses = [SubProcess(**sp) for sp in data.get("subprocesses", [])]
     interfaces = [ProcessInterface(**pi) for pi in data.get("interfaces", [])]
-    return main_processes, subprocesses, interfaces
+    return areas, streams, subprocesses, interfaces
 
 
 def load_assessments(path: Path) -> list[Assessment]:
@@ -45,19 +47,19 @@ def load_assessments(path: Path) -> list[Assessment]:
 
 
 def load_all_from_directory(directory: Path) -> tuple[
-    list[MainProcess],
+    list[Area],
+    list[Stream],
     list[SubProcess],
     list[ProcessInterface],
     list[Assessment],
 ]:
     """Load all YAML files from a directory.
 
-    Files named *processes* are treated as process definitions.
     Files named *assessment* are treated as assessment data.
-    Other YAML files are attempted as process definitions first,
-    then as assessments.
+    All other YAML files are treated as structure definitions.
     """
-    all_main: list[MainProcess] = []
+    all_areas: list[Area] = []
+    all_streams: list[Stream] = []
     all_sub: list[SubProcess] = []
     all_iface: list[ProcessInterface] = []
     all_assess: list[Assessment] = []
@@ -67,9 +69,10 @@ def load_all_from_directory(directory: Path) -> tuple[
         if "assessment" in name:
             all_assess.extend(load_assessments(yaml_file))
         else:
-            mp, sp, pi = load_processes(yaml_file)
-            all_main.extend(mp)
+            areas, streams, sp, pi = load_structure(yaml_file)
+            all_areas.extend(areas)
+            all_streams.extend(streams)
             all_sub.extend(sp)
             all_iface.extend(pi)
 
-    return all_main, all_sub, all_iface, all_assess
+    return all_areas, all_streams, all_sub, all_iface, all_assess

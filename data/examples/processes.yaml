@@ -1,49 +1,373 @@
-# Example process definitions for two InfoSec streams:
-# 1. Incident Management
-# 2. Vulnerability Management
-#
-# Demonstrates: main processes, subprocesses, and cross-process interfaces.
+# Organizational structure: Areas, Streams, Subprocesses, Interfaces
+# Reflects real InfoSec department with DE/AT scope.
 
-main_processes:
-  - id: stream-incident
-    name: Incident Management
+areas:
+  - id: definition_design
+    name: "Definition & Design"
     description: >
-      End-to-end handling of information security incidents, from detection
-      through containment, eradication, recovery, and lessons learned.
+      Defines policies, frameworks, risk methodology, and BCM strategy.
+      Sets the normative foundation for all InfoSec activities.
+
+  - id: check_execute
+    name: "Check & Execute"
+    description: >
+      Operational execution of security controls, incident handling,
+      contract review, audits, and security operationalization.
+
+  - id: regulatory_compliance_office
+    name: "Regulatory Compliance Office"
+    description: >
+      Corporate governance coordination and regulatory compliance
+      management for information security.
+
+  - id: support_office
+    name: "Support Office"
+    description: >
+      Internal support functions including backoffice, onboarding,
+      technology projects, awareness, and division support.
+
+streams:
+  # --- Definition & Design ---
+  - id: policies_processes
+    area_id: definition_design
+    name: "Policies and Processes"
+    stream_type: governance_function
+    description: >
+      Maintains the InfoSec policy framework, process definitions,
+      and governance documentation across DE/AT.
+    owner_role: Head of InfoSec Governance
+    country_scope: BOTH
+    tenant_scope: SEPARATE
+    regulatory_context:
+      - ISO 27001 Clause 5
+      - NIS2
+    notes: >
+      Policy content is largely harmonizable. Document management
+      and approval workflows differ per ISMS tenant.
+
+  - id: it_bcm
+    area_id: definition_design
+    name: "IT-BCM"
+    stream_type: process
+    description: >
+      IT Business Continuity Management including BIA, BC strategy,
+      BC plans, and testing.
+    owner_role: BCM Manager
+    country_scope: BOTH
+    tenant_scope: SEPARATE
+    regulatory_context:
+      - ISO 22301
+      - NIS2
+      - DORA (financial entities)
+      - BSI IT-Grundschutz (DE)
+    notes: >
+      BIA methodology can be unified. BC plans are inherently local
+      due to different IT landscapes and recovery sites.
+
+  - id: it_risk
+    area_id: definition_design
+    name: "IT-Risk"
+    stream_type: process
+    description: >
+      IT risk identification, assessment, treatment, and monitoring.
+    owner_role: IT Risk Manager
+    country_scope: BOTH
+    tenant_scope: SEPARATE
+    regulatory_context:
+      - ISO 27005
+      - ISO 31000
+      - NIS2
+    notes: >
+      Risk methodology and criteria can be harmonized.
+      Risk registers are maintained per ISMS tenant.
+
+  # --- Check & Execute ---
+  - id: request_incident_mgmt
+    area_id: check_execute
+    name: "Request & Incident Mgmt"
+    stream_type: process
+    description: >
+      Handling of security requests and security incidents from
+      intake through resolution and lessons learned.
     owner_role: Head of Security Operations
     country_scope: BOTH
+    tenant_scope: SEPARATE
     regulatory_context:
+      - NIS2 Art. 23
+      - DSGVO Art. 33/34
+      - DSG (AT)
+    notes: >
+      Request handling is highly harmonizable. Incident reporting
+      to regulators differs (BSI vs. Austrian CERT/DSB).
+
+  - id: contract_mgmt
+    area_id: check_execute
+    name: "Contract Mgmt"
+    stream_type: process
+    description: >
+      Security review and requirements for third-party contracts,
+      SLAs, and vendor agreements.
+    owner_role: Contract Security Lead
+    country_scope: BOTH
+    tenant_scope: BOTH
+    regulatory_context:
+      - ISO 27001 A.15
+      - NIS2 supply chain
+    notes: >
+      Security requirements in contracts are largely identical.
+      Legal review involves local legal departments.
+
+  - id: audits_execution_bps
+    area_id: check_execute
+    name: "Audits execution & business partner security"
+    stream_type: process
+    description: >
+      Execution of security audits for internal and external parties,
+      including business partner security assessments.
+    owner_role: Audit Execution Lead
+    country_scope: BOTH
+    tenant_scope: BOTH
+    regulatory_context:
+      - ISO 27001 Clause 9
+      - NIS2
+    notes: Audit methodology can be unified. Audit scheduling is local.
+
+  - id: operationalization
+    area_id: check_execute
+    name: "Operationalization"
+    stream_type: capability_domain
+    description: >
+      Translation of security requirements into operational controls
+      and technical implementations.
+    owner_role: Security Engineering Lead
+    country_scope: BOTH
+    tenant_scope: BOTH
+    regulatory_context:
+      - ISO 27001 Annex A
+    notes: >
+      Shared tooling and platforms. Implementation patterns
+      are reusable across DE/AT.
+
+  # --- Regulatory Compliance Office ---
+  - id: corporate_governance
+    area_id: regulatory_compliance_office
+    name: "Corporate Governance"
+    stream_type: program_domain
+    description: >
+      Coordination of corporate governance requirements, board reporting,
+      and regulatory change management for InfoSec.
+    owner_role: Head of Regulatory Compliance
+    country_scope: BOTH
+    tenant_scope: SEPARATE
+    regulatory_context:
+      - NIS2
+      - DORA
+      - Corporate governance codes (DE/AT)
+    notes: >
+      Reporting structure to board/management is similar but
+      legal entity requirements differ.
+
+  - id: is_gc_service
+    area_id: regulatory_compliance_office
+    name: "Information Security Governance and Compliance"
+    stream_type: service_domain
+    description: >
+      Provides governance and compliance services to the organization:
+      compliance monitoring, control effectiveness assessment,
+      and regulatory mapping.
+    owner_role: IS Governance & Compliance Lead
+    country_scope: BOTH
+    tenant_scope: SEPARATE
+    regulatory_context:
+      - ISO 27001
       - NIS2
       - DSGVO/GDPR
-      - DORA (if financial sector entity)
-    tenant_scope: SEPARATE
     notes: >
-      Both DE and AT operate separate ISMS tenants. Incident records cannot
-      be merged across tenants due to data residency requirements.
+      Compliance framework is shared. Monitoring and evidence
+      collection differs per ISMS tenant.
 
-  - id: stream-vuln
-    name: Vulnerability Management
+  # --- Support Office ---
+  - id: backoffice
+    area_id: support_office
+    name: "Backoffice"
+    stream_type: support_function
     description: >
-      Identification, assessment, prioritization, and remediation tracking
-      of technical vulnerabilities across infrastructure and applications.
-    owner_role: Head of Vulnerability Management
+      Administrative support for the InfoSec department: budget,
+      procurement, time tracking, travel, documentation.
+    owner_role: Backoffice Lead
     country_scope: BOTH
-    regulatory_context:
-      - NIS2
-      - ISO 27001 A.12.6
-      - BSI IT-Grundschutz (DE only)
     tenant_scope: BOTH
+    regulatory_context: []
+    notes: Highly standardizable. Mostly administrative.
+
+  - id: on_offboarding
+    area_id: support_office
+    name: "On & Offboarding"
+    stream_type: support_function
+    description: >
+      Onboarding and offboarding of InfoSec team members including
+      access provisioning, training, and knowledge transfer.
+    owner_role: HR Liaison / Team Lead
+    country_scope: BOTH
+    tenant_scope: BOTH
+    regulatory_context: []
     notes: >
-      Vulnerability scanning tooling is shared. Remediation tracking may
-      differ due to separate change management processes.
+      Process is similar. HR systems and local labor law
+      create minor differences.
+
+  - id: technology_projects_ai
+    area_id: support_office
+    name: "Technology Projects & AI"
+    stream_type: capability_domain
+    description: >
+      Management of internal technology projects and AI initiatives
+      within the InfoSec domain.
+    owner_role: Technology Projects Lead
+    country_scope: BOTH
+    tenant_scope: BOTH
+    regulatory_context:
+      - EU AI Act
+    notes: Fully shared capability. No country-specific differences.
+
+  - id: division_support
+    area_id: support_office
+    name: "Division Support"
+    stream_type: support_function
+    description: >
+      Dedicated InfoSec support for business divisions, including
+      security consulting, risk advisory, and project reviews.
+    owner_role: Division Security Advisor
+    country_scope: BOTH
+    tenant_scope: SEPARATE
+    regulatory_context: []
+    notes: >
+      Service model is similar, but stakeholder landscapes and
+      division structures differ between DE and AT.
+
+  - id: awareness_education
+    area_id: support_office
+    name: "Awareness & Education"
+    stream_type: process
+    description: >
+      Security awareness campaigns, training programs, phishing
+      simulations, and education initiatives.
+    owner_role: Awareness Program Lead
+    country_scope: BOTH
+    tenant_scope: BOTH
+    regulatory_context:
+      - ISO 27001 A.7.2.2
+      - NIS2
+    notes: >
+      Content and platforms are shared. Some localization
+      needed for language and local regulations.
+
+  - id: audit_organisation
+    area_id: support_office
+    name: "Audit organisation"
+    stream_type: support_function
+    description: >
+      Planning, scheduling, and coordination of audit activities
+      including internal and external audit support.
+    owner_role: Audit Coordination Lead
+    country_scope: BOTH
+    tenant_scope: BOTH
+    regulatory_context:
+      - ISO 27001 Clause 9
+    notes: Audit planning can be centralized. Execution is per-entity.
 
 subprocesses:
-  # --- Incident Management subprocesses ---
+  # --- Policies and Processes ---
+  - id: sp-pol-lifecycle
+    stream_id: policies_processes
+    name: "Policy Lifecycle Management"
+    description: Creation, review, approval, and retirement of security policies.
+    purpose: Ensure policies are current, approved, and communicated.
+    inputs:
+      - Regulatory requirements
+      - Risk assessment findings
+      - Audit findings
+    outputs:
+      - Approved policies
+      - Policy change log
+    roles:
+      - Policy Author
+      - Policy Approver
+      - CISO
+    tools:
+      - Document Management System
+    evidence:
+      - Approval records
+      - Version history
+    country_scope: BOTH
+    tenant_scope: SEPARATE
+    regulatory_context:
+      - ISO 27001 Clause 5.2
+    interfaces_with:
+      - is_gc_service
+    notes: null
+
+  # --- IT-Risk ---
+  - id: sp-risk-assess
+    stream_id: it_risk
+    name: "Risk Assessment"
+    description: Identification and evaluation of IT risks.
+    purpose: Produce risk ratings for informed treatment decisions.
+    inputs:
+      - Asset inventory
+      - Threat intelligence
+      - Vulnerability data
+    outputs:
+      - Risk assessment report
+      - Risk ratings
+    roles:
+      - Risk Analyst
+      - Asset Owner
+    tools:
+      - Risk Management Tool
+      - CMDB
+    evidence:
+      - Risk assessment records
+    country_scope: BOTH
+    tenant_scope: SEPARATE
+    regulatory_context:
+      - ISO 27005
+    interfaces_with:
+      - sp-risk-treatment
+      - operationalization
+    notes: null
+
+  - id: sp-risk-treatment
+    stream_id: it_risk
+    name: "Risk Treatment"
+    description: Selection and implementation of risk treatment options.
+    purpose: Reduce risks to acceptable levels.
+    inputs:
+      - Risk assessment report
+      - Treatment options
+    outputs:
+      - Risk treatment plan
+      - Residual risk acceptance
+    roles:
+      - Risk Owner
+      - Risk Analyst
+    tools:
+      - Risk Management Tool
+    evidence:
+      - Treatment plan documents
+      - Acceptance records
+    country_scope: BOTH
+    tenant_scope: SEPARATE
+    regulatory_context:
+      - ISO 27005
+    interfaces_with: []
+    notes: null
+
+  # --- Request & Incident Mgmt ---
   - id: sp-inc-intake
-    main_process_id: stream-incident
-    name: Incident Intake
+    stream_id: request_incident_mgmt
+    name: "Incident Intake"
     description: Initial reception and logging of security events and incidents.
-    purpose: Ensure all potential incidents are captured in a structured manner.
+    purpose: Capture all potential incidents in a structured manner.
     inputs:
       - SIEM alerts
       - User reports
@@ -58,19 +382,18 @@ subprocesses:
       - Ticketing System
     evidence:
       - Incident ticket with timestamp
-      - Intake checklist
     country_scope: BOTH
     tenant_scope: SEPARATE
     regulatory_context:
-      - NIS2 Art. 23 (reporting timelines)
+      - NIS2 Art. 23
     interfaces_with:
       - sp-inc-triage
     notes: null
 
   - id: sp-inc-triage
-    main_process_id: stream-incident
-    name: Incident Triage
-    description: Assessment of severity, impact, and initial categorization.
+    stream_id: request_incident_mgmt
+    name: "Incident Triage"
+    description: Assessment of severity, impact, and categorization.
     purpose: Determine priority and assign to appropriate response team.
     inputs:
       - Incident ticket (initial)
@@ -84,7 +407,6 @@ subprocesses:
       - Ticketing System
       - Threat Intelligence Platform
     evidence:
-      - Severity assessment record
       - Triage decision log
     country_scope: BOTH
     tenant_scope: SEPARATE
@@ -92,29 +414,27 @@ subprocesses:
       - NIS2
     interfaces_with:
       - sp-inc-communication
-      - sp-vuln-assess
     notes: >
-      Triage criteria are aligned across DE/AT, but escalation paths
-      differ due to local management structures.
+      Triage criteria aligned across DE/AT. Escalation paths differ
+      due to local management structures.
 
   - id: sp-inc-communication
-    main_process_id: stream-incident
-    name: Incident Communication
+    stream_id: request_incident_mgmt
+    name: "Incident Communication"
     description: Internal and external communication during and after incidents.
-    purpose: Ensure timely notification of stakeholders, regulators, and affected parties.
+    purpose: Timely notification of stakeholders and regulators.
     inputs:
       - Prioritized incident ticket
-      - Severity classification
     outputs:
       - Stakeholder notifications
       - Regulatory reports
     roles:
       - Incident Manager
       - Communications Lead
-      - DPO (if personal data involved)
+      - DPO
     tools:
       - Communication templates
-      - Email / Messaging platform
+      - Email platform
     evidence:
       - Notification log
       - Regulatory filing receipts
@@ -123,128 +443,89 @@ subprocesses:
     regulatory_context:
       - NIS2 Art. 23
       - DSGVO Art. 33/34
-      - DSG (AT) § 54
+      - DSG (AT)
     interfaces_with: []
     notes: >
-      DE reports to BSI, AT reports to national CERT and DSB.
-      Templates differ. This subprocess has HIGH local necessity.
+      DE reports to BSI, AT to national CERT/DSB.
+      Very high local necessity.
 
-  # --- Vulnerability Management subprocesses ---
-  - id: sp-vuln-scan
-    main_process_id: stream-vuln
-    name: Vulnerability Scanning
-    description: Automated and manual scanning of infrastructure and applications.
-    purpose: Discover known vulnerabilities across the IT landscape.
+  # --- Awareness & Education ---
+  - id: sp-aware-campaign
+    stream_id: awareness_education
+    name: "Awareness Campaign Execution"
+    description: Planning and delivery of awareness campaigns.
+    purpose: Increase security awareness across the organization.
     inputs:
-      - Asset inventory
-      - Scan schedules
+      - Campaign plan
+      - Target audience data
     outputs:
-      - Raw scan results
+      - Campaign metrics
+      - Completion reports
     roles:
-      - Vulnerability Analyst
-      - Platform Engineer
+      - Awareness Lead
+      - Content Creator
     tools:
-      - Vulnerability Scanner (shared)
-      - Asset Management DB
+      - Awareness Platform
+      - LMS
     evidence:
-      - Scan execution logs
-      - Raw findings export
+      - Participation statistics
+      - Quiz results
     country_scope: BOTH
     tenant_scope: BOTH
     regulatory_context:
-      - ISO 27001 A.12.6
-    interfaces_with:
-      - sp-vuln-assess
-    notes: Shared tooling and unified scan policies.
-
-  - id: sp-vuln-assess
-    main_process_id: stream-vuln
-    name: Vulnerability Assessment
-    description: Risk-based evaluation and prioritization of discovered vulnerabilities.
-    purpose: Determine business risk and remediation priority.
-    inputs:
-      - Raw scan results
-      - Threat intelligence
-      - Asset criticality data
-    outputs:
-      - Prioritized vulnerability list
-      - Risk ratings
-    roles:
-      - Vulnerability Analyst
-      - Risk Analyst
-    tools:
-      - Vulnerability Management Platform
-      - Risk Register
-    evidence:
-      - Risk assessment records
-      - Prioritization matrix
-    country_scope: BOTH
-    tenant_scope: BOTH
-    regulatory_context:
-      - ISO 27001 A.12.6
-      - BSI IT-Grundschutz (DE)
-    interfaces_with:
-      - sp-vuln-remediation
-      - sp-inc-triage
-    notes: >
-      Assessment methodology is unified. BSI-specific scoring overlays
-      apply only in DE context.
-
-  - id: sp-vuln-remediation
-    main_process_id: stream-vuln
-    name: Vulnerability Remediation Tracking
-    description: Tracking and verification of vulnerability fixes.
-    purpose: Ensure vulnerabilities are remediated within defined SLAs.
-    inputs:
-      - Prioritized vulnerability list
-    outputs:
-      - Remediation status reports
-      - SLA compliance metrics
-    roles:
-      - Vulnerability Analyst
-      - System Owner
-      - Change Manager
-    tools:
-      - Ticketing System
-      - Change Management System
-    evidence:
-      - Remediation tickets
-      - Re-scan verification reports
-    country_scope: BOTH
-    tenant_scope: SEPARATE
-    regulatory_context:
-      - ISO 27001
-      - NIS2
+      - ISO 27001 A.7.2.2
     interfaces_with: []
-    notes: >
-      Change management processes are separate per country.
-      SLA definitions are harmonized but enforcement is local.
+    notes: Shared platform, content localized for DE/AT.
 
 interfaces:
-  - id: iface-triage-to-vuln
-    source_process_id: sp-inc-triage
-    target_process_id: sp-vuln-assess
-    interface_type: trigger
-    description: >
-      High-severity incidents may trigger emergency vulnerability assessment
-      if the incident reveals a previously unknown vulnerability.
-    trigger: Incident classified as severity 1 or 2 with vulnerability indicator
-    exchanged_artifacts:
-      - Incident ticket reference
-      - Affected asset details
-      - Preliminary vulnerability hypothesis
-    notes: null
-
-  - id: iface-vuln-to-incident
-    source_process_id: sp-vuln-assess
+  - id: iface-risk-to-incident
+    source_process_id: sp-risk-assess
     target_process_id: sp-inc-intake
     interface_type: escalation
     description: >
-      Critical vulnerabilities under active exploitation are escalated
-      as security incidents.
-    trigger: CVSS >= 9.0 AND active exploitation confirmed
+      Critical risks with imminent threat indicators are escalated
+      as potential security incidents.
+    trigger: Risk with imminent exploitation likelihood identified
     exchanged_artifacts:
-      - Vulnerability record
-      - Exploitation evidence
-      - Affected asset list
-    notes: This is a cross-stream interface, not a parent-child relationship.
+      - Risk assessment record
+      - Affected asset details
+    notes: Cross-stream interface between IT-Risk and Incident Mgmt.
+
+  - id: iface-incident-to-governance
+    source_process_id: sp-inc-communication
+    target_process_id: is_gc_service
+    interface_type: notification
+    description: >
+      Major incidents trigger compliance notification to the IS
+      Governance and Compliance service.
+    trigger: Incident severity 1 or 2 confirmed
+    exchanged_artifacts:
+      - Incident summary
+      - Regulatory impact assessment
+    notes: null
+
+  - id: iface-audit-to-risk
+    source_process_id: audits_execution_bps
+    target_process_id: sp-risk-assess
+    interface_type: data_flow
+    description: >
+      Audit findings feed into the risk assessment process as
+      additional risk indicators.
+    trigger: Audit completed with findings
+    exchanged_artifacts:
+      - Audit findings report
+      - Non-conformity records
+    notes: null
+
+  - id: iface-policy-to-awareness
+    source_process_id: sp-pol-lifecycle
+    target_process_id: sp-aware-campaign
+    interface_type: trigger
+    description: >
+      New or updated policies trigger awareness campaigns to
+      communicate changes to the organization.
+    trigger: Policy published or major revision approved
+    exchanged_artifacts:
+      - Policy document
+      - Change summary
+    notes: null

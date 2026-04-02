@@ -1,19 +1,43 @@
-from harmonizer.models.process import MainProcess, SubProcess, ProcessInterface
+from harmonizer.models.process import (
+    Area,
+    Stream,
+    StreamType,
+    SubProcess,
+    ProcessInterface,
+    CountryScope,
+    TenantScope,
+    InterfaceType,
+)
 from harmonizer.models.assessment import (
     Assessment,
     AssessmentAnswer,
+    AssessedObjectType,
+    AlignmentDimension,
     HarmonizationClassification,
+    HarmonizationPriority,
     HarmonizationResult,
     HardConstraint,
+    PrioritizationInput,
+    PrioritizationResult,
 )
 
 __all__ = [
-    "MainProcess",
+    "Area",
+    "Stream",
+    "StreamType",
     "SubProcess",
     "ProcessInterface",
+    "CountryScope",
+    "TenantScope",
+    "InterfaceType",
     "Assessment",
     "AssessmentAnswer",
+    "AssessedObjectType",
+    "AlignmentDimension",
     "HarmonizationClassification",
+    "HarmonizationPriority",
     "HarmonizationResult",
     "HardConstraint",
+    "PrioritizationInput",
+    "PrioritizationResult",
 ]

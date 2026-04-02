@@ -1,178 +1,473 @@
-# Harmonization assessments for example processes.
-#
-# Each assessment evaluates one process across six alignment dimensions
-# and may declare hard constraints that cap the harmonization level.
+# Harmonization assessments for streams and subprocesses.
+# Includes prioritization inputs for management view.
 
 assessments:
-  # --- Incident Management (Stream level) ---
-  - assessed_object_type: main_process
-    assessed_object_id: stream-incident
+  # === STREAM-LEVEL ASSESSMENTS ===
+
+  # --- Policies and Processes (governance_function) ---
+  - assessed_object_type: stream
+    assessed_object_id: policies_processes
+    answers:
+      - dimension: regulatory_alignment
+        score: 4
+        rationale: >
+          ISO 27001 and NIS2 apply uniformly. Policy structure requirements
+          are identical across DE/AT.
+      - dimension: operational_alignment
+        score: 3
+        rationale: >
+          Policy authoring is similar. Approval workflows differ due
+          to separate ISMS tenant structures.
+      - dimension: tooling_alignment
+        score: 3
+        rationale: >
+          Document management systems are separate per tenant.
+          Migration to shared system planned.
+      - dimension: governance_alignment
+        score: 4
+        rationale: >
+          Governance framework aligned. Policy hierarchy and naming
+          conventions can be unified.
+      - dimension: maturity
+        score: 4
+        rationale: Both countries have established policy frameworks.
+      - dimension: local_necessity
+        score: 3
+        rationale: >
+          Some policies require local legal references (DSG vs. BDSG).
+    hard_constraints:
+      - tenant_separation_blocks_operation
+    prioritization:
+      harmonization_potential: 4
+      operational_relevance: 3
+      governance_compliance_benefit: 5
+      implementation_effort: 3
+      dependencies: 2
+
+  # --- IT-BCM (process) ---
+  - assessed_object_type: stream
+    assessed_object_id: it_bcm
     answers:
       - dimension: regulatory_alignment
         score: 3
         rationale: >
-          NIS2 applies in both countries, but reporting obligations
-          (BSI vs. national CERT/DSB) differ in detail.
+          ISO 22301 applies uniformly. DORA adds sector-specific
+          requirements. BSI Grundschutz is DE-only.
       - dimension: operational_alignment
         score: 3
         rationale: >
-          Core incident workflow is similar, but escalation paths
-          and on-call structures differ.
+          BIA methodology can be shared. BC plans are local
+          due to different IT landscapes.
       - dimension: tooling_alignment
-        score: 4
-        rationale: >
-          SIEM and ticketing are shared platforms. Minor configuration
-          differences per tenant.
-      - dimension: governance_alignment
         score: 3
-        rationale: >
-          Governance framework is aligned at group level, but local
-          ISMS documentation is separate.
+        rationale: Separate BCM tools in use. Consolidation possible.
+      - dimension: governance_alignment
+        score: 4
+        rationale: BC governance framework is aligned at group level.
       - dimension: maturity
         score: 3
-        rationale: >
-          DE process is more mature (established longer). AT process
-          is catching up but gaps remain.
+        rationale: DE more mature. AT catching up.
       - dimension: local_necessity
         score: 2
         rationale: >
-          Incident communication and regulatory reporting require
-          significant local adaptation.
+          BC plans and recovery procedures are inherently local
+          due to different data centers and infrastructure.
     hard_constraints:
       - tenant_separation_blocks_operation
+    prioritization:
+      harmonization_potential: 3
+      operational_relevance: 4
+      governance_compliance_benefit: 4
+      implementation_effort: 4
+      dependencies: 3
 
-  # --- Incident Intake (subprocess) ---
+  # --- IT-Risk (process) ---
+  - assessed_object_type: stream
+    assessed_object_id: it_risk
+    answers:
+      - dimension: regulatory_alignment
+        score: 4
+        rationale: ISO 27005/31000 apply uniformly.
+      - dimension: operational_alignment
+        score: 4
+        rationale: >
+          Risk methodology and criteria are harmonizable.
+          Risk registers remain per tenant.
+      - dimension: tooling_alignment
+        score: 3
+        rationale: Different risk tools in use. Migration planned.
+      - dimension: governance_alignment
+        score: 4
+        rationale: Risk appetite and criteria set at group level.
+      - dimension: maturity
+        score: 4
+        rationale: Both countries have established risk processes.
+      - dimension: local_necessity
+        score: 3
+        rationale: >
+          Risk registers are per-entity. Aggregated reporting
+          is possible at group level.
+    hard_constraints:
+      - tenant_separation_blocks_operation
+    prioritization:
+      harmonization_potential: 4
+      operational_relevance: 4
+      governance_compliance_benefit: 5
+      implementation_effort: 3
+      dependencies: 2
+
+  # --- Request & Incident Mgmt (process) ---
+  - assessed_object_type: stream
+    assessed_object_id: request_incident_mgmt
+    answers:
+      - dimension: regulatory_alignment
+        score: 3
+        rationale: >
+          NIS2 applies. Reporting obligations differ
+          (BSI vs. national CERT/DSB).
+      - dimension: operational_alignment
+        score: 3
+        rationale: >
+          Core workflow similar. Escalation paths and
+          on-call structures differ.
+      - dimension: tooling_alignment
+        score: 4
+        rationale: Shared SIEM and ticketing. Minor tenant config differences.
+      - dimension: governance_alignment
+        score: 3
+        rationale: Governance aligned. Local ISMS docs separate.
+      - dimension: maturity
+        score: 3
+        rationale: DE more mature. AT catching up.
+      - dimension: local_necessity
+        score: 2
+        rationale: >
+          Incident communication and regulatory reporting
+          require significant local adaptation.
+    hard_constraints:
+      - tenant_separation_blocks_operation
+    prioritization:
+      harmonization_potential: 3
+      operational_relevance: 5
+      governance_compliance_benefit: 4
+      implementation_effort: 3
+      dependencies: 3
+
+  # --- Contract Mgmt (process) ---
+  - assessed_object_type: stream
+    assessed_object_id: contract_mgmt
+    answers:
+      - dimension: regulatory_alignment
+        score: 4
+        rationale: ISO 27001 A.15 applies uniformly. NIS2 supply chain same.
+      - dimension: operational_alignment
+        score: 4
+        rationale: Security requirements in contracts are identical.
+      - dimension: tooling_alignment
+        score: 4
+        rationale: Shared contract review templates and checklists.
+      - dimension: governance_alignment
+        score: 4
+        rationale: Unified vendor security requirements.
+      - dimension: maturity
+        score: 4
+        rationale: Comparable maturity in both countries.
+      - dimension: local_necessity
+        score: 3
+        rationale: Local legal review needed for jurisdiction-specific clauses.
+    hard_constraints: []
+    prioritization:
+      harmonization_potential: 4
+      operational_relevance: 3
+      governance_compliance_benefit: 3
+      implementation_effort: 2
+      dependencies: 2
+
+  # --- Operationalization (capability_domain) ---
+  - assessed_object_type: stream
+    assessed_object_id: operationalization
+    answers:
+      - dimension: regulatory_alignment
+        score: 4
+        rationale: Technical controls are standard-agnostic.
+      - dimension: operational_alignment
+        score: 4
+        rationale: Implementation patterns are reusable.
+      - dimension: tooling_alignment
+        score: 5
+        rationale: Shared security platforms and automation.
+      - dimension: governance_alignment
+        score: 4
+        rationale: Central security architecture guidelines.
+      - dimension: maturity
+        score: 4
+        rationale: Strong technical capability in both countries.
+      - dimension: local_necessity
+        score: 4
+        rationale: Low local necessity. Infrastructure is shared.
+    hard_constraints: []
+    prioritization:
+      harmonization_potential: 5
+      operational_relevance: 4
+      governance_compliance_benefit: 3
+      implementation_effort: 2
+      dependencies: 2
+
+  # --- Corporate Governance (program_domain) ---
+  - assessed_object_type: stream
+    assessed_object_id: corporate_governance
+    answers:
+      - dimension: regulatory_alignment
+        score: 3
+        rationale: >
+          NIS2/DORA apply. Corporate governance codes differ
+          between DE (DCGK) and AT (OECGK).
+      - dimension: operational_alignment
+        score: 3
+        rationale: Board reporting structure similar, not identical.
+      - dimension: tooling_alignment
+        score: 3
+        rationale: Reporting tools shared. Templates differ.
+      - dimension: governance_alignment
+        score: 4
+        rationale: Group-level governance framework in place.
+      - dimension: maturity
+        score: 3
+        rationale: Both established but different focal points.
+      - dimension: local_necessity
+        score: 2
+        rationale: >
+          Legal entity requirements create inherent local necessity.
+    hard_constraints:
+      - legal_local_difference
+    prioritization:
+      harmonization_potential: 2
+      operational_relevance: 3
+      governance_compliance_benefit: 4
+      implementation_effort: 4
+      dependencies: 4
+
+  # --- IS Governance and Compliance (service_domain) ---
+  - assessed_object_type: stream
+    assessed_object_id: is_gc_service
+    answers:
+      - dimension: regulatory_alignment
+        score: 4
+        rationale: Compliance framework and requirements are shared.
+      - dimension: operational_alignment
+        score: 3
+        rationale: >
+          Compliance monitoring similar. Evidence collection
+          differs per ISMS tenant.
+      - dimension: tooling_alignment
+        score: 3
+        rationale: Compliance tools partly shared, partly separate.
+      - dimension: governance_alignment
+        score: 4
+        rationale: Unified compliance policy framework.
+      - dimension: maturity
+        score: 3
+        rationale: DE more established, AT building up.
+      - dimension: local_necessity
+        score: 3
+        rationale: Moderate. Regulatory mapping is partly local.
+    hard_constraints:
+      - tenant_separation_blocks_operation
+    prioritization:
+      harmonization_potential: 3
+      operational_relevance: 4
+      governance_compliance_benefit: 5
+      implementation_effort: 3
+      dependencies: 3
+
+  # --- Backoffice (support_function) ---
+  - assessed_object_type: stream
+    assessed_object_id: backoffice
+    answers:
+      - dimension: regulatory_alignment
+        score: 5
+        rationale: No regulatory differences for admin support.
+      - dimension: operational_alignment
+        score: 5
+        rationale: Admin processes are identical.
+      - dimension: tooling_alignment
+        score: 4
+        rationale: Shared tools. Minor config differences.
+      - dimension: governance_alignment
+        score: 5
+        rationale: No governance differences.
+      - dimension: maturity
+        score: 4
+        rationale: Established in both countries.
+      - dimension: local_necessity
+        score: 4
+        rationale: Very low local necessity.
+    hard_constraints: []
+    prioritization:
+      harmonization_potential: 5
+      operational_relevance: 2
+      governance_compliance_benefit: 1
+      implementation_effort: 1
+      dependencies: 1
+
+  # --- Awareness & Education (process) ---
+  - assessed_object_type: stream
+    assessed_object_id: awareness_education
+    answers:
+      - dimension: regulatory_alignment
+        score: 4
+        rationale: ISO 27001 A.7.2.2 applies uniformly.
+      - dimension: operational_alignment
+        score: 4
+        rationale: >
+          Campaign planning and delivery are identical.
+          Content needs minor localization.
+      - dimension: tooling_alignment
+        score: 5
+        rationale: Shared awareness platform and LMS.
+      - dimension: governance_alignment
+        score: 4
+        rationale: Unified awareness policy.
+      - dimension: maturity
+        score: 4
+        rationale: Both countries run regular campaigns.
+      - dimension: local_necessity
+        score: 4
+        rationale: Low. Only language and minor legal references differ.
+    hard_constraints: []
+    prioritization:
+      harmonization_potential: 5
+      operational_relevance: 3
+      governance_compliance_benefit: 3
+      implementation_effort: 1
+      dependencies: 1
+
+  # --- Technology Projects & AI (capability_domain) ---
+  - assessed_object_type: stream
+    assessed_object_id: technology_projects_ai
+    answers:
+      - dimension: regulatory_alignment
+        score: 4
+        rationale: EU AI Act applies uniformly.
+      - dimension: operational_alignment
+        score: 5
+        rationale: Fully shared project methodology.
+      - dimension: tooling_alignment
+        score: 5
+        rationale: Shared platforms and infrastructure.
+      - dimension: governance_alignment
+        score: 4
+        rationale: Central project governance.
+      - dimension: maturity
+        score: 4
+        rationale: Comparable capability levels.
+      - dimension: local_necessity
+        score: 5
+        rationale: No local necessity.
+    hard_constraints: []
+    prioritization:
+      harmonization_potential: 5
+      operational_relevance: 3
+      governance_compliance_benefit: 2
+      implementation_effort: 1
+      dependencies: 1
+
+  # === SUBPROCESS-LEVEL ASSESSMENTS ===
+
+  # --- Incident Intake ---
   - assessed_object_type: subprocess
     assessed_object_id: sp-inc-intake
     answers:
       - dimension: regulatory_alignment
         score: 4
-        rationale: Intake process itself has few regulatory differences.
+        rationale: Intake itself has few regulatory differences.
       - dimension: operational_alignment
         score: 4
-        rationale: Intake steps are essentially identical across DE/AT.
+        rationale: Intake steps are essentially identical.
       - dimension: tooling_alignment
         score: 4
-        rationale: Same SIEM, same ticketing. Tenant separation is transparent to intake.
+        rationale: Same SIEM and ticketing. Tenant separation transparent.
       - dimension: governance_alignment
         score: 4
         rationale: Intake SOP can be unified.
       - dimension: maturity
         score: 4
-        rationale: Both countries have established intake procedures.
+        rationale: Both countries have established intake.
       - dimension: local_necessity
         score: 4
         rationale: Low local necessity for intake.
     hard_constraints:
       - tenant_separation_blocks_operation
+    prioritization:
+      harmonization_potential: 4
+      operational_relevance: 5
+      governance_compliance_benefit: 3
+      implementation_effort: 2
+      dependencies: 2
 
-  # --- Incident Communication (subprocess, high local necessity) ---
+  # --- Incident Communication (high local necessity) ---
   - assessed_object_type: subprocess
     assessed_object_id: sp-inc-communication
     answers:
       - dimension: regulatory_alignment
         score: 2
         rationale: >
-          DE reports to BSI (BaFin if financial), AT reports to
-          national CERT and DSB. Timelines and formats differ.
+          DE reports to BSI, AT to national CERT/DSB.
+          Timelines and formats differ.
       - dimension: operational_alignment
         score: 2
-        rationale: >
-          Communication templates, recipient lists, and escalation
-          paths are fundamentally different.
+        rationale: Templates, recipients, escalation paths fundamentally different.
       - dimension: tooling_alignment
         score: 3
-        rationale: Same communication platform, but templates and workflows differ.
+        rationale: Same platform, but workflows differ.
       - dimension: governance_alignment
         score: 3
-        rationale: Central policy exists, but local implementation varies.
+        rationale: Central policy exists, local implementation varies.
       - dimension: maturity
         score: 3
-        rationale: Both have established processes, DE slightly ahead.
+        rationale: Both established. DE slightly ahead.
       - dimension: local_necessity
         score: 1
-        rationale: Very high local necessity due to different regulators and laws.
+        rationale: Very high local necessity due to different regulators.
     hard_constraints:
       - legal_local_difference
       - separate_control_ownership
+    prioritization:
+      harmonization_potential: 1
+      operational_relevance: 5
+      governance_compliance_benefit: 3
+      implementation_effort: 4
+      dependencies: 4
 
-  # --- Vulnerability Management (Stream level) ---
-  - assessed_object_type: main_process
-    assessed_object_id: stream-vuln
-    answers:
-      - dimension: regulatory_alignment
-        score: 4
-        rationale: >
-          ISO 27001 A.12.6 applies uniformly. BSI Grundschutz adds
-          DE-specific overlay but does not contradict.
-      - dimension: operational_alignment
-        score: 4
-        rationale: >
-          Scanning and assessment workflows are nearly identical.
-          Only remediation tracking differs slightly.
-      - dimension: tooling_alignment
-        score: 5
-        rationale: Fully shared vulnerability scanning platform and dashboard.
-      - dimension: governance_alignment
-        score: 4
-        rationale: >
-          Unified vulnerability management policy at group level.
-          Local ISMS references differ in numbering only.
-      - dimension: maturity
-        score: 4
-        rationale: Both countries at comparable maturity.
-      - dimension: local_necessity
-        score: 4
-        rationale: Low local necessity except for remediation SLA enforcement.
-    hard_constraints: []
-
-  # --- Vulnerability Scanning (subprocess) ---
+  # --- Policy Lifecycle Management ---
   - assessed_object_type: subprocess
-    assessed_object_id: sp-vuln-scan
-    answers:
-      - dimension: regulatory_alignment
-        score: 5
-        rationale: No regulatory differences for scanning itself.
-      - dimension: operational_alignment
-        score: 5
-        rationale: Identical scan procedures, shared schedules.
-      - dimension: tooling_alignment
-        score: 5
-        rationale: Single shared scanner instance.
-      - dimension: governance_alignment
-        score: 5
-        rationale: Unified scan policy.
-      - dimension: maturity
-        score: 5
-        rationale: Fully mature, automated process.
-      - dimension: local_necessity
-        score: 5
-        rationale: No local necessity.
-    hard_constraints: []
-
-  # --- Vulnerability Remediation Tracking (subprocess, mixed) ---
-  - assessed_object_type: subprocess
-    assessed_object_id: sp-vuln-remediation
+    assessed_object_id: sp-pol-lifecycle
     answers:
       - dimension: regulatory_alignment
         score: 4
-        rationale: SLA requirements are similar under ISO 27001.
+        rationale: Policy requirements are identical under ISO 27001.
       - dimension: operational_alignment
         score: 3
         rationale: >
-          Change management processes are separate. Remediation
-          workflows must go through local change boards.
+          Authoring is similar. Approval workflows differ
+          per ISMS tenant.
       - dimension: tooling_alignment
         score: 3
-        rationale: >
-          Ticketing is shared, but change management systems differ.
+        rationale: Separate document management systems.
       - dimension: governance_alignment
         score: 4
-        rationale: Central SLA policy, local enforcement.
+        rationale: Policy hierarchy can be unified.
       - dimension: maturity
-        score: 3
-        rationale: DE more structured; AT relies more on informal processes.
+        score: 4
+        rationale: Established in both countries.
       - dimension: local_necessity
         score: 3
-        rationale: Moderate local necessity due to change management separation.
-    hard_constraints: []
+        rationale: Some policies need local legal references.
+    hard_constraints:
+      - tenant_separation_blocks_operation
+    prioritization:
+      harmonization_potential: 4
+      operational_relevance: 3
+      governance_compliance_benefit: 5
+      implementation_effort: 2
+      dependencies: 2
