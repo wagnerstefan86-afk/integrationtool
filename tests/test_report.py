@@ -12,6 +12,7 @@ from harmonizer.models.process import (
 )
 from harmonizer.models.assessment import (
     AlignmentDimension,
+    AlternativeOption,
     AssessedObjectType,
     Assessment,
     AssessmentAnswer,
@@ -19,11 +20,18 @@ from harmonizer.models.assessment import (
     ConfidenceLevel,
     Decision,
     DecisionResult,
+    DecisionTrace,
+    DecisionType,
+    DurationCategory,
+    EffortEstimate,
+    GovernanceMapping,
     HarmonizationClassification,
     HarmonizationDegree,
     HarmonizationPriority,
     HarmonizationResult,
+    ImplementationImpact,
     InterfaceComplexityResult,
+    NoActionImpact,
     PrioritizationResult,
     TargetOperatingModel,
     ValueIndicators,
@@ -285,6 +293,157 @@ class TestGenerateReport:
         report = generate_report(areas, streams, sps, ifaces, [assessment])
         assert "Business Value: Low" in report
         assert "Operational Impact: Medium" in report
+
+    def test_report_shows_alternatives(self) -> None:
+        areas, streams, sps, ifaces = _minimal_data()
+        dr = DecisionResult(
+            decision=Decision.CENTRALIZE_NOW,
+            decision_rationale="Proceed.",
+            blocking_factors=[], prerequisites=[],
+            expected_benefit="High", implementation_risk="Low",
+            target_operating_model=TargetOperatingModel.CENTRALIZED_EXECUTION,
+            interface_complexity=InterfaceComplexityResult(
+                complexity_score=0.1, interface_count=1, distinct_types=1,
+                distinct_artifacts=1, cross_area_connections=0, rationale="R",
+            ),
+            harmonization_degree=HarmonizationDegree(
+                harmonizable=True, harmonization_degree=0.9,
+                standardizable=True, standardization_degree=0.85,
+                centralizable=True, centralization_degree=0.8,
+                rationale="R",
+            ),
+            value_indicators=ValueIndicators(
+                expected_business_value=ValueLevel.HIGH,
+                regulatory_pressure=ValueLevel.MEDIUM,
+                operational_impact=ValueLevel.HIGH,
+                rationale="R",
+            ),
+            alternative_options=[
+                AlternativeOption(
+                    label="Centralize Now", description="Full centralization.",
+                    is_recommended=True, pros=["Efficiency"], cons=["Effort"], risks=["Resistance"],
+                ),
+                AlternativeOption(
+                    label="Phased", description="Phased approach.",
+                    pros=["Lower risk"], cons=["Slower"],
+                ),
+            ],
+            no_action_impact=NoActionImpact(
+                regulatory_risk=ValueLevel.HIGH,
+                operational_risk=ValueLevel.MEDIUM,
+                inefficiency_cost=ValueLevel.HIGH,
+                audit_exposure=ValueLevel.LOW,
+                rationale="Compliance gaps remain.",
+            ),
+            implementation_impact=ImplementationImpact(
+                implementation_complexity=ValueLevel.HIGH,
+                process_changes=["Merge processes"],
+                role_changes=["Central owner"],
+                tool_changes=["Consolidate tools"],
+                governance_changes=["Central board"],
+                affected_roles=["Owner", "CISO"],
+                change_magnitude=ValueLevel.HIGH,
+            ),
+            effort_estimate=EffortEstimate(
+                person_months_bucket="6-12",
+                implementation_duration=DurationCategory.MEDIUM,
+                cost_category=ValueLevel.HIGH,
+                rationale="Standard centralization.",
+            ),
+            governance=GovernanceMapping(
+                decision_owner="CISO / Head of InfoSec",
+                involved_stakeholders=["Owner", "CISO", "Director DE"],
+                required_approvals=["CISO Approval"],
+                decision_type=DecisionType.STRATEGIC,
+            ),
+            decision_trace=DecisionTrace(
+                input_factors=["harmonization_score=0.90"],
+                rules_triggered=["Rule 3: centralize_now"],
+                constraints_applied=[],
+                confidence_basis="Completeness 80/100 → high confidence.",
+            ),
+        )
+        assessment = Assessment(
+            assessed_object_type=AssessedObjectType.STREAM,
+            assessed_object_id="stream-test",
+            result=HarmonizationResult(
+                harmonization_score=0.9,
+                classification=HarmonizationClassification.FULLY_CENTRALIZABLE,
+                rationale="R", recommendation="Rec",
+            ),
+            decision_result=dr,
+        )
+        report = generate_report(areas, streams, sps, ifaces, [assessment])
+        # Alternative options
+        assert "Decision Alternatives" in report
+        assert "*(recommended)*" in report
+        assert "Phased" in report
+        # No-action impact
+        assert "If We Do Nothing" in report
+        assert "Regulatory Risk" in report
+        # Implementation impact
+        assert "Implementation Complexity" in report
+        assert "Change Magnitude" in report
+        assert "Required Changes" in report
+        assert "Affected Roles" in report
+        # Effort estimate
+        assert "Effort Estimate" in report
+        assert "6-12 PM" in report
+        # Governance
+        assert "Decision Owner" in report
+        assert "CISO" in report
+        assert "strategic" in report
+        # Audit trace summary
+        assert "Audit Trace Summary" in report
+        assert "Rule 3" in report
+        # Governance & Ownership global section
+        assert "Governance & Ownership" in report
+
+    def test_report_no_action_summary(self) -> None:
+        areas, streams, sps, ifaces = _minimal_data()
+        dr = DecisionResult(
+            decision=Decision.STANDARDIZE_ONLY,
+            decision_rationale="Std only.",
+            blocking_factors=[], prerequisites=[],
+            expected_benefit="Mod", implementation_risk="Low",
+            target_operating_model=TargetOperatingModel.FEDERATED_STANDARDIZED,
+            interface_complexity=InterfaceComplexityResult(
+                complexity_score=0.2, interface_count=2, distinct_types=1,
+                distinct_artifacts=3, cross_area_connections=0, rationale="R",
+            ),
+            harmonization_degree=HarmonizationDegree(
+                harmonizable=True, harmonization_degree=0.6,
+                standardizable=True, standardization_degree=0.55,
+                centralizable=False, centralization_degree=0.2,
+                rationale="R",
+            ),
+            value_indicators=ValueIndicators(
+                expected_business_value=ValueLevel.MEDIUM,
+                regulatory_pressure=ValueLevel.HIGH,
+                operational_impact=ValueLevel.MEDIUM,
+                rationale="R",
+            ),
+            no_action_impact=NoActionImpact(
+                regulatory_risk=ValueLevel.HIGH,
+                operational_risk=ValueLevel.MEDIUM,
+                inefficiency_cost=ValueLevel.MEDIUM,
+                audit_exposure=ValueLevel.HIGH,
+                rationale="Audit findings likely.",
+            ),
+        )
+        assessment = Assessment(
+            assessed_object_type=AssessedObjectType.STREAM,
+            assessed_object_id="stream-test",
+            result=HarmonizationResult(
+                harmonization_score=0.55,
+                classification=HarmonizationClassification.PARTIALLY_HARMONIZABLE,
+                rationale="R", recommendation="Rec",
+            ),
+            decision_result=dr,
+        )
+        report = generate_report(areas, streams, sps, ifaces, [assessment])
+        assert "Inaction Risk Summary" in report
+        assert "Streams with high inaction risk" in report
 
     def test_management_view_shows_confidence(self) -> None:
         areas, streams, sps, ifaces = _minimal_data()

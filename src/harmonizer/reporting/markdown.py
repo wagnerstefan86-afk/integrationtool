@@ -381,6 +381,84 @@ def generate_report(
                     s.append(f"**Expected Benefit:** {dr.expected_benefit}")
                     s.append(f"**Implementation Risk:** {dr.implementation_risk}")
                     s.append("")
+
+                    # Alternative Options
+                    if dr.alternative_options:
+                        s.append("**Decision Alternatives:**")
+                        s.append("")
+                        for opt in dr.alternative_options:
+                            rec = " *(recommended)*" if opt.is_recommended else ""
+                            s.append(f"- **{opt.label}**{rec}: {opt.description}")
+                            if opt.pros:
+                                s.append(f"  - Pros: {'; '.join(opt.pros)}")
+                            if opt.cons:
+                                s.append(f"  - Cons: {'; '.join(opt.cons)}")
+                            if opt.risks:
+                                s.append(f"  - Risks: {'; '.join(opt.risks)}")
+                        s.append("")
+
+                    # No-Action Impact
+                    if dr.no_action_impact:
+                        nai = dr.no_action_impact
+                        s.append("**If We Do Nothing:**")
+                        s.append("")
+                        s.append("| Risk Category | Level |")
+                        s.append("|---|---|")
+                        s.append(f"| Regulatory Risk | {_VALUE_LABELS[nai.regulatory_risk]} |")
+                        s.append(f"| Operational Risk | {_VALUE_LABELS[nai.operational_risk]} |")
+                        s.append(f"| Inefficiency Cost | {_VALUE_LABELS[nai.inefficiency_cost]} |")
+                        s.append(f"| Audit Exposure | {_VALUE_LABELS[nai.audit_exposure]} |")
+                        s.append("")
+                        s.append(f"  {nai.rationale}")
+                        s.append("")
+
+                    # Implementation Impact
+                    if dr.implementation_impact:
+                        imp = dr.implementation_impact
+                        s.append(f"**Implementation Complexity:** {_VALUE_LABELS[imp.implementation_complexity]}")
+                        s.append(f"**Change Magnitude:** {_VALUE_LABELS[imp.change_magnitude]}")
+                        s.append("")
+                        changes = []
+                        if imp.process_changes:
+                            changes.append(("Processes", imp.process_changes))
+                        if imp.role_changes:
+                            changes.append(("Roles", imp.role_changes))
+                        if imp.tool_changes:
+                            changes.append(("Tools", imp.tool_changes))
+                        if imp.governance_changes:
+                            changes.append(("Governance", imp.governance_changes))
+                        if changes:
+                            s.append("**Required Changes:**")
+                            s.append("")
+                            for category, items in changes:
+                                s.append(f"- **{category}:** {'; '.join(items)}")
+                            s.append("")
+                        if imp.affected_roles:
+                            s.append(f"**Affected Roles:** {', '.join(imp.affected_roles)}")
+                            s.append("")
+
+                    # Effort Estimate
+                    if dr.effort_estimate:
+                        eff = dr.effort_estimate
+                        s.append(
+                            f"**Effort Estimate:** ~{eff.person_months_bucket} PM | "
+                            f"Duration: {eff.implementation_duration.value} | "
+                            f"Cost: {_VALUE_LABELS[eff.cost_category]}"
+                        )
+                        s.append(f"  {eff.rationale}")
+                        s.append("")
+
+                    # Governance
+                    if dr.governance:
+                        gov = dr.governance
+                        s.append(f"**Decision Owner:** {gov.decision_owner}")
+                        s.append(f"**Decision Type:** {gov.decision_type.value}")
+                        if gov.involved_stakeholders:
+                            s.append(f"**Stakeholders:** {', '.join(gov.involved_stakeholders)}")
+                        if gov.required_approvals:
+                            s.append(f"**Required Approvals:** {', '.join(gov.required_approvals)}")
+                        s.append("")
+
             else:
                 s.append("**Assessment: Not yet assessed**")
                 s.append("")
@@ -565,6 +643,84 @@ def generate_report(
                 s.append(f"- {reason}")
             s.append("")
 
+    # --- If We Do Nothing (Global Summary) ---
+    with_no_action = [
+        a for a in decided
+        if a.decision_result.no_action_impact is not None
+    ] if decided else []
+    if with_no_action:
+        s.append("## If We Do Nothing — Inaction Risk Summary")
+        s.append("")
+        s.append("| Stream | Regulatory Risk | Operational Risk | Inefficiency Cost | Audit Exposure |")
+        s.append("|---|---|---|---|---|")
+        for a in with_no_action:
+            name = _resolve_name(a.assessed_object_id, stream_index, sp_index)
+            nai = a.decision_result.no_action_impact
+            s.append(
+                f"| {name} "
+                f"| {_VALUE_LABELS[nai.regulatory_risk]} "
+                f"| {_VALUE_LABELS[nai.operational_risk]} "
+                f"| {_VALUE_LABELS[nai.inefficiency_cost]} "
+                f"| {_VALUE_LABELS[nai.audit_exposure]} |"
+            )
+        s.append("")
+        # Highlight high-risk streams
+        high_risk = [
+            a for a in with_no_action
+            if a.decision_result.no_action_impact.regulatory_risk == ValueLevel.HIGH
+            or a.decision_result.no_action_impact.audit_exposure == ValueLevel.HIGH
+        ]
+        if high_risk:
+            s.append("**Streams with high inaction risk:**")
+            for a in high_risk:
+                name = _resolve_name(a.assessed_object_id, stream_index, sp_index)
+                s.append(f"- {name}: {a.decision_result.no_action_impact.rationale}")
+            s.append("")
+
+    # --- Governance & Ownership ---
+    with_governance = [
+        a for a in decided
+        if a.decision_result.governance is not None
+    ] if decided else []
+    if with_governance:
+        s.append("## Governance & Ownership")
+        s.append("")
+        s.append("| Stream | Decision Type | Decision Owner | Required Approvals |")
+        s.append("|---|---|---|---|")
+        for a in with_governance:
+            name = _resolve_name(a.assessed_object_id, stream_index, sp_index)
+            gov = a.decision_result.governance
+            approvals = ", ".join(gov.required_approvals) if gov.required_approvals else "None"
+            s.append(
+                f"| {name} | {gov.decision_type.value} "
+                f"| {gov.decision_owner} "
+                f"| {approvals} |"
+            )
+        s.append("")
+
+    # --- Audit Trace Summary ---
+    with_trace = [
+        a for a in decided
+        if a.decision_result.decision_trace is not None
+    ] if decided else []
+    if with_trace:
+        s.append("## Audit Trace Summary")
+        s.append("")
+        s.append("Each decision is fully traceable. Key rule triggers per stream:")
+        s.append("")
+        for a in with_trace:
+            name = _resolve_name(a.assessed_object_id, stream_index, sp_index)
+            trace = a.decision_result.decision_trace
+            dec_label = _DECISION_LABELS.get(a.decision_result.decision, a.decision_result.decision.value)
+            s.append(f"**{name}** → {dec_label}")
+            if trace.rules_triggered:
+                for rule in trace.rules_triggered:
+                    s.append(f"- {rule}")
+            if trace.constraints_applied:
+                s.append(f"- Constraints: {', '.join(trace.constraints_applied)}")
+            s.append(f"- {trace.confidence_basis}")
+            s.append("")
+
     # --- Assessment Gaps ---
     s.append("## Assessment Gaps / Required Next Inputs")
     s.append("")
@@ -611,6 +767,6 @@ def generate_report(
 
     # --- Footer ---
     s.append("---")
-    s.append("*Report generated by harmonizer v0.4.0*")
+    s.append("*Report generated by harmonizer v0.5.0*")
 
     return "\n".join(s)

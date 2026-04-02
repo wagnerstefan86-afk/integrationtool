@@ -22,7 +22,7 @@ from harmonizer.reporting.markdown import generate_report
 
 
 @click.group()
-@click.version_option(version="0.4.0")
+@click.version_option(version="0.5.0")
 def main() -> None:
     """InfoSec Process Harmonization Analysis Tool."""
 

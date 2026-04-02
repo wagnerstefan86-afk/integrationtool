@@ -6,6 +6,12 @@ Covers:
 - Target operating model derivation
 - Value indicators
 - Full decision logic including edge cases
+- Alternative options (decision context)
+- No-action impact
+- Implementation impact
+- Effort estimates
+- Governance mapping
+- Decision trace (audit trail)
 """
 
 import pytest
@@ -28,6 +34,8 @@ from harmonizer.models.assessment import (
     CompletenessResult,
     ConfidenceLevel,
     Decision,
+    DecisionType,
+    DurationCategory,
     HardConstraint,
     HarmonizationClassification,
     HarmonizationDegree,
@@ -37,11 +45,18 @@ from harmonizer.models.assessment import (
     PrioritizationInput,
     PrioritizationResult,
     TargetOperatingModel,
+    ValueIndicators,
     ValueLevel,
 )
 from harmonizer.scoring.decision_engine import (
+    build_alternative_options,
     compute_interface_complexity,
     compute_harmonization_degree,
+    compute_no_action_impact,
+    compute_implementation_impact,
+    compute_effort_estimate,
+    compute_governance_mapping,
+    build_decision_trace,
     derive_target_operating_model,
     compute_value_indicators,
     compute_decision,
@@ -645,3 +660,342 @@ class TestEdgeCases:
         )
         dr = compute_decision(a, stream, [], [], [stream])
         assert dr.decision in (Decision.STANDARDIZE_ONLY, Decision.HARMONIZE_ONLY, Decision.KEEP_LOCAL)
+
+
+# --- Alternative Options Tests ---
+
+class TestAlternativeOptions:
+
+    def test_centralize_now_has_three_options(self) -> None:
+        hsc = HarmonizationDegree(
+            harmonizable=True, harmonization_degree=0.9,
+            standardizable=True, standardization_degree=0.9,
+            centralizable=True, centralization_degree=0.9,
+            rationale="R",
+        )
+        ic = InterfaceComplexityResult(
+            complexity_score=0.1, interface_count=1, distinct_types=1,
+            distinct_artifacts=1, cross_area_connections=0, rationale="R",
+        )
+        opts = build_alternative_options(Decision.CENTRALIZE_NOW, hsc, ic)
+        assert len(opts) == 3
+        assert opts[0].is_recommended is True
+        assert opts[0].label == "Centralize Now"
+
+    def test_keep_local_has_two_options(self) -> None:
+        hsc = HarmonizationDegree(
+            harmonizable=False, harmonization_degree=0.1,
+            standardizable=False, standardization_degree=0.1,
+            centralizable=False, centralization_degree=0.0,
+            rationale="R",
+        )
+        ic = InterfaceComplexityResult(
+            complexity_score=0.0, interface_count=0, distinct_types=0,
+            distinct_artifacts=0, cross_area_connections=0, rationale="R",
+        )
+        opts = build_alternative_options(Decision.KEEP_LOCAL, hsc, ic)
+        assert len(opts) == 2
+        assert opts[0].is_recommended is True
+
+    def test_all_decisions_have_options(self) -> None:
+        hsc = HarmonizationDegree(
+            harmonizable=True, harmonization_degree=0.5,
+            standardizable=True, standardization_degree=0.5,
+            centralizable=False, centralization_degree=0.3,
+            rationale="R",
+        )
+        ic = InterfaceComplexityResult(
+            complexity_score=0.2, interface_count=2, distinct_types=1,
+            distinct_artifacts=2, cross_area_connections=0, rationale="R",
+        )
+        for dec in Decision:
+            opts = build_alternative_options(dec, hsc, ic)
+            assert len(opts) >= 2, f"Decision {dec.value} should have at least 2 options"
+            recommended = [o for o in opts if o.is_recommended]
+            assert len(recommended) == 1, f"Decision {dec.value} should have exactly 1 recommended option"
+
+    def test_options_have_pros_and_cons(self) -> None:
+        hsc = HarmonizationDegree(
+            harmonizable=True, harmonization_degree=0.6,
+            standardizable=True, standardization_degree=0.6,
+            centralizable=False, centralization_degree=0.3,
+            rationale="R",
+        )
+        ic = InterfaceComplexityResult(
+            complexity_score=0.2, interface_count=2, distinct_types=1,
+            distinct_artifacts=2, cross_area_connections=0, rationale="R",
+        )
+        opts = build_alternative_options(Decision.STANDARDIZE_ONLY, hsc, ic)
+        for opt in opts:
+            assert len(opt.pros) > 0, f"Option '{opt.label}' should have pros"
+
+    def test_full_decision_includes_alternatives(self) -> None:
+        stream = _make_stream()
+        a = _make_assessment(
+            score=5, harm_score=0.90,
+            classification=HarmonizationClassification.FULLY_CENTRALIZABLE,
+        )
+        dr = compute_decision(a, stream, [], [], [stream])
+        assert len(dr.alternative_options) >= 2
+
+
+# --- No-Action Impact Tests ---
+
+class TestNoActionImpact:
+
+    def test_high_regulatory_context_with_harmonizable(self) -> None:
+        vi = ValueIndicators(
+            expected_business_value=ValueLevel.HIGH,
+            regulatory_pressure=ValueLevel.HIGH,
+            operational_impact=ValueLevel.HIGH,
+            rationale="R",
+        )
+        hsc = HarmonizationDegree(
+            harmonizable=True, harmonization_degree=0.8,
+            standardizable=True, standardization_degree=0.7,
+            centralizable=True, centralization_degree=0.6,
+            rationale="R",
+        )
+        ic = InterfaceComplexityResult(
+            complexity_score=0.5, interface_count=5, distinct_types=3,
+            distinct_artifacts=10, cross_area_connections=2, rationale="R",
+        )
+        nai = compute_no_action_impact(vi, hsc, ic, [], True)
+        assert nai.regulatory_risk == ValueLevel.HIGH
+        assert nai.inefficiency_cost == ValueLevel.HIGH
+
+    def test_no_regulatory_context_low_risk(self) -> None:
+        vi = ValueIndicators(
+            expected_business_value=ValueLevel.LOW,
+            regulatory_pressure=ValueLevel.LOW,
+            operational_impact=ValueLevel.LOW,
+            rationale="R",
+        )
+        hsc = HarmonizationDegree(
+            harmonizable=False, harmonization_degree=0.1,
+            standardizable=False, standardization_degree=0.1,
+            centralizable=False, centralization_degree=0.0,
+            rationale="R",
+        )
+        ic = InterfaceComplexityResult(
+            complexity_score=0.0, interface_count=0, distinct_types=0,
+            distinct_artifacts=0, cross_area_connections=0, rationale="R",
+        )
+        nai = compute_no_action_impact(vi, hsc, ic, [], False)
+        assert nai.regulatory_risk == ValueLevel.LOW
+        assert nai.inefficiency_cost == ValueLevel.LOW
+
+    def test_documentation_constraint_raises_audit_exposure(self) -> None:
+        vi = ValueIndicators(
+            expected_business_value=ValueLevel.MEDIUM,
+            regulatory_pressure=ValueLevel.MEDIUM,
+            operational_impact=ValueLevel.MEDIUM,
+            rationale="R",
+        )
+        hsc = HarmonizationDegree(
+            harmonizable=True, harmonization_degree=0.5,
+            standardizable=True, standardization_degree=0.5,
+            centralizable=False, centralization_degree=0.2,
+            rationale="R",
+        )
+        ic = InterfaceComplexityResult(
+            complexity_score=0.2, interface_count=2, distinct_types=1,
+            distinct_artifacts=2, cross_area_connections=0, rationale="R",
+        )
+        nai = compute_no_action_impact(
+            vi, hsc, ic, [HardConstraint.INSUFFICIENT_DOCUMENTATION], False,
+        )
+        assert nai.audit_exposure == ValueLevel.HIGH
+
+    def test_full_decision_includes_no_action(self) -> None:
+        stream = _make_stream()
+        a = _make_assessment()
+        dr = compute_decision(a, stream, [], [], [stream])
+        assert dr.no_action_impact is not None
+        assert dr.no_action_impact.regulatory_risk in ValueLevel
+
+
+# --- Implementation Impact Tests ---
+
+class TestImplementationImpact:
+
+    def test_centralize_has_all_change_types(self) -> None:
+        stream = _make_stream()
+        ic = InterfaceComplexityResult(
+            complexity_score=0.3, interface_count=3, distinct_types=2,
+            distinct_artifacts=5, cross_area_connections=1, rationale="R",
+        )
+        hsc = HarmonizationDegree(
+            harmonizable=True, harmonization_degree=0.9,
+            standardizable=True, standardization_degree=0.9,
+            centralizable=True, centralization_degree=0.9,
+            rationale="R",
+        )
+        imp = compute_implementation_impact(Decision.CENTRALIZE_NOW, stream, ic, hsc)
+        assert imp.change_magnitude == ValueLevel.HIGH
+        assert len(imp.process_changes) > 0
+        assert len(imp.role_changes) > 0
+        assert len(imp.tool_changes) > 0
+        assert len(imp.governance_changes) > 0
+        assert "CISO" in imp.affected_roles
+
+    def test_keep_local_minimal_impact(self) -> None:
+        stream = _make_stream()
+        ic = InterfaceComplexityResult(
+            complexity_score=0.0, interface_count=0, distinct_types=0,
+            distinct_artifacts=0, cross_area_connections=0, rationale="R",
+        )
+        hsc = HarmonizationDegree(
+            harmonizable=False, harmonization_degree=0.1,
+            standardizable=False, standardization_degree=0.1,
+            centralizable=False, centralization_degree=0.0,
+            rationale="R",
+        )
+        imp = compute_implementation_impact(Decision.KEEP_LOCAL, stream, ic, hsc)
+        assert imp.change_magnitude == ValueLevel.LOW
+        assert imp.implementation_complexity == ValueLevel.LOW
+
+    def test_cross_area_adds_interface_harmonization(self) -> None:
+        stream = _make_stream()
+        ic = InterfaceComplexityResult(
+            complexity_score=0.4, interface_count=4, distinct_types=2,
+            distinct_artifacts=6, cross_area_connections=2, rationale="R",
+        )
+        hsc = HarmonizationDegree(
+            harmonizable=True, harmonization_degree=0.6,
+            standardizable=True, standardization_degree=0.6,
+            centralizable=False, centralization_degree=0.3,
+            rationale="R",
+        )
+        imp = compute_implementation_impact(Decision.STANDARDIZE_ONLY, stream, ic, hsc)
+        assert any("cross-area" in c for c in imp.process_changes)
+
+
+# --- Effort Estimate Tests ---
+
+class TestEffortEstimate:
+
+    def test_centralize_now_medium_to_high(self) -> None:
+        ic = InterfaceComplexityResult(
+            complexity_score=0.2, interface_count=2, distinct_types=1,
+            distinct_artifacts=3, cross_area_connections=0, rationale="R",
+        )
+        eff = compute_effort_estimate(Decision.CENTRALIZE_NOW, ic, StreamType.PROCESS)
+        assert eff.cost_category == ValueLevel.HIGH
+        assert eff.person_months_bucket in ("6-12", "12+")
+
+    def test_keep_local_minimal(self) -> None:
+        ic = InterfaceComplexityResult(
+            complexity_score=0.0, interface_count=0, distinct_types=0,
+            distinct_artifacts=0, cross_area_connections=0, rationale="R",
+        )
+        eff = compute_effort_estimate(Decision.KEEP_LOCAL, ic, StreamType.PROCESS)
+        assert eff.cost_category == ValueLevel.LOW
+        assert eff.implementation_duration == DurationCategory.SHORT
+
+    def test_high_complexity_bumps_effort(self) -> None:
+        ic_low = InterfaceComplexityResult(
+            complexity_score=0.2, interface_count=2, distinct_types=1,
+            distinct_artifacts=3, cross_area_connections=0, rationale="R",
+        )
+        ic_high = InterfaceComplexityResult(
+            complexity_score=0.7, interface_count=7, distinct_types=4,
+            distinct_artifacts=15, cross_area_connections=3, rationale="R",
+        )
+        eff_low = compute_effort_estimate(Decision.STANDARDIZE_ONLY, ic_low, StreamType.PROCESS)
+        eff_high = compute_effort_estimate(Decision.STANDARDIZE_ONLY, ic_high, StreamType.PROCESS)
+        # High complexity should bump the cost category
+        cost_order = {"low": 0, "medium": 1, "high": 2}
+        assert cost_order[eff_high.cost_category.value] >= cost_order[eff_low.cost_category.value]
+
+
+# --- Governance Mapping Tests ---
+
+class TestGovernanceMapping:
+
+    def test_strategic_decision_has_ciso(self) -> None:
+        stream = _make_stream()
+        gov = compute_governance_mapping(Decision.CENTRALIZE_NOW, stream)
+        assert gov.decision_type == DecisionType.STRATEGIC
+        assert "CISO" in gov.decision_owner
+        assert len(gov.required_approvals) > 0
+
+    def test_tactical_decision_domain_lead(self) -> None:
+        stream = _make_stream()
+        gov = compute_governance_mapping(Decision.STANDARDIZE_ONLY, stream)
+        assert gov.decision_type == DecisionType.TACTICAL
+        assert "Domain Lead" in gov.decision_owner
+
+    def test_operational_decision_stream_owner(self) -> None:
+        stream = _make_stream()
+        gov = compute_governance_mapping(Decision.KEEP_LOCAL, stream)
+        assert gov.decision_type == DecisionType.OPERATIONAL
+        assert gov.decision_owner == stream.owner_role
+        assert len(gov.required_approvals) == 0
+
+    def test_full_decision_includes_governance(self) -> None:
+        stream = _make_stream()
+        a = _make_assessment()
+        dr = compute_decision(a, stream, [], [], [stream])
+        assert dr.governance is not None
+        assert dr.governance.decision_type in DecisionType
+
+
+# --- Decision Trace (Audit Trail) Tests ---
+
+class TestDecisionTrace:
+
+    def test_trace_records_input_factors(self) -> None:
+        stream = _make_stream()
+        a = _make_assessment(score=4)
+        dr = compute_decision(a, stream, [], [], [stream])
+        assert dr.decision_trace is not None
+        # Should record harmonization_score
+        assert any("harmonization_score=" in f for f in dr.decision_trace.input_factors)
+        # Should record dimension scores
+        assert any("regulatory_alignment=" in f for f in dr.decision_trace.input_factors)
+
+    def test_trace_records_rule(self) -> None:
+        stream = _make_stream()
+        a = _make_assessment(
+            score=5, harm_score=0.90,
+            classification=HarmonizationClassification.FULLY_CENTRALIZABLE,
+        )
+        dr = compute_decision(a, stream, [], [], [stream])
+        assert dr.decision_trace is not None
+        assert len(dr.decision_trace.rules_triggered) >= 1
+        assert any("Rule" in r for r in dr.decision_trace.rules_triggered)
+
+    def test_trace_records_constraints(self) -> None:
+        stream = _make_stream()
+        a = _make_assessment(
+            constraints=[HardConstraint.LEGAL_LOCAL_DIFFERENCE],
+        )
+        dr = compute_decision(a, stream, [], [], [stream])
+        assert "legal_local_difference" in dr.decision_trace.constraints_applied
+
+    def test_trace_records_confidence_basis(self) -> None:
+        stream = _make_stream()
+        a = _make_assessment()
+        dr = compute_decision(a, stream, [], [], [stream])
+        assert "Completeness" in dr.decision_trace.confidence_basis
+
+    def test_low_confidence_trace_shows_reassess_rule(self) -> None:
+        stream = _make_stream()
+        a = _make_assessment(confidence=ConfidenceLevel.LOW, completeness_score=30)
+        dr = compute_decision(a, stream, [], [], [stream])
+        assert any("Rule 1" in r for r in dr.decision_trace.rules_triggered)
+
+    def test_trace_is_complete(self) -> None:
+        """Full audit trail has all four sections populated."""
+        stream = _make_stream()
+        a = _make_assessment(
+            score=4,
+            constraints=[HardConstraint.SEPARATE_CONTROL_OWNERSHIP],
+        )
+        dr = compute_decision(a, stream, [], [], [stream])
+        trace = dr.decision_trace
+        assert len(trace.input_factors) >= 6  # at least dimension scores + key metrics
+        assert len(trace.rules_triggered) >= 1
+        assert len(trace.constraints_applied) >= 1
+        assert len(trace.confidence_basis) > 0

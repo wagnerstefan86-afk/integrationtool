@@ -178,6 +178,90 @@ class ValueIndicators(BaseModel):
     rationale: str
 
 
+class DecisionType(str, Enum):
+    """Classification of a decision by organizational scope."""
+    STRATEGIC = "strategic"
+    TACTICAL = "tactical"
+    OPERATIONAL = "operational"
+
+
+class DurationCategory(str, Enum):
+    """Rough implementation duration buckets."""
+    SHORT = "short"     # < 3 months
+    MEDIUM = "medium"   # 3-9 months
+    LONG = "long"       # > 9 months
+
+
+class AlternativeOption(BaseModel):
+    """One option within a decision context.
+
+    Each decision presents 2-3 alternatives so that management
+    can evaluate trade-offs rather than receiving a single verdict.
+    """
+    label: str
+    description: str
+    is_recommended: bool = False
+    pros: list[str] = Field(default_factory=list)
+    cons: list[str] = Field(default_factory=list)
+    risks: list[str] = Field(default_factory=list)
+
+
+class NoActionImpact(BaseModel):
+    """Consequences of NOT implementing the recommended decision.
+
+    Makes explicit what happens if the organization does nothing.
+    Each factor is rated low/medium/high.
+    """
+    regulatory_risk: ValueLevel
+    operational_risk: ValueLevel
+    inefficiency_cost: ValueLevel
+    audit_exposure: ValueLevel
+    rationale: str
+
+
+class ImplementationImpact(BaseModel):
+    """Impact assessment for implementing the recommended decision."""
+    implementation_complexity: ValueLevel
+    process_changes: list[str] = Field(default_factory=list)
+    role_changes: list[str] = Field(default_factory=list)
+    tool_changes: list[str] = Field(default_factory=list)
+    governance_changes: list[str] = Field(default_factory=list)
+    affected_roles: list[str] = Field(default_factory=list)
+    change_magnitude: ValueLevel
+
+
+class EffortEstimate(BaseModel):
+    """Rough effort estimate — no false precision, only buckets.
+
+    person_months_bucket: rough order of magnitude (e.g. "1-3", "3-6", "6-12", "12+")
+    """
+    person_months_bucket: str
+    implementation_duration: DurationCategory
+    cost_category: ValueLevel
+    rationale: str
+
+
+class GovernanceMapping(BaseModel):
+    """Maps a decision to organizational governance structures."""
+    decision_owner: str
+    involved_stakeholders: list[str] = Field(default_factory=list)
+    required_approvals: list[str] = Field(default_factory=list)
+    decision_type: DecisionType
+
+
+class DecisionTrace(BaseModel):
+    """Full audit trail for a decision — makes the reasoning reproducible.
+
+    Every decision must be fully traceable: which inputs were used,
+    which rules fired, which constraints applied, and what the
+    confidence basis was.
+    """
+    input_factors: list[str] = Field(default_factory=list)
+    rules_triggered: list[str] = Field(default_factory=list)
+    constraints_applied: list[str] = Field(default_factory=list)
+    confidence_basis: str
+
+
 class DecisionResult(BaseModel):
     """Complete decision output from the decision engine."""
     decision: Decision
@@ -190,6 +274,13 @@ class DecisionResult(BaseModel):
     interface_complexity: InterfaceComplexityResult
     harmonization_degree: HarmonizationDegree
     value_indicators: ValueIndicators
+    # Phase 5: Decision context, impact, governance, audit
+    alternative_options: list[AlternativeOption] = Field(default_factory=list)
+    no_action_impact: Optional[NoActionImpact] = None
+    implementation_impact: Optional[ImplementationImpact] = None
+    effort_estimate: Optional[EffortEstimate] = None
+    governance: Optional[GovernanceMapping] = None
+    decision_trace: Optional[DecisionTrace] = None
 
 
 class Assessment(BaseModel):
