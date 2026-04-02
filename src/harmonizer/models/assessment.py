@@ -120,6 +120,78 @@ class HarmonizationResult(BaseModel):
     recommendation: str
 
 
+class Decision(str, Enum):
+    """Concrete management decision derived from assessment data."""
+    CENTRALIZE_NOW = "centralize_now"
+    CENTRALIZE_LATER = "centralize_later"
+    HARMONIZE_ONLY = "harmonize_only"
+    STANDARDIZE_ONLY = "standardize_only"
+    KEEP_LOCAL = "keep_local"
+    REASSESS_AFTER_DATA_COMPLETION = "reassess_after_data_completion"
+
+
+class TargetOperatingModel(str, Enum):
+    """Target operating model for a stream after harmonization."""
+    CENTRALIZED_EXECUTION = "centralized_execution"
+    CENTRAL_METHOD_LOCAL_EXECUTION = "central_method_local_execution"
+    FEDERATED_STANDARDIZED = "federated_standardized"
+    LOCAL_INDEPENDENT = "local_independent"
+
+
+class ValueLevel(str, Enum):
+    """Three-tier value/impact indicator."""
+    LOW = "low"
+    MEDIUM = "medium"
+    HIGH = "high"
+
+
+class InterfaceComplexityResult(BaseModel):
+    """Computed interface complexity for a stream."""
+    complexity_score: float = Field(ge=0.0, le=1.0)
+    interface_count: int = Field(ge=0)
+    distinct_types: int = Field(ge=0)
+    distinct_artifacts: int = Field(ge=0)
+    cross_area_connections: int = Field(ge=0)
+    rationale: str
+
+
+class HarmonizationDegree(BaseModel):
+    """Separate assessment of harmonizability, standardizability, centralizability.
+
+    These three dimensions can diverge: a process may be standardizable
+    (common templates/methods) but not centralizable (must run locally).
+    """
+    harmonizable: bool
+    harmonization_degree: float = Field(ge=0.0, le=1.0)
+    standardizable: bool
+    standardization_degree: float = Field(ge=0.0, le=1.0)
+    centralizable: bool
+    centralization_degree: float = Field(ge=0.0, le=1.0)
+    rationale: str
+
+
+class ValueIndicators(BaseModel):
+    """Economic and strategic value indicators for a stream."""
+    expected_business_value: ValueLevel
+    regulatory_pressure: ValueLevel
+    operational_impact: ValueLevel
+    rationale: str
+
+
+class DecisionResult(BaseModel):
+    """Complete decision output from the decision engine."""
+    decision: Decision
+    decision_rationale: str
+    blocking_factors: list[str] = Field(default_factory=list)
+    prerequisites: list[str] = Field(default_factory=list)
+    expected_benefit: str
+    implementation_risk: str
+    target_operating_model: TargetOperatingModel
+    interface_complexity: InterfaceComplexityResult
+    harmonization_degree: HarmonizationDegree
+    value_indicators: ValueIndicators
+
+
 class Assessment(BaseModel):
     """Full assessment record for a stream or subprocess."""
     assessed_object_type: AssessedObjectType
@@ -131,3 +203,4 @@ class Assessment(BaseModel):
     result: Optional[HarmonizationResult] = None
     prioritization_result: Optional[PrioritizationResult] = None
     completeness: Optional[CompletenessResult] = None
+    decision_result: Optional[DecisionResult] = None

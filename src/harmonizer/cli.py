@@ -16,12 +16,13 @@ from harmonizer.scoring.engine import (
     aggregate_stream_assessment,
     compute_completeness,
 )
+from harmonizer.scoring.decision_engine import compute_decision
 from harmonizer.models.assessment import AssessedObjectType
 from harmonizer.reporting.markdown import generate_report
 
 
 @click.group()
-@click.version_option(version="0.3.0")
+@click.version_option(version="0.4.0")
 def main() -> None:
     """InfoSec Process Harmonization Analysis Tool."""
 
@@ -147,9 +148,32 @@ def analyze(data_dir: Path, output: Path | None) -> None:
             has_tenant_scope=has_tenant,
         )
 
+    # Phase 4: Decision engine for stream-level assessments
+    decided = 0
+    for assessment in assessments:
+        if assessment.assessed_object_type != AssessedObjectType.STREAM:
+            continue
+        stream = stream_index.get(assessment.assessed_object_id)
+        if not stream or assessment.result is None:
+            continue
+        has_regulatory = bool(stream.regulatory_context)
+        assessment.decision_result = compute_decision(
+            assessment=assessment,
+            stream=stream,
+            subprocesses=subprocesses,
+            interfaces=interfaces,
+            all_streams=streams,
+            has_regulatory_context=has_regulatory,
+        )
+        decided += 1
+
     scored = sum(1 for a in assessments if a.result is not None)
     prioritized = sum(1 for a in assessments if a.prioritization_result is not None)
-    click.echo(f"Scored {scored} assessments, {prioritized} with prioritization.", err=True)
+    click.echo(
+        f"Scored {scored} assessments, {prioritized} with prioritization, "
+        f"{decided} with decisions.",
+        err=True,
+    )
 
     report = generate_report(areas, streams, subprocesses, interfaces, assessments)
 

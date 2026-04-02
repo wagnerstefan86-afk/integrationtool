@@ -19,9 +19,15 @@ from harmonizer.models.assessment import (
     AssessmentAnswer,
     ConfidenceLevel,
     CompletenessResult,
+    Decision,
+    HarmonizationDegree,
     HarmonizationPriority,
+    InterfaceComplexityResult,
     PrioritizationInput,
+    TargetOperatingModel,
     TypeSpecificAnswer,
+    ValueIndicators,
+    ValueLevel,
 )
 
 
@@ -160,3 +166,78 @@ class TestAssessedObjectType:
 
     def test_subprocess_type(self) -> None:
         assert AssessedObjectType.SUBPROCESS == "subprocess"
+
+
+class TestDecisionEnum:
+    def test_all_decisions(self) -> None:
+        expected = {
+            "centralize_now", "centralize_later", "harmonize_only",
+            "standardize_only", "keep_local", "reassess_after_data_completion",
+        }
+        assert {d.value for d in Decision} == expected
+
+
+class TestTargetOperatingModelEnum:
+    def test_all_models(self) -> None:
+        expected = {
+            "centralized_execution", "central_method_local_execution",
+            "federated_standardized", "local_independent",
+        }
+        assert {t.value for t in TargetOperatingModel} == expected
+
+
+class TestHarmonizationDegree:
+    def test_valid(self) -> None:
+        hd = HarmonizationDegree(
+            harmonizable=True, harmonization_degree=0.8,
+            standardizable=True, standardization_degree=0.7,
+            centralizable=False, centralization_degree=0.3,
+            rationale="Test",
+        )
+        assert hd.harmonizable is True
+        assert hd.centralizable is False
+
+    def test_degree_range(self) -> None:
+        with pytest.raises(ValidationError):
+            HarmonizationDegree(
+                harmonizable=True, harmonization_degree=1.5,
+                standardizable=True, standardization_degree=0.5,
+                centralizable=True, centralization_degree=0.5,
+                rationale="bad",
+            )
+
+
+class TestInterfaceComplexityResult:
+    def test_valid(self) -> None:
+        ic = InterfaceComplexityResult(
+            complexity_score=0.45,
+            interface_count=5,
+            distinct_types=3,
+            distinct_artifacts=8,
+            cross_area_connections=2,
+            rationale="Test",
+        )
+        assert ic.complexity_score == 0.45
+
+    def test_score_range(self) -> None:
+        with pytest.raises(ValidationError):
+            InterfaceComplexityResult(
+                complexity_score=1.5,
+                interface_count=0, distinct_types=0,
+                distinct_artifacts=0, cross_area_connections=0,
+                rationale="bad",
+            )
+
+
+class TestValueIndicators:
+    def test_valid(self) -> None:
+        vi = ValueIndicators(
+            expected_business_value=ValueLevel.HIGH,
+            regulatory_pressure=ValueLevel.MEDIUM,
+            operational_impact=ValueLevel.LOW,
+            rationale="Test",
+        )
+        assert vi.expected_business_value == ValueLevel.HIGH
+
+    def test_all_value_levels(self) -> None:
+        assert {v.value for v in ValueLevel} == {"low", "medium", "high"}

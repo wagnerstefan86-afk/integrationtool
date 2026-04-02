@@ -17,10 +17,17 @@ from harmonizer.models.assessment import (
     AssessmentAnswer,
     CompletenessResult,
     ConfidenceLevel,
+    Decision,
+    DecisionResult,
     HarmonizationClassification,
+    HarmonizationDegree,
     HarmonizationPriority,
     HarmonizationResult,
+    InterfaceComplexityResult,
     PrioritizationResult,
+    TargetOperatingModel,
+    ValueIndicators,
+    ValueLevel,
 )
 from harmonizer.reporting.markdown import generate_report, generate_mermaid_diagram
 
@@ -150,6 +157,134 @@ class TestGenerateReport:
         report = generate_report(areas, streams, sps, ifaces, [assessment])
         assert "Assessment Gaps" in report
         assert "None of 1 subprocesses assessed" in report
+
+    def test_report_shows_decision(self) -> None:
+        areas, streams, sps, ifaces = _minimal_data()
+        dr = DecisionResult(
+            decision=Decision.CENTRALIZE_NOW,
+            decision_rationale="High alignment, proceed.",
+            blocking_factors=[],
+            prerequisites=[],
+            expected_benefit="Major efficiency gains",
+            implementation_risk="Standard risks",
+            target_operating_model=TargetOperatingModel.CENTRALIZED_EXECUTION,
+            interface_complexity=InterfaceComplexityResult(
+                complexity_score=0.15, interface_count=2, distinct_types=1,
+                distinct_artifacts=3, cross_area_connections=0, rationale="Low complexity",
+            ),
+            harmonization_degree=HarmonizationDegree(
+                harmonizable=True, harmonization_degree=0.9,
+                standardizable=True, standardization_degree=0.85,
+                centralizable=True, centralization_degree=0.8,
+                rationale="High alignment",
+            ),
+            value_indicators=ValueIndicators(
+                expected_business_value=ValueLevel.HIGH,
+                regulatory_pressure=ValueLevel.MEDIUM,
+                operational_impact=ValueLevel.HIGH,
+                rationale="Good value",
+            ),
+        )
+        assessment = Assessment(
+            assessed_object_type=AssessedObjectType.STREAM,
+            assessed_object_id="stream-test",
+            result=HarmonizationResult(
+                harmonization_score=0.9,
+                classification=HarmonizationClassification.FULLY_CENTRALIZABLE,
+                rationale="R", recommendation="Rec",
+            ),
+            decision_result=dr,
+        )
+        report = generate_report(areas, streams, sps, ifaces, [assessment])
+        assert "**Decision: Centralize Now**" in report
+        assert "Centralized Execution" in report
+        assert "Harmonizable" in report
+        assert "Standardizable" in report
+        assert "Centralizable" in report
+        assert "Decision Overview" in report
+
+    def test_report_shows_why_not_centralized(self) -> None:
+        areas, streams, sps, ifaces = _minimal_data()
+        dr = DecisionResult(
+            decision=Decision.STANDARDIZE_ONLY,
+            decision_rationale="Centralization not viable.",
+            blocking_factors=["Hard constraint: legal_local_difference"],
+            prerequisites=[],
+            expected_benefit="Moderate",
+            implementation_risk="Low",
+            target_operating_model=TargetOperatingModel.FEDERATED_STANDARDIZED,
+            interface_complexity=InterfaceComplexityResult(
+                complexity_score=0.3, interface_count=3, distinct_types=2,
+                distinct_artifacts=5, cross_area_connections=1, rationale="Moderate",
+            ),
+            harmonization_degree=HarmonizationDegree(
+                harmonizable=True, harmonization_degree=0.6,
+                standardizable=True, standardization_degree=0.55,
+                centralizable=False, centralization_degree=0.2,
+                rationale="Constraints block centralization",
+            ),
+            value_indicators=ValueIndicators(
+                expected_business_value=ValueLevel.MEDIUM,
+                regulatory_pressure=ValueLevel.HIGH,
+                operational_impact=ValueLevel.MEDIUM,
+                rationale="Mixed",
+            ),
+        )
+        assessment = Assessment(
+            assessed_object_type=AssessedObjectType.STREAM,
+            assessed_object_id="stream-test",
+            result=HarmonizationResult(
+                harmonization_score=0.55,
+                classification=HarmonizationClassification.PARTIALLY_HARMONIZABLE,
+                rationale="R", recommendation="Rec",
+            ),
+            decision_result=dr,
+        )
+        report = generate_report(areas, streams, sps, ifaces, [assessment])
+        assert "Why NOT Centralized?" in report
+        assert "Standardize Only" in report
+        assert "Centralization degree too low" in report
+
+    def test_report_shows_value_indicators(self) -> None:
+        areas, streams, sps, ifaces = _minimal_data()
+        dr = DecisionResult(
+            decision=Decision.HARMONIZE_ONLY,
+            decision_rationale="Limited scope.",
+            blocking_factors=[],
+            prerequisites=[],
+            expected_benefit="Limited",
+            implementation_risk="Low",
+            target_operating_model=TargetOperatingModel.FEDERATED_STANDARDIZED,
+            interface_complexity=InterfaceComplexityResult(
+                complexity_score=0.1, interface_count=1, distinct_types=1,
+                distinct_artifacts=1, cross_area_connections=0, rationale="Low",
+            ),
+            harmonization_degree=HarmonizationDegree(
+                harmonizable=True, harmonization_degree=0.4,
+                standardizable=False, standardization_degree=0.2,
+                centralizable=False, centralization_degree=0.1,
+                rationale="Low",
+            ),
+            value_indicators=ValueIndicators(
+                expected_business_value=ValueLevel.LOW,
+                regulatory_pressure=ValueLevel.LOW,
+                operational_impact=ValueLevel.MEDIUM,
+                rationale="Low overall",
+            ),
+        )
+        assessment = Assessment(
+            assessed_object_type=AssessedObjectType.STREAM,
+            assessed_object_id="stream-test",
+            result=HarmonizationResult(
+                harmonization_score=0.4,
+                classification=HarmonizationClassification.MINIMUM_STANDARD_ONLY,
+                rationale="R", recommendation="Rec",
+            ),
+            decision_result=dr,
+        )
+        report = generate_report(areas, streams, sps, ifaces, [assessment])
+        assert "Business Value: Low" in report
+        assert "Operational Impact: Medium" in report
 
     def test_management_view_shows_confidence(self) -> None:
         areas, streams, sps, ifaces = _minimal_data()

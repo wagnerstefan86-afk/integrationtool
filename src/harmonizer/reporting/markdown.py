@@ -14,8 +14,11 @@ from harmonizer.models.assessment import (
     Assessment,
     AssessedObjectType,
     ConfidenceLevel,
+    Decision,
     HarmonizationClassification,
     HarmonizationPriority,
+    TargetOperatingModel,
+    ValueLevel,
 )
 
 
@@ -46,6 +49,28 @@ _STREAM_TYPE_LABELS: dict[StreamType, str] = {
     StreamType.SUPPORT_FUNCTION: "Support Function",
     StreamType.CAPABILITY_DOMAIN: "Capability Domain",
     StreamType.PROGRAM_DOMAIN: "Program Domain",
+}
+
+_DECISION_LABELS: dict[Decision, str] = {
+    Decision.CENTRALIZE_NOW: "Centralize Now",
+    Decision.CENTRALIZE_LATER: "Centralize Later",
+    Decision.HARMONIZE_ONLY: "Harmonize Only",
+    Decision.STANDARDIZE_ONLY: "Standardize Only",
+    Decision.KEEP_LOCAL: "Keep Local",
+    Decision.REASSESS_AFTER_DATA_COMPLETION: "Reassess After Data Completion",
+}
+
+_TOM_LABELS: dict[TargetOperatingModel, str] = {
+    TargetOperatingModel.CENTRALIZED_EXECUTION: "Centralized Execution",
+    TargetOperatingModel.CENTRAL_METHOD_LOCAL_EXECUTION: "Central Method, Local Execution",
+    TargetOperatingModel.FEDERATED_STANDARDIZED: "Federated Standardized",
+    TargetOperatingModel.LOCAL_INDEPENDENT: "Local Independent",
+}
+
+_VALUE_LABELS: dict[ValueLevel, str] = {
+    ValueLevel.LOW: "Low",
+    ValueLevel.MEDIUM: "Medium",
+    ValueLevel.HIGH: "High",
 }
 
 
@@ -303,6 +328,59 @@ def generate_report(
                     s.append(f"**Harmonization Priority: {pri_label}** (Score: {pr.priority_score:.2f})")
                     s.append(f"  {pr.rationale}")
                     s.append("")
+
+                # Decision Engine output
+                if stream_assessment.decision_result:
+                    dr = stream_assessment.decision_result
+                    dec_label = _DECISION_LABELS.get(dr.decision, dr.decision.value)
+                    tom_label = _TOM_LABELS.get(dr.target_operating_model, dr.target_operating_model.value)
+
+                    s.append(f"**Decision: {dec_label}**")
+                    s.append(f"  {dr.decision_rationale}")
+                    s.append("")
+                    s.append(f"**Target Operating Model:** {tom_label}")
+                    s.append("")
+
+                    # H/S/C Breakdown
+                    hsc = dr.harmonization_degree
+                    s.append("**Harmonization / Standardization / Centralization:**")
+                    s.append("")
+                    s.append("| Dimension | Feasible | Degree |")
+                    s.append("|---|---|---|")
+                    s.append(f"| Harmonizable | {'Yes' if hsc.harmonizable else 'No'} | {hsc.harmonization_degree:.2f} |")
+                    s.append(f"| Standardizable | {'Yes' if hsc.standardizable else 'No'} | {hsc.standardization_degree:.2f} |")
+                    s.append(f"| Centralizable | {'Yes' if hsc.centralizable else 'No'} | {hsc.centralization_degree:.2f} |")
+                    s.append("")
+
+                    # Interface Complexity
+                    ic = dr.interface_complexity
+                    s.append(f"**Interface Complexity:** {ic.complexity_score:.2f}")
+                    s.append(f"  {ic.rationale}")
+                    s.append("")
+
+                    # Value Indicators
+                    vi = dr.value_indicators
+                    s.append("**Value Indicators:**")
+                    s.append(f"  Business Value: {_VALUE_LABELS[vi.expected_business_value]} | "
+                             f"Regulatory Pressure: {_VALUE_LABELS[vi.regulatory_pressure]} | "
+                             f"Operational Impact: {_VALUE_LABELS[vi.operational_impact]}")
+                    s.append("")
+
+                    if dr.blocking_factors:
+                        s.append("**Blocking Factors:**")
+                        for bf in dr.blocking_factors:
+                            s.append(f"- {bf}")
+                        s.append("")
+
+                    if dr.prerequisites:
+                        s.append("**Prerequisites:**")
+                        for p in dr.prerequisites:
+                            s.append(f"- {p}")
+                        s.append("")
+
+                    s.append(f"**Expected Benefit:** {dr.expected_benefit}")
+                    s.append(f"**Implementation Risk:** {dr.implementation_risk}")
+                    s.append("")
             else:
                 s.append("**Assessment: Not yet assessed**")
                 s.append("")
@@ -423,6 +501,70 @@ def generate_report(
                     s.append(f"1. **{name}** -- {a.result.recommendation}")
                 s.append("")
 
+    # --- Decision Overview ---
+    decided = [
+        a for a in assessments
+        if a.decision_result is not None and a.assessed_object_type == AssessedObjectType.STREAM
+    ]
+    if decided:
+        s.append("## Decision Overview")
+        s.append("")
+        s.append("| Stream | Decision | Operating Model | H | S | C | Interface Complexity |")
+        s.append("|---|---|---|---|---|---|---|")
+        for a in decided:
+            name = _resolve_name(a.assessed_object_id, stream_index, sp_index)
+            dr = a.decision_result
+            dec_label = _DECISION_LABELS.get(dr.decision, dr.decision.value)
+            tom_label = _TOM_LABELS.get(dr.target_operating_model, dr.target_operating_model.value)
+            hsc = dr.harmonization_degree
+            s.append(
+                f"| {name} | {dec_label} | {tom_label} "
+                f"| {hsc.harmonization_degree:.2f} "
+                f"| {hsc.standardization_degree:.2f} "
+                f"| {hsc.centralization_degree:.2f} "
+                f"| {dr.interface_complexity.complexity_score:.2f} |"
+            )
+        s.append("")
+
+    # --- Why NOT Centralized? ---
+    not_centralized = [
+        a for a in decided
+        if a.decision_result.decision not in (Decision.CENTRALIZE_NOW, Decision.CENTRALIZE_LATER)
+        and a.decision_result.decision != Decision.REASSESS_AFTER_DATA_COMPLETION
+    ]
+    if not_centralized:
+        s.append("## Why NOT Centralized?")
+        s.append("")
+        s.append("This section explains why streams are not recommended for centralization.")
+        s.append("")
+        for a in not_centralized:
+            name = _resolve_name(a.assessed_object_id, stream_index, sp_index)
+            dr = a.decision_result
+            dec_label = _DECISION_LABELS.get(dr.decision, dr.decision.value)
+            hsc = dr.harmonization_degree
+            s.append(f"### {name} → {dec_label}")
+            s.append("")
+            reasons = []
+            if not hsc.centralizable:
+                reasons.append(
+                    f"Centralization degree too low ({hsc.centralization_degree:.2f} < 0.50)"
+                )
+            if dr.interface_complexity.complexity_score >= 0.5:
+                reasons.append(
+                    f"High interface complexity ({dr.interface_complexity.complexity_score:.2f})"
+                )
+            for bf in dr.blocking_factors:
+                if "Hard constraint" in bf:
+                    reasons.append(bf)
+            if not reasons:
+                reasons.append(
+                    "Alignment scores insufficient for centralization "
+                    f"(harmonization score: {a.result.harmonization_score:.2f})"
+                )
+            for reason in reasons:
+                s.append(f"- {reason}")
+            s.append("")
+
     # --- Assessment Gaps ---
     s.append("## Assessment Gaps / Required Next Inputs")
     s.append("")
@@ -469,6 +611,6 @@ def generate_report(
 
     # --- Footer ---
     s.append("---")
-    s.append("*Report generated by harmonizer v0.3.0*")
+    s.append("*Report generated by harmonizer v0.4.0*")
 
     return "\n".join(s)
