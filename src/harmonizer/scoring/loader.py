@@ -10,7 +10,7 @@ from typing import Any
 import yaml
 
 from harmonizer.models.process import Area, Stream, SubProcess, ProcessInterface
-from harmonizer.models.assessment import Assessment
+from harmonizer.models.assessment import Assessment, DecisionOutcome
 
 
 def _load_yaml(path: Path) -> Any:
@@ -76,3 +76,26 @@ def load_all_from_directory(directory: Path) -> tuple[
             all_iface.extend(pi)
 
     return all_areas, all_streams, all_sub, all_iface, all_assess
+
+
+def load_outcomes(path: Path) -> list[DecisionOutcome]:
+    """Load decision outcome records from a YAML file.
+
+    Expected structure:
+        outcomes: [...]
+    """
+    data = _load_yaml(path)
+    return [DecisionOutcome(**o) for o in data.get("outcomes", [])]
+
+
+def load_outcomes_from_directory(directory: Path) -> list[DecisionOutcome]:
+    """Load all outcome YAML files from a directory.
+
+    Files named *outcome* are treated as outcome data.
+    """
+    all_outcomes: list[DecisionOutcome] = []
+    for yaml_file in sorted(directory.glob("*.yaml")):
+        name = yaml_file.stem.lower()
+        if "outcome" in name:
+            all_outcomes.extend(load_outcomes(yaml_file))
+    return all_outcomes

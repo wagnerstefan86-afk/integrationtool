@@ -14,15 +14,23 @@ from harmonizer.models.process import (
     TenantScope,
 )
 from harmonizer.models.assessment import (
+    ActualImplementation,
+    ActualImpact,
     AlignmentDimension,
     AssessedObjectType,
     AssessmentAnswer,
+    CalibrationResult,
     ConfidenceLevel,
     CompletenessResult,
     Decision,
+    DecisionOutcome,
+    DeviationLevel,
+    DurationCategory,
     HarmonizationDegree,
     HarmonizationPriority,
     InterfaceComplexityResult,
+    ModelMaturityLevel,
+    OutcomeStatus,
     PrioritizationInput,
     TargetOperatingModel,
     TypeSpecificAnswer,
@@ -241,3 +249,76 @@ class TestValueIndicators:
 
     def test_all_value_levels(self) -> None:
         assert {v.value for v in ValueLevel} == {"low", "medium", "high"}
+
+
+class TestOutcomeStatus:
+    def test_all_statuses(self) -> None:
+        assert {s.value for s in OutcomeStatus} == {
+            "implemented", "rejected", "modified", "deferred",
+        }
+
+
+class TestDeviationLevel:
+    def test_all_levels(self) -> None:
+        assert {d.value for d in DeviationLevel} == {
+            "none", "minor", "major", "complete_override",
+        }
+
+
+class TestModelMaturityLevel:
+    def test_all_levels(self) -> None:
+        assert {m.value for m in ModelMaturityLevel} == {
+            "initial", "learning", "calibrated", "stable",
+        }
+
+
+class TestDecisionOutcome:
+    def test_valid_minimal(self) -> None:
+        o = DecisionOutcome(
+            assessed_object_id="s1",
+            outcome_status=OutcomeStatus.IMPLEMENTED,
+            deviation=DeviationLevel.NONE,
+        )
+        assert o.outcome_status == OutcomeStatus.IMPLEMENTED
+
+    def test_with_actuals(self) -> None:
+        o = DecisionOutcome(
+            assessed_object_id="s1",
+            outcome_status=OutcomeStatus.MODIFIED,
+            actual_implementation=ActualImplementation(
+                actual_effort_bucket="3-6",
+                actual_duration=DurationCategory.MEDIUM,
+                actual_complexity=ValueLevel.MEDIUM,
+            ),
+            actual_impact=ActualImpact(
+                business_value_realized=ValueLevel.HIGH,
+                operational_improvement=ValueLevel.MEDIUM,
+                issues_encountered=["Delay"],
+            ),
+            deviation=DeviationLevel.MINOR,
+            lessons_learned=["Plan more buffer"],
+        )
+        assert o.actual_implementation.actual_effort_bucket == "3-6"
+        assert len(o.lessons_learned) == 1
+
+
+class TestCalibrationResult:
+    def test_valid(self) -> None:
+        cr = CalibrationResult(
+            outcomes_analyzed=5,
+            accuracy_rate=0.8,
+            model_maturity=ModelMaturityLevel.CALIBRATED,
+            confidence_adjustment=0.1,
+            rationale="Good accuracy.",
+        )
+        assert cr.accuracy_rate == 0.8
+
+    def test_confidence_adjustment_range(self) -> None:
+        with pytest.raises(ValidationError):
+            CalibrationResult(
+                outcomes_analyzed=1,
+                accuracy_rate=0.5,
+                model_maturity=ModelMaturityLevel.LEARNING,
+                confidence_adjustment=0.6,  # exceeds 0.5
+                rationale="bad",
+            )

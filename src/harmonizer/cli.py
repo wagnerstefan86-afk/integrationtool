@@ -9,7 +9,7 @@ from pathlib import Path
 
 import click
 
-from harmonizer.scoring.loader import load_all_from_directory
+from harmonizer.scoring.loader import load_all_from_directory, load_outcomes_from_directory
 from harmonizer.scoring.engine import (
     evaluate,
     compute_prioritization,
@@ -17,12 +17,13 @@ from harmonizer.scoring.engine import (
     compute_completeness,
 )
 from harmonizer.scoring.decision_engine import compute_decision
-from harmonizer.models.assessment import AssessedObjectType
+from harmonizer.scoring.calibration_engine import calibrate
+from harmonizer.models.assessment import AssessedObjectType, CalibrationResult
 from harmonizer.reporting.markdown import generate_report
 
 
 @click.group()
-@click.version_option(version="0.5.0")
+@click.version_option(version="0.6.0")
 def main() -> None:
     """InfoSec Process Harmonization Analysis Tool."""
 
@@ -175,13 +176,61 @@ def analyze(data_dir: Path, output: Path | None) -> None:
         err=True,
     )
 
-    report = generate_report(areas, streams, subprocesses, interfaces, assessments)
+    # Phase 5: Calibration (if outcome data exists)
+    outcomes = load_outcomes_from_directory(data_dir)
+    calibration_result = None
+    if outcomes:
+        calibration_result = calibrate(assessments, outcomes)
+        click.echo(
+            f"Calibration: {calibration_result.outcomes_analyzed} outcome(s), "
+            f"accuracy {calibration_result.accuracy_rate:.0%}, "
+            f"maturity: {calibration_result.model_maturity.value}.",
+            err=True,
+        )
+
+    report = generate_report(
+        areas, streams, subprocesses, interfaces, assessments,
+        calibration=calibration_result,
+    )
 
     if output:
         output.write_text(report, encoding="utf-8")
         click.echo(f"Report written to {output}", err=True)
     else:
         click.echo(report)
+
+
+@main.command()
+@click.option(
+    "--data-dir",
+    type=click.Path(exists=True, file_okay=False, path_type=Path),
+    required=True,
+    help="Directory containing assessment and outcome YAML files.",
+)
+def calibrate_cmd(data_dir: Path) -> None:
+    """Run calibration analysis comparing predictions against actual outcomes."""
+    _, _, _, _, assessments = load_all_from_directory(data_dir)
+    outcomes = load_outcomes_from_directory(data_dir)
+
+    if not outcomes:
+        click.echo("No outcome files found (*outcome*.yaml). Nothing to calibrate.", err=True)
+        return
+
+    result = calibrate(assessments, outcomes)
+    click.echo(f"Outcomes analyzed: {result.outcomes_analyzed}")
+    click.echo(f"Accuracy rate: {result.accuracy_rate:.0%}")
+    click.echo(f"Model maturity: {result.model_maturity.value}")
+    click.echo(f"Confidence adjustment: {result.confidence_adjustment:+.2f}")
+
+    if result.systematic_biases:
+        click.echo("\nSystematic biases:")
+        for bias in result.systematic_biases:
+            click.echo(f"  - {bias}")
+
+    if result.suggestions:
+        click.echo("\nAdjustment suggestions:")
+        for s in result.suggestions:
+            click.echo(f"  [{s.priority.value}] {s.area}: {s.suggestion}")
 
 
 if __name__ == "__main__":

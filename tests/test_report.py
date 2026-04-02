@@ -16,6 +16,9 @@ from harmonizer.models.assessment import (
     AssessedObjectType,
     Assessment,
     AssessmentAnswer,
+    CalibrationDeviation,
+    CalibrationResult,
+    CalibrationSuggestion,
     CompletenessResult,
     ConfidenceLevel,
     Decision,
@@ -31,6 +34,7 @@ from harmonizer.models.assessment import (
     HarmonizationResult,
     ImplementationImpact,
     InterfaceComplexityResult,
+    ModelMaturityLevel,
     NoActionImpact,
     PrioritizationResult,
     TargetOperatingModel,
@@ -470,3 +474,41 @@ class TestGenerateReport:
         report = generate_report(areas, streams, sps, ifaces, [assessment])
         assert "High (80%)" in report
         assert "Recommended First Movers" in report
+
+    def test_report_shows_calibration(self) -> None:
+        areas, streams, sps, ifaces = _minimal_data()
+        cal = CalibrationResult(
+            outcomes_analyzed=5,
+            accuracy_rate=0.6,
+            deviations=[
+                CalibrationDeviation(
+                    dimension="effort", predicted="3-6",
+                    actual="6-12", direction="underestimated",
+                ),
+            ],
+            systematic_biases=["effort: systematically underestimated (3/5 cases)"],
+            suggestions=[
+                CalibrationSuggestion(
+                    area="effort_estimate",
+                    suggestion="Bump base effort buckets.",
+                    evidence="effort: systematically underestimated",
+                    priority=ValueLevel.HIGH,
+                ),
+            ],
+            model_maturity=ModelMaturityLevel.CALIBRATED,
+            confidence_adjustment=-0.10,
+            rationale="Test calibration.",
+        )
+        report = generate_report(areas, streams, sps, ifaces, [], calibration=cal)
+        assert "Decision Accuracy & Calibration" in report
+        assert "Calibrated" in report
+        assert "60%" in report
+        assert "Where the Model Was Wrong" in report
+        assert "Improvement Suggestions" in report
+        assert "effort_estimate" in report
+        assert "Prediction vs Actual" in report
+
+    def test_report_no_calibration_when_none(self) -> None:
+        areas, streams, sps, ifaces = _minimal_data()
+        report = generate_report(areas, streams, sps, ifaces, [])
+        assert "Decision Accuracy & Calibration" not in report

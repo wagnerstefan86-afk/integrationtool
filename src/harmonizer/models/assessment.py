@@ -283,6 +283,95 @@ class DecisionResult(BaseModel):
     decision_trace: Optional[DecisionTrace] = None
 
 
+# --- Phase 6: Decision Outcome Tracking & Calibration ---
+
+class OutcomeStatus(str, Enum):
+    """What happened with the recommendation."""
+    IMPLEMENTED = "implemented"
+    REJECTED = "rejected"
+    MODIFIED = "modified"
+    DEFERRED = "deferred"
+
+
+class DeviationLevel(str, Enum):
+    """How much the actual outcome deviated from the recommendation."""
+    NONE = "none"
+    MINOR = "minor"
+    MAJOR = "major"
+    COMPLETE_OVERRIDE = "complete_override"
+
+
+class ModelMaturityLevel(str, Enum):
+    """Maturity of the decision model based on calibration data.
+
+    initial: no outcome data yet — all predictions are uncalibrated
+    learning: 1-4 outcomes recorded — patterns emerging but insufficient
+    calibrated: 5-9 outcomes — systematic biases identified and adjusted
+    stable: 10+ outcomes — model is well-calibrated with historical data
+    """
+    INITIAL = "initial"
+    LEARNING = "learning"
+    CALIBRATED = "calibrated"
+    STABLE = "stable"
+
+
+class ActualImplementation(BaseModel):
+    """What actually happened during implementation."""
+    actual_effort_bucket: str  # same format as EffortEstimate: "1-3", "3-6", etc.
+    actual_duration: DurationCategory
+    actual_complexity: ValueLevel
+
+
+class ActualImpact(BaseModel):
+    """What impact was actually realized."""
+    business_value_realized: ValueLevel
+    operational_improvement: ValueLevel
+    issues_encountered: list[str] = Field(default_factory=list)
+
+
+class DecisionOutcome(BaseModel):
+    """Recorded outcome of a decision for calibration purposes.
+
+    Populated after a decision has been executed (or rejected).
+    Links back to the stream via assessed_object_id.
+    """
+    assessed_object_id: str
+    outcome_status: OutcomeStatus
+    actual_implementation: Optional[ActualImplementation] = None
+    actual_impact: Optional[ActualImpact] = None
+    deviation: DeviationLevel
+    deviation_rationale: str = ""
+    lessons_learned: list[str] = Field(default_factory=list)
+
+
+class CalibrationDeviation(BaseModel):
+    """A single predicted-vs-actual comparison for one dimension."""
+    dimension: str
+    predicted: str
+    actual: str
+    direction: str  # "overestimated", "underestimated", "accurate"
+
+
+class CalibrationSuggestion(BaseModel):
+    """A concrete suggestion for adjusting the decision engine."""
+    area: str  # e.g. "effort_estimate", "interface_complexity", "decision_aggressiveness"
+    suggestion: str
+    evidence: str
+    priority: ValueLevel
+
+
+class CalibrationResult(BaseModel):
+    """Result of comparing predictions against actual outcomes."""
+    outcomes_analyzed: int
+    accuracy_rate: float = Field(ge=0.0, le=1.0)
+    deviations: list[CalibrationDeviation] = Field(default_factory=list)
+    systematic_biases: list[str] = Field(default_factory=list)
+    suggestions: list[CalibrationSuggestion] = Field(default_factory=list)
+    model_maturity: ModelMaturityLevel
+    confidence_adjustment: float = Field(ge=-0.5, le=0.5)
+    rationale: str
+
+
 class Assessment(BaseModel):
     """Full assessment record for a stream or subprocess."""
     assessed_object_type: AssessedObjectType
