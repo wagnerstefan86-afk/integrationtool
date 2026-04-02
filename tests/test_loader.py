@@ -13,8 +13,8 @@ class TestLoadStructure:
         areas, streams, sp, iface = load_structure(EXAMPLE_DIR / "processes.yaml")
         assert len(areas) == 4
         assert len(streams) >= 10
-        assert len(sp) >= 4
-        assert len(iface) >= 2
+        assert len(sp) >= 30
+        assert len(iface) >= 10
 
     def test_stream_belongs_to_area(self) -> None:
         areas, streams, _, _ = load_structure(EXAMPLE_DIR / "processes.yaml")
@@ -41,7 +41,7 @@ class TestLoadStructure:
 class TestLoadAssessments:
     def test_load_example_assessments(self) -> None:
         assessments = load_assessments(EXAMPLE_DIR / "assessments.yaml")
-        assert len(assessments) >= 10
+        assert len(assessments) >= 20
 
     def test_all_assessments_have_answers(self) -> None:
         assessments = load_assessments(EXAMPLE_DIR / "assessments.yaml")
@@ -50,11 +50,17 @@ class TestLoadAssessments:
                 f"Assessment for {a.assessed_object_id} should have 6 dimension answers"
             )
 
+    def test_stream_assessments_have_type_specific(self) -> None:
+        assessments = load_assessments(EXAMPLE_DIR / "assessments.yaml")
+        stream_assessments = [a for a in assessments if a.assessed_object_type.value == "stream"]
+        with_ts = [a for a in stream_assessments if a.type_specific_answers]
+        assert len(with_ts) >= 5, "At least 5 stream assessments should have type-specific answers"
+
 
 class TestLoadAllFromDirectory:
     def test_load_example_directory(self) -> None:
         areas, streams, sp, iface, assessments = load_all_from_directory(EXAMPLE_DIR)
         assert len(areas) == 4
         assert len(streams) >= 10
-        assert len(sp) >= 4
-        assert len(assessments) >= 10
+        assert len(sp) >= 30
+        assert len(assessments) >= 20

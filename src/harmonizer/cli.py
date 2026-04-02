@@ -10,13 +10,18 @@ from pathlib import Path
 import click
 
 from harmonizer.scoring.loader import load_all_from_directory
-from harmonizer.scoring.engine import evaluate, compute_prioritization
+from harmonizer.scoring.engine import (
+    evaluate,
+    compute_prioritization,
+    aggregate_stream_assessment,
+    compute_completeness,
+)
 from harmonizer.models.assessment import AssessedObjectType
 from harmonizer.reporting.markdown import generate_report
 
 
 @click.group()
-@click.version_option(version="0.2.0")
+@click.version_option(version="0.3.0")
 def main() -> None:
     """InfoSec Process Harmonization Analysis Tool."""
 
@@ -47,12 +52,24 @@ def analyze(data_dir: Path, output: Path | None) -> None:
         err=True,
     )
 
-    # Build stream lookup for type-aware scoring
+    # Build indices
     stream_index = {s.id: s for s in streams}
-    # Map subprocess IDs to their parent stream's type
     sp_to_stream: dict[str, str] = {sp.id: sp.stream_id for sp in subprocesses}
+    sps_by_stream: dict[str, list[str]] = {}
+    for sp in subprocesses:
+        sps_by_stream.setdefault(sp.stream_id, []).append(sp.id)
+    assessment_index = {a.assessed_object_id: a for a in assessments}
 
-    # Run scoring with stream-type-aware weights
+    # Count interfaces per stream (including subprocess interfaces)
+    def _interface_count(stream_id: str) -> int:
+        sp_ids = set(sps_by_stream.get(stream_id, []))
+        relevant = sp_ids | {stream_id}
+        return sum(
+            1 for iface in interfaces
+            if iface.source_process_id in relevant or iface.target_process_id in relevant
+        )
+
+    # Phase 1: Evaluate all individual assessments
     for assessment in assessments:
         stream_type = None
         if assessment.assessed_object_type == AssessedObjectType.STREAM:
@@ -70,6 +87,65 @@ def analyze(data_dir: Path, output: Path | None) -> None:
 
         if assessment.prioritization:
             assessment.prioritization_result = compute_prioritization(assessment.prioritization)
+
+    # Phase 2: Aggregate stream-level results from subprocesses
+    for stream in streams:
+        stream_assessment = assessment_index.get(stream.id)
+        sp_ids = sps_by_stream.get(stream.id, [])
+        sp_assessments = [assessment_index[sp_id] for sp_id in sp_ids if sp_id in assessment_index]
+
+        if sp_assessments:
+            aggregated = aggregate_stream_assessment(
+                stream_assessment, sp_assessments, stream.stream_type
+            )
+            if aggregated and stream_assessment:
+                # Replace stream result with aggregated version
+                stream_assessment.result = aggregated
+
+    # Phase 3: Compute completeness for all assessments
+    for assessment in assessments:
+        stream_type = None
+        subprocess_count = 0
+        subprocess_assessed_count = 0
+        iface_count = 0
+        has_regulatory = False
+        has_tenant = True  # always populated in model
+
+        if assessment.assessed_object_type == AssessedObjectType.STREAM:
+            stream = stream_index.get(assessment.assessed_object_id)
+            if stream:
+                stream_type = stream.stream_type
+                sp_ids = sps_by_stream.get(stream.id, [])
+                subprocess_count = len(sp_ids)
+                subprocess_assessed_count = sum(1 for sp_id in sp_ids if sp_id in assessment_index)
+                iface_count = _interface_count(stream.id)
+                has_regulatory = bool(stream.regulatory_context)
+        elif assessment.assessed_object_type == AssessedObjectType.SUBPROCESS:
+            parent_stream_id = sp_to_stream.get(assessment.assessed_object_id)
+            if parent_stream_id:
+                stream = stream_index.get(parent_stream_id)
+                if stream:
+                    stream_type = stream.stream_type
+            # Find interfaces involving this subprocess
+            sp_id = assessment.assessed_object_id
+            iface_count = sum(
+                1 for iface in interfaces
+                if iface.source_process_id == sp_id or iface.target_process_id == sp_id
+            )
+            # Check if subprocess has regulatory context
+            sp_obj = next((sp for sp in subprocesses if sp.id == sp_id), None)
+            if sp_obj:
+                has_regulatory = bool(sp_obj.regulatory_context)
+
+        assessment.completeness = compute_completeness(
+            assessment,
+            stream_type=stream_type,
+            subprocess_count=subprocess_count,
+            subprocess_assessed_count=subprocess_assessed_count,
+            interface_count=iface_count,
+            has_regulatory_context=has_regulatory,
+            has_tenant_scope=has_tenant,
+        )
 
     scored = sum(1 for a in assessments if a.result is not None)
     prioritized = sum(1 for a in assessments if a.prioritization_result is not None)

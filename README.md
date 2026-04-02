@@ -16,33 +16,26 @@ pytest
 src/harmonizer/
 ├── models/
 │   ├── process.py        # Area, Stream, StreamType, SubProcess, ProcessInterface
-│   └── assessment.py     # Assessment, scoring models, prioritization
+│   └── assessment.py     # Assessment, scoring models, completeness, confidence
 ├── scoring/
-│   ├── engine.py         # Stream-type-aware scoring + prioritization logic
+│   ├── engine.py         # Stream-type-aware scoring, aggregation, completeness
+│   ├── questions.py      # Stream-type-specific supplementary question catalog
 │   └── loader.py         # YAML data loader
 ├── reporting/
-│   └── markdown.py       # Markdown + Mermaid report with management view
-└── cli.py                # Click-based CLI entry point
+│   └── markdown.py       # Markdown + Mermaid report with gaps & management view
+└── cli.py                # Click-based CLI entry point (v0.3.0)
 
 data/examples/
-├── processes.yaml        # 4 areas, 15 streams, subprocesses, interfaces
-└── assessments.yaml      # Stream and subprocess assessments with prioritization
+├── processes.yaml        # 4 areas, 15 streams, 42 subprocesses, 16 interfaces
+└── assessments.yaml      # 15 stream + 16 subprocess assessments
 
 tests/
-├── test_models.py        # Model validation tests
-├── test_scoring.py       # Scoring engine + prioritization tests
-├── test_loader.py        # YAML loader tests
-└── test_report.py        # Report generation tests
+├── test_models.py        # Model validation tests (19 tests)
+├── test_scoring.py       # Scoring, aggregation, completeness, prioritization (41 tests)
+├── test_questions.py     # Question catalog tests (9 tests)
+├── test_loader.py        # YAML loader tests (8 tests)
+└── test_report.py        # Report generation tests (9 tests)
 ```
-
-## Breaking Changes from v0.1.0
-
-- `MainProcess` replaced by `Area` + `Stream` (three-tier hierarchy)
-- `main_process_id` on SubProcess replaced by `stream_id`
-- `AssessedObjectType.MAIN_PROCESS` replaced by `AssessedObjectType.STREAM`
-- YAML structure changed: `main_processes` replaced by `areas` + `streams`
-- Scoring is now stream-type-aware (different weights per StreamType)
-- New: Prioritization logic and management view in reports
 
 ## Architecture
 
@@ -80,6 +73,15 @@ Area (organizational grouping)
 | `minimum_standard_only` | Only central minimum standards feasible |
 | `currently_not_harmonizable` | Must remain fully local for now |
 
+### Two-Level Assessment & Aggregation
+
+Assessments can be made at both **stream** and **subprocess** levels. Stream-level results are computed by blending:
+
+- **40%** direct stream assessment score
+- **60%** average of subprocess assessment scores
+
+If only one level has data, that level is used at 100%. Hard constraints from subprocesses propagate upward.
+
 ### Stream-Type-Aware Scoring
 
 Six dimensions (1-5 each), with weights varying by stream type:
@@ -95,6 +97,41 @@ Six dimensions (1-5 each), with weights varying by stream type:
 
 Hard constraints cap the classification downward regardless of score.
 
+### Type-Specific Supplementary Questions
+
+Each StreamType has 4-5 supplementary questions that probe domain-specific harmonization factors. These contribute **15%** to the blended score (base dimensions contribute 85%).
+
+| StreamType | Question ID prefix | Example question focus |
+|---|---|---|
+| process | `proc_*` | Trigger uniformity, workflow steps, handover points |
+| governance_function | `gov_*` | Mandate sharing, policy model, evidence catalog |
+| service_domain | `svc_*` | Service catalog, SLA harmonization, delivery model |
+| support_function | `sup_*` | Process standards, tool consolidation, capacity sharing |
+| capability_domain | `cap_*` | Method sharing, platform integration, competency model |
+| program_domain | `prg_*` | Steering unification, initiative sync, transformation model |
+
+### Completeness & Confidence
+
+Each assessment receives a **completeness score** (0-100) based on 8 factors:
+
+| Factor | Max Points |
+|---|---|
+| Base dimension answers | 30 |
+| Type-specific answers | 20 |
+| Hard constraints documented | 10 |
+| Subprocess coverage | 20 |
+| Interface documentation | 5 |
+| Regulatory dimension scored | 5 |
+| Tenant scope considered | 5 |
+| Prioritization provided | 5 |
+
+Confidence levels derived from completeness:
+- **High:** ≥75 points
+- **Medium:** ≥45 points
+- **Low:** <45 points
+
+The report shows confidence badges next to each assessment and filters the "Recommended First Movers" list to medium+ confidence only.
+
 ### Prioritization
 
 Five factors determine harmonization initiative priority:
@@ -109,6 +146,23 @@ Five factors determine harmonization initiative priority:
 
 Result: `high_priority`, `medium_priority`, or `low_priority`.
 
+### Report Features
+
+- **Executive summary** with classification distribution
+- **Process overview** as Mermaid diagram (areas, streams, subprocesses, interfaces)
+- **Per-stream detail** with subprocess counts, interface counts, dimension scores
+- **Confidence badges** showing assessment reliability
+- **Assessment Gaps section** identifying missing data (unassessed subprocesses, missing dimensions, etc.)
+- **Management view** with prioritization table filtered by confidence level
+
+## CLI Pipeline
+
+The `analyze` command runs a 3-phase pipeline:
+
+1. **Evaluate:** Score all individual assessments using stream-type-aware weights
+2. **Aggregate:** Compute stream-level results from subprocess assessments (40/60 blend)
+3. **Completeness:** Calculate completeness scores and confidence levels for all assessments
+
 ## Assumptions
 
 1. Two ISMS tenants (DE/AT) are the primary organizational boundary.
@@ -118,6 +172,7 @@ Result: `high_priority`, `medium_priority`, or `low_priority`.
 5. The `local_necessity` dimension uses inverted semantics: 1 = high local necessity.
 6. Prioritization factors are scored independently of alignment dimensions.
 7. Assessment is per-object (one assessment per stream or subprocess).
+8. Completeness scoring prevents false precision on thin assessment data.
 
 ## Future Extensions
 

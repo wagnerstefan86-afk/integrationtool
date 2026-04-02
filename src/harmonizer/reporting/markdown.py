@@ -2,7 +2,9 @@
 
 Produces a structured Markdown report from the three-tier organizational
 model (Area -> Stream -> SubProcess), assessments, harmonization results,
-and prioritization. Includes Mermaid diagrams and a management view.
+prioritization, and completeness/confidence data.
+
+Includes: Mermaid diagrams, management view, assessment gaps analysis.
 """
 
 from datetime import date
@@ -10,6 +12,8 @@ from datetime import date
 from harmonizer.models.process import Area, Stream, StreamType, SubProcess, ProcessInterface
 from harmonizer.models.assessment import (
     Assessment,
+    AssessedObjectType,
+    ConfidenceLevel,
     HarmonizationClassification,
     HarmonizationPriority,
 )
@@ -27,6 +31,12 @@ _PRIORITY_LABELS: dict[HarmonizationPriority, str] = {
     HarmonizationPriority.HIGH: "High",
     HarmonizationPriority.MEDIUM: "Medium",
     HarmonizationPriority.LOW: "Low",
+}
+
+_CONFIDENCE_LABELS: dict[ConfidenceLevel, str] = {
+    ConfidenceLevel.HIGH: "High",
+    ConfidenceLevel.MEDIUM: "Medium",
+    ConfidenceLevel.LOW: "Low",
 }
 
 _STREAM_TYPE_LABELS: dict[StreamType, str] = {
@@ -76,13 +86,26 @@ def _resolve_name(
     return process_id
 
 
+def _count_interfaces_for(
+    process_id: str,
+    interfaces: list[ProcessInterface],
+    sp_ids_in_stream: set[str],
+) -> int:
+    """Count interfaces involving a stream or its subprocesses."""
+    relevant_ids = sp_ids_in_stream | {process_id}
+    count = 0
+    for iface in interfaces:
+        if iface.source_process_id in relevant_ids or iface.target_process_id in relevant_ids:
+            count += 1
+    return count
+
+
 def generate_mermaid_diagram(
     areas: list[Area],
     streams: list[Stream],
     subprocesses: list[SubProcess],
     interfaces: list[ProcessInterface],
 ) -> str:
-    """Generate a Mermaid flowchart showing the three-tier hierarchy and interfaces."""
     lines = ["```mermaid", "graph TD"]
 
     streams_by_area: dict[str, list[Stream]] = {a.id: [] for a in areas}
@@ -128,7 +151,6 @@ def generate_report(
     interfaces: list[ProcessInterface],
     assessments: list[Assessment],
 ) -> str:
-    """Generate the full Markdown harmonization report."""
     area_index, stream_index, sp_index, streams_by_area, sps_by_stream = _build_indices(
         areas, streams, subprocesses
     )
@@ -144,17 +166,24 @@ def generate_report(
     # --- Executive Summary ---
     s.append("## Executive Summary")
     s.append("")
-    assessed = [a for a in assessments if a.result is not None]
-    if assessed:
+    stream_assessments = [
+        a for a in assessments
+        if a.result is not None and a.assessed_object_type == AssessedObjectType.STREAM
+    ]
+    all_assessed = [a for a in assessments if a.result is not None]
+
+    s.append(f"**Streams assessed:** {len(stream_assessments)} / {len(streams)}")
+    s.append(f"**Total assessed objects (streams + subprocesses):** {len(all_assessed)}")
+    s.append("")
+
+    if stream_assessments:
         by_class: dict[HarmonizationClassification, list[str]] = {}
-        for a in assessed:
+        for a in stream_assessments:
             cls = a.result.classification
             name = _resolve_name(a.assessed_object_id, stream_index, sp_index)
             by_class.setdefault(cls, []).append(name)
 
-        s.append(f"**Total assessed objects:** {len(assessed)}")
-        s.append("")
-        s.append("| Classification | Count | Streams / Subprocesses |")
+        s.append("| Classification | Count | Streams |")
         s.append("|---|---|---|")
         for cls in HarmonizationClassification:
             names = by_class.get(cls, [])
@@ -163,19 +192,32 @@ def generate_report(
                 s.append(f"| {label} | {len(names)} | {', '.join(names)} |")
         s.append("")
 
+    # Confidence overview
+    with_completeness = [a for a in stream_assessments if a.completeness is not None]
+    if with_completeness:
+        low_conf = [
+            a for a in with_completeness
+            if a.completeness.confidence_level == ConfidenceLevel.LOW
+        ]
+        if low_conf:
+            names = [_resolve_name(a.assessed_object_id, stream_index, sp_index) for a in low_conf]
+            s.append(f"**Low confidence assessments ({len(low_conf)}):** {', '.join(names)}")
+            s.append("")
+
     # --- Area Overview ---
     s.append("## Area Overview")
     s.append("")
-    s.append("| Area | Streams | Stream Types |")
-    s.append("|---|---|---|")
+    s.append("| Area | Streams | Subprocesses | Stream Types |")
+    s.append("|---|---|---|---|")
     for area in areas:
         area_streams = streams_by_area.get(area.id, [])
+        sp_count = sum(len(sps_by_stream.get(st.id, [])) for st in area_streams)
         type_counts: dict[str, int] = {}
         for st in area_streams:
             label = _STREAM_TYPE_LABELS.get(st.stream_type, st.stream_type.value)
             type_counts[label] = type_counts.get(label, 0) + 1
         types_str = ", ".join(f"{k} ({v})" for k, v in sorted(type_counts.items()))
-        s.append(f"| {area.name} | {len(area_streams)} | {types_str} |")
+        s.append(f"| {area.name} | {len(area_streams)} | {sp_count} | {types_str} |")
     s.append("")
 
     # --- Process Overview Diagram ---
@@ -194,6 +236,10 @@ def generate_report(
 
         for stream in streams_by_area.get(area.id, []):
             type_label = _STREAM_TYPE_LABELS.get(stream.stream_type, stream.stream_type.value)
+            stream_sps = sps_by_stream.get(stream.id, [])
+            sp_ids_in_stream = {sp.id for sp in stream_sps}
+            iface_count = _count_interfaces_for(stream.id, interfaces, sp_ids_in_stream)
+
             s.append(f"### Stream: {stream.name}")
             s.append("")
             s.append(f"- **ID:** `{stream.id}`")
@@ -201,6 +247,8 @@ def generate_report(
             s.append(f"- **Owner:** {stream.owner_role}")
             s.append(f"- **Country Scope:** {stream.country_scope.value}")
             s.append(f"- **Tenant Scope:** {stream.tenant_scope.value}")
+            s.append(f"- **Subprocesses:** {len(stream_sps)}")
+            s.append(f"- **Interfaces:** {iface_count}")
             if stream.regulatory_context:
                 s.append(f"- **Regulatory Context:** {', '.join(stream.regulatory_context)}")
             if stream.notes:
@@ -212,7 +260,15 @@ def generate_report(
             if stream_assessment and stream_assessment.result:
                 r = stream_assessment.result
                 label = _CLASSIFICATION_LABELS[r.classification]
-                s.append(f"**Assessment: {label}** (Score: {r.harmonization_score:.2f})")
+
+                # Confidence badge
+                conf_str = ""
+                if stream_assessment.completeness:
+                    c = stream_assessment.completeness
+                    conf_label = _CONFIDENCE_LABELS[c.confidence_level]
+                    conf_str = f" | Confidence: {conf_label} ({c.completeness_score}%)"
+
+                s.append(f"**Assessment: {label}** (Score: {r.harmonization_score:.2f}{conf_str})")
                 s.append("")
                 s.append("| Dimension | Score | Rationale |")
                 s.append("|---|---|---|")
@@ -221,6 +277,16 @@ def generate_report(
                         f"| {ans.dimension.value} | {ans.score}/5 | {ans.rationale.strip()} |"
                     )
                 s.append("")
+
+                # Type-specific answers
+                if stream_assessment.type_specific_answers:
+                    s.append("**Type-Specific Assessment:**")
+                    s.append("")
+                    s.append("| Question | Score | Rationale |")
+                    s.append("|---|---|---|")
+                    for tsa in stream_assessment.type_specific_answers:
+                        s.append(f"| {tsa.question_id} | {tsa.score}/5 | {tsa.rationale.strip()} |")
+                    s.append("")
 
                 if stream_assessment.hard_constraints:
                     s.append("**Hard Constraints:**")
@@ -231,16 +297,18 @@ def generate_report(
                 s.append(f"**Recommendation:** {r.recommendation}")
                 s.append("")
 
-                # Prioritization
                 if stream_assessment.prioritization_result:
                     pr = stream_assessment.prioritization_result
                     pri_label = _PRIORITY_LABELS.get(pr.priority, pr.priority.value)
                     s.append(f"**Harmonization Priority: {pri_label}** (Score: {pr.priority_score:.2f})")
                     s.append(f"  {pr.rationale}")
                     s.append("")
+            else:
+                s.append("**Assessment: Not yet assessed**")
+                s.append("")
 
             # Subprocess details
-            for sp in sps_by_stream.get(stream.id, []):
+            for sp in stream_sps:
                 s.append(f"#### Subprocess: {sp.name}")
                 s.append("")
                 s.append(f"- **ID:** `{sp.id}`")
@@ -258,7 +326,14 @@ def generate_report(
                 if sp_assessment and sp_assessment.result:
                     r = sp_assessment.result
                     label = _CLASSIFICATION_LABELS[r.classification]
-                    s.append(f"**Assessment: {label}** (Score: {r.harmonization_score:.2f})")
+
+                    conf_str = ""
+                    if sp_assessment.completeness:
+                        c = sp_assessment.completeness
+                        conf_label = _CONFIDENCE_LABELS[c.confidence_level]
+                        conf_str = f" | Confidence: {conf_label} ({c.completeness_score}%)"
+
+                    s.append(f"**Assessment: {label}** (Score: {r.harmonization_score:.2f}{conf_str})")
                     s.append("")
                     s.append("| Dimension | Score | Rationale |")
                     s.append("|---|---|---|")
@@ -276,6 +351,9 @@ def generate_report(
 
                     s.append(f"**Recommendation:** {r.recommendation}")
                     s.append("")
+                else:
+                    s.append("*Not yet assessed*")
+                    s.append("")
 
     # --- Process Interfaces ---
     if interfaces:
@@ -292,51 +370,105 @@ def generate_report(
             )
         s.append("")
 
-    # --- Management View: Harmonization Prioritization ---
+    # --- Management View ---
     prioritized = [
         a for a in assessments
         if a.prioritization_result is not None and a.result is not None
     ]
     if prioritized:
-        # Sort by priority score descending
         prioritized.sort(key=lambda a: a.prioritization_result.priority_score, reverse=True)
 
         s.append("## Management View: Harmonization Roadmap")
         s.append("")
-        s.append("Streams and subprocesses ranked by harmonization priority.")
-        s.append("High-priority items offer the best combination of harmonization potential,")
-        s.append("operational relevance, and governance benefit relative to effort and dependencies.")
+        s.append("Streams ranked by harmonization priority, with confidence indicators.")
         s.append("")
-        s.append("| Priority | Stream / Subprocess | Classification | Score | Priority Score |")
-        s.append("|---|---|---|---|---|")
+        s.append("| Priority | Stream | Type | Classification | Score | Confidence | Priority Score |")
+        s.append("|---|---|---|---|---|---|---|")
         for a in prioritized:
             name = _resolve_name(a.assessed_object_id, stream_index, sp_index)
+            stream_obj = stream_index.get(a.assessed_object_id)
+            type_label = _STREAM_TYPE_LABELS.get(stream_obj.stream_type, "") if stream_obj else ""
             cls_label = _CLASSIFICATION_LABELS[a.result.classification]
             pri_label = _PRIORITY_LABELS.get(
                 a.prioritization_result.priority,
                 a.prioritization_result.priority.value,
             )
+            conf_str = "N/A"
+            if a.completeness:
+                conf_label = _CONFIDENCE_LABELS[a.completeness.confidence_level]
+                conf_str = f"{conf_label} ({a.completeness.completeness_score}%)"
             s.append(
-                f"| **{pri_label}** | {name} | {cls_label} "
+                f"| **{pri_label}** | {name} | {type_label} | {cls_label} "
                 f"| {a.result.harmonization_score:.2f} "
+                f"| {conf_str} "
                 f"| {a.prioritization_result.priority_score:.2f} |"
             )
         s.append("")
 
-        # Top recommendations
         high_pri = [a for a in prioritized if a.prioritization_result.priority == HarmonizationPriority.HIGH]
         if high_pri:
-            s.append("### Recommended First Movers")
+            # Only recommend those with at least medium confidence
+            reliable_high = [
+                a for a in high_pri
+                if not a.completeness or a.completeness.confidence_level != ConfidenceLevel.LOW
+            ]
+            if reliable_high:
+                s.append("### Recommended First Movers")
+                s.append("")
+                s.append("The following streams should be prioritized for harmonization")
+                s.append("(filtered for medium or high confidence):")
+                s.append("")
+                for a in reliable_high:
+                    name = _resolve_name(a.assessed_object_id, stream_index, sp_index)
+                    s.append(f"1. **{name}** -- {a.result.recommendation}")
+                s.append("")
+
+    # --- Assessment Gaps ---
+    s.append("## Assessment Gaps / Required Next Inputs")
+    s.append("")
+    s.append("This section identifies streams where additional data is needed")
+    s.append("for a reliable harmonization assessment.")
+    s.append("")
+
+    has_gaps = False
+    for stream in streams:
+        stream_assessment = assessment_index.get(stream.id)
+        stream_sps = sps_by_stream.get(stream.id, [])
+
+        gaps: list[str] = []
+
+        if not stream_assessment:
+            gaps.append("Stream-level assessment missing entirely")
+        elif stream_assessment.completeness and stream_assessment.completeness.missing_items:
+            gaps.extend(stream_assessment.completeness.missing_items)
+
+        # Check subprocess coverage
+        sp_assessed = sum(1 for sp in stream_sps if sp.id in assessment_index)
+        if stream_sps and sp_assessed == 0:
+            gaps.append(f"None of {len(stream_sps)} subprocesses assessed")
+        elif stream_sps and sp_assessed < len(stream_sps):
+            unassessed = [sp.name for sp in stream_sps if sp.id not in assessment_index]
+            gaps.append(f"Unassessed subprocesses: {', '.join(unassessed)}")
+
+        if gaps:
+            has_gaps = True
+            conf_str = ""
+            if stream_assessment and stream_assessment.completeness:
+                c = stream_assessment.completeness
+                conf_label = _CONFIDENCE_LABELS[c.confidence_level]
+                conf_str = f" (Confidence: {conf_label}, {c.completeness_score}%)"
+            s.append(f"### {stream.name}{conf_str}")
             s.append("")
-            s.append("The following streams should be prioritized for harmonization:")
+            for gap in gaps:
+                s.append(f"- {gap}")
             s.append("")
-            for a in high_pri:
-                name = _resolve_name(a.assessed_object_id, stream_index, sp_index)
-                s.append(f"1. **{name}** -- {a.result.recommendation}")
-            s.append("")
+
+    if not has_gaps:
+        s.append("No significant assessment gaps identified.")
+        s.append("")
 
     # --- Footer ---
     s.append("---")
-    s.append("*Report generated by harmonizer v0.2.0*")
+    s.append("*Report generated by harmonizer v0.3.0*")
 
     return "\n".join(s)

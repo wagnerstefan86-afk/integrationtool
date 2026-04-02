@@ -13,12 +13,15 @@ from harmonizer.models.assessment import (
     AssessmentAnswer,
     AssessedObjectType,
     AlignmentDimension,
+    ConfidenceLevel,
+    CompletenessResult,
     HarmonizationClassification,
     HarmonizationPriority,
     HarmonizationResult,
     HardConstraint,
     PrioritizationInput,
     PrioritizationResult,
+    TypeSpecificAnswer,
 )
 
 __all__ = [
@@ -34,10 +37,13 @@ __all__ = [
     "AssessmentAnswer",
     "AssessedObjectType",
     "AlignmentDimension",
+    "ConfidenceLevel",
+    "CompletenessResult",
     "HarmonizationClassification",
     "HarmonizationPriority",
     "HarmonizationResult",
     "HardConstraint",
     "PrioritizationInput",
     "PrioritizationResult",
+    "TypeSpecificAnswer",
 ]

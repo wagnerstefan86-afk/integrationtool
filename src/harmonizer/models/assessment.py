@@ -4,17 +4,10 @@ The assessment model captures the evaluation of a stream or subprocess
 across multiple alignment dimensions, applies hard constraints, and
 produces a deterministic harmonization classification.
 
-Classification levels (ordered from most to least harmonizable):
-1. fully_centralizable - Can be run identically across DE/AT
-2. central_method_local_execution - Central methodology, local execution
-3. partially_harmonizable - Some parts can be unified, others remain local
-4. minimum_standard_only - Only central minimum standards are feasible
-5. currently_not_harmonizable - Must remain fully local for now
-
-Prioritization levels for harmonization initiatives:
-- high_priority
-- medium_priority
-- low_priority
+This module also defines:
+- Stream-type-specific supplementary questions
+- Completeness and confidence scoring
+- Aggregation metadata for stream-level roll-ups from subprocesses
 """
 
 from enum import Enum
@@ -37,13 +30,19 @@ class HarmonizationPriority(str, Enum):
     LOW = "low_priority"
 
 
+class ConfidenceLevel(str, Enum):
+    HIGH = "high"
+    MEDIUM = "medium"
+    LOW = "low"
+
+
 class AssessedObjectType(str, Enum):
     STREAM = "stream"
     SUBPROCESS = "subprocess"
 
 
 class AlignmentDimension(str, Enum):
-    """Dimensions scored during harmonization assessment."""
+    """Base dimensions scored during harmonization assessment."""
     REGULATORY_ALIGNMENT = "regulatory_alignment"
     OPERATIONAL_ALIGNMENT = "operational_alignment"
     TOOLING_ALIGNMENT = "tooling_alignment"
@@ -73,11 +72,20 @@ class AssessmentAnswer(BaseModel):
     rationale: str
 
 
-class PrioritizationInput(BaseModel):
-    """Input factors for harmonization initiative prioritization.
+class TypeSpecificAnswer(BaseModel):
+    """Answer to a stream-type-specific supplementary question.
 
-    Each factor scored 1 (low) to 5 (high).
+    These questions are defined per StreamType and provide additional
+    depth beyond the six base alignment dimensions.
+    Score range: 1 (low/negative) to 5 (high/positive for harmonization).
     """
+    question_id: str
+    score: int = Field(ge=1, le=5)
+    rationale: str
+
+
+class PrioritizationInput(BaseModel):
+    """Input factors for harmonization initiative prioritization."""
     harmonization_potential: int = Field(ge=1, le=5)
     operational_relevance: int = Field(ge=1, le=5)
     governance_compliance_benefit: int = Field(ge=1, le=5)
@@ -89,6 +97,14 @@ class PrioritizationResult(BaseModel):
     """Computed prioritization for a harmonization initiative."""
     priority: HarmonizationPriority
     priority_score: float = Field(ge=0.0, le=1.0)
+    rationale: str
+
+
+class CompletenessResult(BaseModel):
+    """Assessment completeness and confidence evaluation."""
+    completeness_score: int = Field(ge=0, le=100)
+    confidence_level: ConfidenceLevel
+    missing_items: list[str] = Field(default_factory=list)
     rationale: str
 
 
@@ -109,7 +125,9 @@ class Assessment(BaseModel):
     assessed_object_type: AssessedObjectType
     assessed_object_id: str
     answers: list[AssessmentAnswer] = Field(default_factory=list)
+    type_specific_answers: list[TypeSpecificAnswer] = Field(default_factory=list)
     hard_constraints: list[HardConstraint] = Field(default_factory=list)
     prioritization: Optional[PrioritizationInput] = None
     result: Optional[HarmonizationResult] = None
     prioritization_result: Optional[PrioritizationResult] = None
+    completeness: Optional[CompletenessResult] = None

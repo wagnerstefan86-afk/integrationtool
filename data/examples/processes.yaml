@@ -1,531 +1,1388 @@
-# Organizational structure: Areas, Streams, Subprocesses, Interfaces
-# Reflects real InfoSec department with DE/AT scope.
-
 areas:
-  - id: definition_design
-    name: "Definition & Design"
-    description: >
-      Defines policies, frameworks, risk methodology, and BCM strategy.
-      Sets the normative foundation for all InfoSec activities.
-
-  - id: check_execute
-    name: "Check & Execute"
-    description: >
-      Operational execution of security controls, incident handling,
-      contract review, audits, and security operationalization.
-
-  - id: regulatory_compliance_office
-    name: "Regulatory Compliance Office"
-    description: >
-      Corporate governance coordination and regulatory compliance
-      management for information security.
-
-  - id: support_office
-    name: "Support Office"
-    description: >
-      Internal support functions including backoffice, onboarding,
-      technology projects, awareness, and division support.
-
+- id: definition_design
+  name: Definition & Design
+  description: Defines policies, frameworks, risk methodology, and BCM strategy. Sets the normative foundation for all InfoSec
+    activities.
+- id: check_execute
+  name: Check & Execute
+  description: Operational execution of security controls, incident handling, contract review, audits, and security operationalization.
+- id: regulatory_compliance_office
+  name: Regulatory Compliance Office
+  description: Corporate governance coordination and regulatory compliance management for information security.
+- id: support_office
+  name: Support Office
+  description: Internal support functions including backoffice, onboarding, technology projects, awareness, and division support.
 streams:
-  # --- Definition & Design ---
-  - id: policies_processes
-    area_id: definition_design
-    name: "Policies and Processes"
-    stream_type: governance_function
-    description: >
-      Maintains the InfoSec policy framework, process definitions,
-      and governance documentation across DE/AT.
-    owner_role: Head of InfoSec Governance
-    country_scope: BOTH
-    tenant_scope: SEPARATE
-    regulatory_context:
-      - ISO 27001 Clause 5
-      - NIS2
-    notes: >
-      Policy content is largely harmonizable. Document management
-      and approval workflows differ per ISMS tenant.
-
-  - id: it_bcm
-    area_id: definition_design
-    name: "IT-BCM"
-    stream_type: process
-    description: >
-      IT Business Continuity Management including BIA, BC strategy,
-      BC plans, and testing.
-    owner_role: BCM Manager
-    country_scope: BOTH
-    tenant_scope: SEPARATE
-    regulatory_context:
-      - ISO 22301
-      - NIS2
-      - DORA (financial entities)
-      - BSI IT-Grundschutz (DE)
-    notes: >
-      BIA methodology can be unified. BC plans are inherently local
-      due to different IT landscapes and recovery sites.
-
-  - id: it_risk
-    area_id: definition_design
-    name: "IT-Risk"
-    stream_type: process
-    description: >
-      IT risk identification, assessment, treatment, and monitoring.
-    owner_role: IT Risk Manager
-    country_scope: BOTH
-    tenant_scope: SEPARATE
-    regulatory_context:
-      - ISO 27005
-      - ISO 31000
-      - NIS2
-    notes: >
-      Risk methodology and criteria can be harmonized.
-      Risk registers are maintained per ISMS tenant.
-
-  # --- Check & Execute ---
-  - id: request_incident_mgmt
-    area_id: check_execute
-    name: "Request & Incident Mgmt"
-    stream_type: process
-    description: >
-      Handling of security requests and security incidents from
-      intake through resolution and lessons learned.
-    owner_role: Head of Security Operations
-    country_scope: BOTH
-    tenant_scope: SEPARATE
-    regulatory_context:
-      - NIS2 Art. 23
-      - DSGVO Art. 33/34
-      - DSG (AT)
-    notes: >
-      Request handling is highly harmonizable. Incident reporting
-      to regulators differs (BSI vs. Austrian CERT/DSB).
-
-  - id: contract_mgmt
-    area_id: check_execute
-    name: "Contract Mgmt"
-    stream_type: process
-    description: >
-      Security review and requirements for third-party contracts,
-      SLAs, and vendor agreements.
-    owner_role: Contract Security Lead
-    country_scope: BOTH
-    tenant_scope: BOTH
-    regulatory_context:
-      - ISO 27001 A.15
-      - NIS2 supply chain
-    notes: >
-      Security requirements in contracts are largely identical.
-      Legal review involves local legal departments.
-
-  - id: audits_execution_bps
-    area_id: check_execute
-    name: "Audits execution & business partner security"
-    stream_type: process
-    description: >
-      Execution of security audits for internal and external parties,
-      including business partner security assessments.
-    owner_role: Audit Execution Lead
-    country_scope: BOTH
-    tenant_scope: BOTH
-    regulatory_context:
-      - ISO 27001 Clause 9
-      - NIS2
-    notes: Audit methodology can be unified. Audit scheduling is local.
-
-  - id: operationalization
-    area_id: check_execute
-    name: "Operationalization"
-    stream_type: capability_domain
-    description: >
-      Translation of security requirements into operational controls
-      and technical implementations.
-    owner_role: Security Engineering Lead
-    country_scope: BOTH
-    tenant_scope: BOTH
-    regulatory_context:
-      - ISO 27001 Annex A
-    notes: >
-      Shared tooling and platforms. Implementation patterns
-      are reusable across DE/AT.
-
-  # --- Regulatory Compliance Office ---
-  - id: corporate_governance
-    area_id: regulatory_compliance_office
-    name: "Corporate Governance"
-    stream_type: program_domain
-    description: >
-      Coordination of corporate governance requirements, board reporting,
-      and regulatory change management for InfoSec.
-    owner_role: Head of Regulatory Compliance
-    country_scope: BOTH
-    tenant_scope: SEPARATE
-    regulatory_context:
-      - NIS2
-      - DORA
-      - Corporate governance codes (DE/AT)
-    notes: >
-      Reporting structure to board/management is similar but
-      legal entity requirements differ.
-
-  - id: is_gc_service
-    area_id: regulatory_compliance_office
-    name: "Information Security Governance and Compliance"
-    stream_type: service_domain
-    description: >
-      Provides governance and compliance services to the organization:
-      compliance monitoring, control effectiveness assessment,
-      and regulatory mapping.
-    owner_role: IS Governance & Compliance Lead
-    country_scope: BOTH
-    tenant_scope: SEPARATE
-    regulatory_context:
-      - ISO 27001
-      - NIS2
-      - DSGVO/GDPR
-    notes: >
-      Compliance framework is shared. Monitoring and evidence
-      collection differs per ISMS tenant.
-
-  # --- Support Office ---
-  - id: backoffice
-    area_id: support_office
-    name: "Backoffice"
-    stream_type: support_function
-    description: >
-      Administrative support for the InfoSec department: budget,
-      procurement, time tracking, travel, documentation.
-    owner_role: Backoffice Lead
-    country_scope: BOTH
-    tenant_scope: BOTH
-    regulatory_context: []
-    notes: Highly standardizable. Mostly administrative.
-
-  - id: on_offboarding
-    area_id: support_office
-    name: "On & Offboarding"
-    stream_type: support_function
-    description: >
-      Onboarding and offboarding of InfoSec team members including
-      access provisioning, training, and knowledge transfer.
-    owner_role: HR Liaison / Team Lead
-    country_scope: BOTH
-    tenant_scope: BOTH
-    regulatory_context: []
-    notes: >
-      Process is similar. HR systems and local labor law
-      create minor differences.
-
-  - id: technology_projects_ai
-    area_id: support_office
-    name: "Technology Projects & AI"
-    stream_type: capability_domain
-    description: >
-      Management of internal technology projects and AI initiatives
-      within the InfoSec domain.
-    owner_role: Technology Projects Lead
-    country_scope: BOTH
-    tenant_scope: BOTH
-    regulatory_context:
-      - EU AI Act
-    notes: Fully shared capability. No country-specific differences.
-
-  - id: division_support
-    area_id: support_office
-    name: "Division Support"
-    stream_type: support_function
-    description: >
-      Dedicated InfoSec support for business divisions, including
-      security consulting, risk advisory, and project reviews.
-    owner_role: Division Security Advisor
-    country_scope: BOTH
-    tenant_scope: SEPARATE
-    regulatory_context: []
-    notes: >
-      Service model is similar, but stakeholder landscapes and
-      division structures differ between DE and AT.
-
-  - id: awareness_education
-    area_id: support_office
-    name: "Awareness & Education"
-    stream_type: process
-    description: >
-      Security awareness campaigns, training programs, phishing
-      simulations, and education initiatives.
-    owner_role: Awareness Program Lead
-    country_scope: BOTH
-    tenant_scope: BOTH
-    regulatory_context:
-      - ISO 27001 A.7.2.2
-      - NIS2
-    notes: >
-      Content and platforms are shared. Some localization
-      needed for language and local regulations.
-
-  - id: audit_organisation
-    area_id: support_office
-    name: "Audit organisation"
-    stream_type: support_function
-    description: >
-      Planning, scheduling, and coordination of audit activities
-      including internal and external audit support.
-    owner_role: Audit Coordination Lead
-    country_scope: BOTH
-    tenant_scope: BOTH
-    regulatory_context:
-      - ISO 27001 Clause 9
-    notes: Audit planning can be centralized. Execution is per-entity.
-
+- id: policies_processes
+  area_id: definition_design
+  name: Policies and Processes
+  stream_type: governance_function
+  description: Maintains the InfoSec policy framework, process definitions, and governance documentation across DE/AT.
+  owner_role: Head of InfoSec Governance
+  country_scope: BOTH
+  tenant_scope: SEPARATE
+  regulatory_context:
+  - ISO 27001 Clause 5
+  - NIS2
+  notes: Policy content is largely harmonizable. Document management and approval workflows differ per ISMS tenant.
+- id: it_bcm
+  area_id: definition_design
+  name: IT-BCM
+  stream_type: process
+  description: IT Business Continuity Management including BIA, BC strategy, BC plans, and testing.
+  owner_role: BCM Manager
+  country_scope: BOTH
+  tenant_scope: SEPARATE
+  regulatory_context:
+  - ISO 22301
+  - NIS2
+  - DORA
+  - BSI IT-Grundschutz (DE)
+  notes: BIA methodology can be unified. BC plans are inherently local due to different IT landscapes.
+- id: it_risk
+  area_id: definition_design
+  name: IT-Risk
+  stream_type: process
+  description: IT risk identification, assessment, treatment, and monitoring.
+  owner_role: IT Risk Manager
+  country_scope: BOTH
+  tenant_scope: SEPARATE
+  regulatory_context:
+  - ISO 27005
+  - ISO 31000
+  - NIS2
+  notes: Risk methodology and criteria can be harmonized. Risk registers are maintained per ISMS tenant.
+- id: request_incident_mgmt
+  area_id: check_execute
+  name: Request & Incident Mgmt
+  stream_type: process
+  description: Handling of security requests and incidents from intake through resolution and lessons learned.
+  owner_role: Head of Security Operations
+  country_scope: BOTH
+  tenant_scope: SEPARATE
+  regulatory_context:
+  - NIS2 Art. 23
+  - DSGVO Art. 33/34
+  - DSG (AT)
+  notes: Request handling is harmonizable. Incident reporting to regulators differs (BSI vs. Austrian CERT/DSB).
+- id: contract_mgmt
+  area_id: check_execute
+  name: Contract Mgmt
+  stream_type: process
+  description: Security review and requirements for third-party contracts, SLAs, and vendor agreements.
+  owner_role: Contract Security Lead
+  country_scope: BOTH
+  tenant_scope: BOTH
+  regulatory_context:
+  - ISO 27001 A.15
+  - NIS2 supply chain
+  notes: Security requirements in contracts are largely identical. Legal review involves local legal departments.
+- id: audits_execution_bps
+  area_id: check_execute
+  name: Audits execution & business partner security
+  stream_type: process
+  description: Execution of security audits and business partner security assessments.
+  owner_role: Audit Execution Lead
+  country_scope: BOTH
+  tenant_scope: BOTH
+  regulatory_context:
+  - ISO 27001 Clause 9
+  - NIS2
+  notes: Audit methodology can be unified. Audit scheduling is local.
+- id: operationalization
+  area_id: check_execute
+  name: Operationalization
+  stream_type: capability_domain
+  description: Translation of security requirements into operational controls and technical implementations.
+  owner_role: Security Engineering Lead
+  country_scope: BOTH
+  tenant_scope: BOTH
+  regulatory_context:
+  - ISO 27001 Annex A
+  notes: Shared tooling and platforms. Implementation patterns are reusable across DE/AT.
+- id: corporate_governance
+  area_id: regulatory_compliance_office
+  name: Corporate Governance
+  stream_type: program_domain
+  description: Coordination of corporate governance requirements, board reporting, and regulatory change management.
+  owner_role: Head of Regulatory Compliance
+  country_scope: BOTH
+  tenant_scope: SEPARATE
+  regulatory_context:
+  - NIS2
+  - DORA
+  - Corporate governance codes (DE/AT)
+  notes: Reporting structure similar but legal entity requirements differ.
+- id: is_gc_service
+  area_id: regulatory_compliance_office
+  name: Information Security Governance and Compliance
+  stream_type: service_domain
+  description: 'Provides governance and compliance services: compliance monitoring, control effectiveness assessment, regulatory
+    mapping.'
+  owner_role: IS Governance & Compliance Lead
+  country_scope: BOTH
+  tenant_scope: SEPARATE
+  regulatory_context:
+  - ISO 27001
+  - NIS2
+  - DSGVO/GDPR
+  notes: Compliance framework is shared. Monitoring and evidence collection differs per ISMS tenant.
+- id: backoffice
+  area_id: support_office
+  name: Backoffice
+  stream_type: support_function
+  description: 'Administrative support: budget, procurement, time tracking, travel, documentation.'
+  owner_role: Backoffice Lead
+  country_scope: BOTH
+  tenant_scope: BOTH
+  regulatory_context: []
+  notes: Highly standardizable. Mostly administrative.
+- id: on_offboarding
+  area_id: support_office
+  name: On & Offboarding
+  stream_type: support_function
+  description: Onboarding and offboarding of InfoSec team members including access provisioning, training, and knowledge transfer.
+  owner_role: HR Liaison / Team Lead
+  country_scope: BOTH
+  tenant_scope: BOTH
+  regulatory_context: []
+  notes: Process is similar. HR systems and local labor law create minor differences.
+- id: technology_projects_ai
+  area_id: support_office
+  name: Technology Projects & AI
+  stream_type: capability_domain
+  description: Management of internal technology projects and AI initiatives within InfoSec.
+  owner_role: Technology Projects Lead
+  country_scope: BOTH
+  tenant_scope: BOTH
+  regulatory_context:
+  - EU AI Act
+  notes: Fully shared capability. No country-specific differences.
+- id: division_support
+  area_id: support_office
+  name: Division Support
+  stream_type: support_function
+  description: Dedicated InfoSec support for business divisions, including security consulting and project reviews.
+  owner_role: Division Security Advisor
+  country_scope: BOTH
+  tenant_scope: SEPARATE
+  regulatory_context: []
+  notes: Service model is similar, but stakeholder landscapes differ between DE and AT.
+- id: awareness_education
+  area_id: support_office
+  name: Awareness & Education
+  stream_type: process
+  description: Security awareness campaigns, training programs, phishing simulations, and education initiatives.
+  owner_role: Awareness Program Lead
+  country_scope: BOTH
+  tenant_scope: BOTH
+  regulatory_context:
+  - ISO 27001 A.7.2.2
+  - NIS2
+  notes: Content and platforms are shared. Some localization needed.
+- id: audit_organisation
+  area_id: support_office
+  name: Audit organisation
+  stream_type: support_function
+  description: Planning, scheduling, and coordination of audit activities.
+  owner_role: Audit Coordination Lead
+  country_scope: BOTH
+  tenant_scope: BOTH
+  regulatory_context:
+  - ISO 27001 Clause 9
+  notes: Audit planning can be centralized. Execution is per-entity.
 subprocesses:
-  # --- Policies and Processes ---
-  - id: sp-pol-lifecycle
-    stream_id: policies_processes
-    name: "Policy Lifecycle Management"
-    description: Creation, review, approval, and retirement of security policies.
-    purpose: Ensure policies are current, approved, and communicated.
-    inputs:
-      - Regulatory requirements
-      - Risk assessment findings
-      - Audit findings
-    outputs:
-      - Approved policies
-      - Policy change log
-    roles:
-      - Policy Author
-      - Policy Approver
-      - CISO
-    tools:
-      - Document Management System
-    evidence:
-      - Approval records
-      - Version history
-    country_scope: BOTH
-    tenant_scope: SEPARATE
-    regulatory_context:
-      - ISO 27001 Clause 5.2
-    interfaces_with:
-      - is_gc_service
-    notes: null
-
-  # --- IT-Risk ---
-  - id: sp-risk-assess
-    stream_id: it_risk
-    name: "Risk Assessment"
-    description: Identification and evaluation of IT risks.
-    purpose: Produce risk ratings for informed treatment decisions.
-    inputs:
-      - Asset inventory
-      - Threat intelligence
-      - Vulnerability data
-    outputs:
-      - Risk assessment report
-      - Risk ratings
-    roles:
-      - Risk Analyst
-      - Asset Owner
-    tools:
-      - Risk Management Tool
-      - CMDB
-    evidence:
-      - Risk assessment records
-    country_scope: BOTH
-    tenant_scope: SEPARATE
-    regulatory_context:
-      - ISO 27005
-    interfaces_with:
-      - sp-risk-treatment
-      - operationalization
-    notes: null
-
-  - id: sp-risk-treatment
-    stream_id: it_risk
-    name: "Risk Treatment"
-    description: Selection and implementation of risk treatment options.
-    purpose: Reduce risks to acceptable levels.
-    inputs:
-      - Risk assessment report
-      - Treatment options
-    outputs:
-      - Risk treatment plan
-      - Residual risk acceptance
-    roles:
-      - Risk Owner
-      - Risk Analyst
-    tools:
-      - Risk Management Tool
-    evidence:
-      - Treatment plan documents
-      - Acceptance records
-    country_scope: BOTH
-    tenant_scope: SEPARATE
-    regulatory_context:
-      - ISO 27005
-    interfaces_with: []
-    notes: null
-
-  # --- Request & Incident Mgmt ---
-  - id: sp-inc-intake
-    stream_id: request_incident_mgmt
-    name: "Incident Intake"
-    description: Initial reception and logging of security events and incidents.
-    purpose: Capture all potential incidents in a structured manner.
-    inputs:
-      - SIEM alerts
-      - User reports
-      - Automated detection feeds
-    outputs:
-      - Incident ticket (initial)
-    roles:
-      - SOC Analyst L1
-      - Incident Coordinator
-    tools:
-      - SIEM
-      - Ticketing System
-    evidence:
-      - Incident ticket with timestamp
-    country_scope: BOTH
-    tenant_scope: SEPARATE
-    regulatory_context:
-      - NIS2 Art. 23
-    interfaces_with:
-      - sp-inc-triage
-    notes: null
-
-  - id: sp-inc-triage
-    stream_id: request_incident_mgmt
-    name: "Incident Triage"
-    description: Assessment of severity, impact, and categorization.
-    purpose: Determine priority and assign to appropriate response team.
-    inputs:
-      - Incident ticket (initial)
-    outputs:
-      - Prioritized incident ticket
-      - Severity classification
-    roles:
-      - SOC Analyst L2
-      - Incident Manager
-    tools:
-      - Ticketing System
-      - Threat Intelligence Platform
-    evidence:
-      - Triage decision log
-    country_scope: BOTH
-    tenant_scope: SEPARATE
-    regulatory_context:
-      - NIS2
-    interfaces_with:
-      - sp-inc-communication
-    notes: >
-      Triage criteria aligned across DE/AT. Escalation paths differ
-      due to local management structures.
-
-  - id: sp-inc-communication
-    stream_id: request_incident_mgmt
-    name: "Incident Communication"
-    description: Internal and external communication during and after incidents.
-    purpose: Timely notification of stakeholders and regulators.
-    inputs:
-      - Prioritized incident ticket
-    outputs:
-      - Stakeholder notifications
-      - Regulatory reports
-    roles:
-      - Incident Manager
-      - Communications Lead
-      - DPO
-    tools:
-      - Communication templates
-      - Email platform
-    evidence:
-      - Notification log
-      - Regulatory filing receipts
-    country_scope: BOTH
-    tenant_scope: SEPARATE
-    regulatory_context:
-      - NIS2 Art. 23
-      - DSGVO Art. 33/34
-      - DSG (AT)
-    interfaces_with: []
-    notes: >
-      DE reports to BSI, AT to national CERT/DSB.
-      Very high local necessity.
-
-  # --- Awareness & Education ---
-  - id: sp-aware-campaign
-    stream_id: awareness_education
-    name: "Awareness Campaign Execution"
-    description: Planning and delivery of awareness campaigns.
-    purpose: Increase security awareness across the organization.
-    inputs:
-      - Campaign plan
-      - Target audience data
-    outputs:
-      - Campaign metrics
-      - Completion reports
-    roles:
-      - Awareness Lead
-      - Content Creator
-    tools:
-      - Awareness Platform
-      - LMS
-    evidence:
-      - Participation statistics
-      - Quiz results
-    country_scope: BOTH
-    tenant_scope: BOTH
-    regulatory_context:
-      - ISO 27001 A.7.2.2
-    interfaces_with: []
-    notes: Shared platform, content localized for DE/AT.
-
+- inputs:
+  - Regulatory requirements
+  - Risk assessment findings
+  - Audit findings
+  outputs:
+  - Approved policies
+  - Policy change log
+  roles:
+  - Policy Author
+  - Policy Approver
+  - CISO
+  tools:
+  - Document Management System
+  evidence:
+  - Approval records
+  - Version history
+  regulatory_context:
+  - ISO 27001 Clause 5.2
+  interfaces_with:
+  - is_gc_service
+  notes: null
+  id: sp-pol-lifecycle
+  stream_id: policies_processes
+  name: Policy Lifecycle Management
+  description: Creation, review, approval, and retirement of security policies.
+  purpose: Ensure policies are current, approved, and communicated.
+  country_scope: BOTH
+  tenant_scope: SEPARATE
+- inputs:
+  - Process requirements
+  - Best practices
+  outputs:
+  - Process documentation
+  - Process maps
+  roles:
+  - Process Designer
+  - Process Owner
+  tools:
+  - Process modeling tool
+  - Wiki
+  evidence:
+  - Published process documents
+  regulatory_context: []
+  interfaces_with: []
+  notes: null
+  id: sp-pol-process-design
+  stream_id: policies_processes
+  name: Process Design & Documentation
+  description: Design, documentation, and maintenance of InfoSec process descriptions.
+  purpose: Standardize and document operational processes.
+  country_scope: BOTH
+  tenant_scope: SEPARATE
+- inputs:
+  - Exception request
+  - Risk assessment
+  outputs:
+  - Exception decision
+  - Compensating controls
+  roles:
+  - Policy Owner
+  - Risk Analyst
+  - CISO
+  tools:
+  - Ticketing System
+  evidence:
+  - Exception register
+  - Approval records
+  regulatory_context: []
+  interfaces_with:
+  - it_risk
+  notes: null
+  id: sp-pol-exception-mgmt
+  stream_id: policies_processes
+  name: Exception Management
+  description: Handling of policy exceptions and deviation requests.
+  purpose: Formally manage approved deviations from policies.
+  country_scope: BOTH
+  tenant_scope: SEPARATE
+- inputs:
+  - IT service catalog
+  - Business requirements
+  outputs:
+  - BIA report
+  - Criticality ratings
+  roles:
+  - BCM Analyst
+  - Service Owner
+  tools:
+  - BIA Tool
+  - CMDB
+  evidence:
+  - BIA reports
+  regulatory_context:
+  - ISO 22301
+  interfaces_with: []
+  notes: null
+  id: sp-bcm-bia
+  stream_id: it_bcm
+  name: Business Impact Analysis
+  description: Identification and assessment of critical IT services and their recovery requirements.
+  purpose: Determine RTO/RPO for critical services.
+  country_scope: BOTH
+  tenant_scope: SEPARATE
+- inputs:
+  - BIA report
+  outputs:
+  - BC strategy document
+  roles:
+  - BCM Manager
+  - IT Management
+  tools:
+  - BC Planning Tool
+  evidence:
+  - Approved BC strategy
+  regulatory_context: []
+  interfaces_with: []
+  notes: null
+  id: sp-bcm-strategy
+  stream_id: it_bcm
+  name: BC Strategy Development
+  description: Development of continuity strategies based on BIA results.
+  purpose: Define recovery strategies for critical services.
+  country_scope: BOTH
+  tenant_scope: SEPARATE
+- inputs:
+  - BC strategy
+  - IT landscape changes
+  outputs:
+  - BC plans
+  - Recovery procedures
+  roles:
+  - BCM Coordinator
+  - IT Operations
+  tools:
+  - BC Planning Tool
+  evidence:
+  - Current BC plans
+  - Review records
+  regulatory_context: []
+  interfaces_with: []
+  notes: null
+  id: sp-bcm-plan
+  stream_id: it_bcm
+  name: BC Plan Maintenance
+  description: Creation and maintenance of business continuity plans.
+  purpose: Ensure BC plans are current and actionable.
+  country_scope: BOTH
+  tenant_scope: SEPARATE
+- inputs:
+  - BC plans
+  - Test scenarios
+  outputs:
+  - Test reports
+  - Improvement actions
+  roles:
+  - BCM Manager
+  - IT Operations
+  tools:
+  - Test management tools
+  evidence:
+  - Test protocols
+  - Lessons learned
+  regulatory_context:
+  - ISO 22301
+  interfaces_with: []
+  notes: null
+  id: sp-bcm-testing
+  stream_id: it_bcm
+  name: BC Testing & Exercises
+  description: Testing and exercising BC plans to validate effectiveness.
+  purpose: Verify recoverability and identify gaps.
+  country_scope: BOTH
+  tenant_scope: SEPARATE
+- inputs:
+  - Threat intelligence
+  - Vulnerability data
+  - Audit findings
+  - Incident data
+  outputs:
+  - Risk inventory
+  - New risk records
+  roles:
+  - Risk Analyst
+  - Asset Owner
+  tools:
+  - Risk Management Tool
+  - CMDB
+  evidence:
+  - Risk register entries
+  regulatory_context:
+  - ISO 27005
+  interfaces_with: []
+  notes: null
+  id: sp-risk-identify
+  stream_id: it_risk
+  name: Risk Identification
+  description: Systematic identification of IT risks from multiple sources.
+  purpose: Maintain a complete and current risk inventory.
+  country_scope: BOTH
+  tenant_scope: SEPARATE
+- inputs:
+  - Risk inventory
+  - Asset criticality
+  outputs:
+  - Risk assessment report
+  - Risk ratings
+  roles:
+  - Risk Analyst
+  - Asset Owner
+  tools:
+  - Risk Management Tool
+  evidence:
+  - Risk assessment records
+  regulatory_context:
+  - ISO 27005
+  interfaces_with:
+  - sp-risk-treatment
+  - operationalization
+  notes: null
+  id: sp-risk-assess
+  stream_id: it_risk
+  name: Risk Assessment
+  description: Evaluation of identified risks by likelihood and impact.
+  purpose: Produce risk ratings for treatment decisions.
+  country_scope: BOTH
+  tenant_scope: SEPARATE
+- inputs:
+  - Risk assessment report
+  outputs:
+  - Risk treatment plan
+  - Residual risk acceptance
+  roles:
+  - Risk Owner
+  - Risk Analyst
+  tools:
+  - Risk Management Tool
+  evidence:
+  - Treatment plans
+  - Acceptance records
+  regulatory_context: []
+  interfaces_with:
+  - sp-ops-requirements
+  notes: null
+  id: sp-risk-treatment
+  stream_id: it_risk
+  name: Risk Treatment
+  description: Selection and implementation of risk treatment options.
+  purpose: Reduce risks to acceptable levels.
+  country_scope: BOTH
+  tenant_scope: SEPARATE
+- inputs:
+  - Risk register
+  - KRI data
+  outputs:
+  - Risk reports
+  - KRI dashboards
+  roles:
+  - Risk Manager
+  - CISO
+  tools:
+  - Risk Management Tool
+  - BI Dashboard
+  evidence:
+  - Risk reports
+  - Meeting minutes
+  regulatory_context: []
+  interfaces_with:
+  - sp-cg-board-reporting
+  notes: null
+  id: sp-risk-monitor
+  stream_id: it_risk
+  name: Risk Monitoring & Reporting
+  description: Ongoing monitoring of risk landscape and reporting to management.
+  purpose: Ensure risks remain within appetite and stakeholders are informed.
+  country_scope: BOTH
+  tenant_scope: SEPARATE
+- inputs:
+  - User requests
+  - Automated requests
+  outputs:
+  - Qualified request ticket
+  roles:
+  - Service Desk
+  - Security Analyst
+  tools:
+  - Ticketing System
+  evidence:
+  - Request tickets
+  regulatory_context: []
+  interfaces_with: []
+  notes: null
+  id: sp-req-intake
+  stream_id: request_incident_mgmt
+  name: Request Intake & Qualification
+  description: Reception and qualification of security service requests.
+  purpose: Ensure requests are properly categorized and routed.
+  country_scope: BOTH
+  tenant_scope: SEPARATE
+- inputs:
+  - Qualified request ticket
+  outputs:
+  - Completed request
+  - Service delivered
+  roles:
+  - Security Analyst
+  - Specialist
+  tools:
+  - Ticketing System
+  evidence:
+  - Fulfillment records
+  - SLA metrics
+  regulatory_context: []
+  interfaces_with: []
+  notes: null
+  id: sp-req-fulfillment
+  stream_id: request_incident_mgmt
+  name: Request Fulfillment
+  description: Processing and completion of qualified security requests.
+  purpose: Deliver requested security services within SLA.
+  country_scope: BOTH
+  tenant_scope: SEPARATE
+- inputs:
+  - SIEM alerts
+  - User reports
+  - Detection feeds
+  outputs:
+  - Incident ticket (initial)
+  roles:
+  - SOC Analyst L1
+  - Incident Coordinator
+  tools:
+  - SIEM
+  - Ticketing System
+  evidence:
+  - Incident ticket with timestamp
+  regulatory_context:
+  - NIS2 Art. 23
+  interfaces_with:
+  - sp-inc-triage
+  notes: null
+  id: sp-inc-intake
+  stream_id: request_incident_mgmt
+  name: Incident Intake
+  description: Reception and logging of security events and incidents.
+  purpose: Capture all potential incidents in a structured manner.
+  country_scope: BOTH
+  tenant_scope: SEPARATE
+- inputs:
+  - Incident ticket (initial)
+  outputs:
+  - Prioritized incident ticket
+  - Severity classification
+  roles:
+  - SOC Analyst L2
+  - Incident Manager
+  tools:
+  - Ticketing System
+  - TIP
+  evidence:
+  - Triage decision log
+  regulatory_context: []
+  interfaces_with:
+  - sp-inc-response
+  - sp-inc-communication
+  - sp-bcm-plan
+  notes: null
+  id: sp-inc-triage
+  stream_id: request_incident_mgmt
+  name: Incident Triage
+  description: Severity assessment, impact analysis, and categorization.
+  purpose: Determine priority and assign to response team.
+  country_scope: BOTH
+  tenant_scope: SEPARATE
+- inputs:
+  - Prioritized incident ticket
+  outputs:
+  - Incident resolution
+  - Recovery confirmation
+  roles:
+  - Incident Responder
+  - SOC Analyst L3
+  tools:
+  - SIEM
+  - EDR
+  - Forensic tools
+  evidence:
+  - Response timeline
+  - Containment log
+  regulatory_context: []
+  interfaces_with: []
+  notes: null
+  id: sp-inc-response
+  stream_id: request_incident_mgmt
+  name: Incident Response & Containment
+  description: Technical response, containment, eradication, and recovery.
+  purpose: Contain and resolve security incidents.
+  country_scope: BOTH
+  tenant_scope: SEPARATE
+- inputs:
+  - Prioritized incident ticket
+  outputs:
+  - Stakeholder notifications
+  - Regulatory reports
+  roles:
+  - Incident Manager
+  - Communications Lead
+  - DPO
+  tools:
+  - Communication templates
+  - Email platform
+  evidence:
+  - Notification log
+  - Regulatory filings
+  regulatory_context:
+  - NIS2 Art. 23
+  - DSGVO Art. 33/34
+  - DSG (AT)
+  interfaces_with: []
+  notes: DE reports to BSI, AT to national CERT/DSB. Very high local necessity.
+  id: sp-inc-communication
+  stream_id: request_incident_mgmt
+  name: Incident Communication
+  description: Internal and external communication during and after incidents.
+  purpose: Timely notification of stakeholders and regulators.
+  country_scope: BOTH
+  tenant_scope: SEPARATE
+- inputs:
+  - Incident resolution
+  - Response timeline
+  outputs:
+  - Lessons learned report
+  - Improvement actions
+  roles:
+  - Incident Manager
+  - Process Owner
+  tools:
+  - Ticketing System
+  - Wiki
+  evidence:
+  - Lessons learned records
+  regulatory_context: []
+  interfaces_with:
+  - sp-risk-identify
+  notes: null
+  id: sp-inc-lessons
+  stream_id: request_incident_mgmt
+  name: Incident Lessons Learned
+  description: Post-incident review and improvement identification.
+  purpose: Derive improvements from incident handling.
+  country_scope: BOTH
+  tenant_scope: SEPARATE
+- inputs:
+  - Contract draft
+  - Security policy
+  outputs:
+  - Security requirements
+  - Review report
+  roles:
+  - Contract Security Analyst
+  - Legal
+  tools:
+  - Contract templates
+  - Checklist
+  evidence:
+  - Review records
+  regulatory_context:
+  - ISO 27001 A.15
+  interfaces_with:
+  - sp-ops-requirements
+  notes: null
+  id: sp-con-review
+  stream_id: contract_mgmt
+  name: Security Requirements Review
+  description: Review and definition of security requirements in contracts.
+  purpose: Ensure contracts contain adequate security clauses.
+  country_scope: BOTH
+  tenant_scope: BOTH
+- inputs:
+  - Vendor questionnaire
+  - Audit results
+  outputs:
+  - Vendor risk rating
+  - Assessment report
+  roles:
+  - Vendor Security Analyst
+  tools:
+  - Vendor management platform
+  evidence:
+  - Assessment reports
+  - Questionnaire responses
+  regulatory_context: []
+  interfaces_with: []
+  notes: null
+  id: sp-con-assessment
+  stream_id: contract_mgmt
+  name: Vendor Security Assessment
+  description: Security assessment of vendors and third parties.
+  purpose: Evaluate vendor security posture before engagement.
+  country_scope: BOTH
+  tenant_scope: BOTH
+- inputs:
+  - Contract SLAs
+  - Vendor reports
+  outputs:
+  - Monitoring reports
+  - Non-compliance findings
+  roles:
+  - Vendor Security Analyst
+  tools:
+  - Vendor management platform
+  evidence:
+  - Monitoring records
+  regulatory_context: []
+  interfaces_with: []
+  notes: null
+  id: sp-con-monitoring
+  stream_id: contract_mgmt
+  name: Contract Security Monitoring
+  description: Ongoing monitoring of vendor compliance with security requirements.
+  purpose: Ensure continued vendor compliance.
+  country_scope: BOTH
+  tenant_scope: BOTH
+- inputs:
+  - Audit program
+  - Risk assessment
+  outputs:
+  - Audit plan
+  - Scope document
+  roles:
+  - Lead Auditor
+  - Audit Manager
+  tools:
+  - Audit management tool
+  evidence:
+  - Audit plans
+  regulatory_context:
+  - ISO 27001 Clause 9
+  interfaces_with:
+  - sp-audorg-planning
+  notes: null
+  id: sp-aud-planning
+  stream_id: audits_execution_bps
+  name: Audit Planning & Scoping
+  description: Planning scope, objectives, and resources for security audits.
+  purpose: Ensure audits are well-scoped and resourced.
+  country_scope: BOTH
+  tenant_scope: BOTH
+- inputs:
+  - Audit plan
+  - Control documentation
+  outputs:
+  - Audit findings
+  - Evidence portfolio
+  roles:
+  - Auditor
+  - Control Owner
+  tools:
+  - Audit management tool
+  - Evidence platform
+  evidence:
+  - Working papers
+  - Finding records
+  regulatory_context: []
+  interfaces_with: []
+  notes: null
+  id: sp-aud-execution
+  stream_id: audits_execution_bps
+  name: Audit Execution
+  description: Conducting audit fieldwork, evidence collection, and finding documentation.
+  purpose: Assess compliance and control effectiveness.
+  country_scope: BOTH
+  tenant_scope: BOTH
+- inputs:
+  - Audit findings
+  outputs:
+  - Audit report
+  - Action items
+  roles:
+  - Lead Auditor
+  - Management
+  tools:
+  - Audit management tool
+  evidence:
+  - Audit reports
+  - Remediation tracking
+  regulatory_context: []
+  interfaces_with:
+  - sp-risk-identify
+  notes: null
+  id: sp-aud-reporting
+  stream_id: audits_execution_bps
+  name: Audit Reporting & Follow-up
+  description: Reporting audit results and tracking remediation.
+  purpose: Communicate findings and ensure remediation.
+  country_scope: BOTH
+  tenant_scope: BOTH
+- inputs:
+  - Partner questionnaire
+  - Security requirements
+  outputs:
+  - Partner risk rating
+  - Assessment report
+  roles:
+  - BPS Analyst
+  tools:
+  - Assessment platform
+  evidence:
+  - Assessment reports
+  regulatory_context: []
+  interfaces_with:
+  - sp-con-assessment
+  notes: null
+  id: sp-bps-assessment
+  stream_id: audits_execution_bps
+  name: Business Partner Security Assessment
+  description: Security assessment of business partners and critical suppliers.
+  purpose: Evaluate partner security posture.
+  country_scope: BOTH
+  tenant_scope: BOTH
+- inputs:
+  - Partner agreements
+  - Monitoring feeds
+  outputs:
+  - Monitoring alerts
+  - Status reports
+  roles:
+  - BPS Analyst
+  tools:
+  - Monitoring platform
+  evidence:
+  - Monitoring reports
+  regulatory_context: []
+  interfaces_with: []
+  notes: null
+  id: sp-bps-monitoring
+  stream_id: audits_execution_bps
+  name: Business Partner Ongoing Monitoring
+  description: Continuous monitoring of business partner security compliance.
+  purpose: Detect changes in partner risk posture.
+  country_scope: BOTH
+  tenant_scope: BOTH
+- inputs:
+  - Security policies
+  - Risk treatment plans
+  outputs:
+  - Technical security requirements
+  - Implementation specs
+  roles:
+  - Security Architect
+  - Engineer
+  tools:
+  - Requirements management
+  - Wiki
+  evidence:
+  - Requirements documents
+  regulatory_context: []
+  interfaces_with: []
+  notes: null
+  id: sp-ops-requirements
+  stream_id: operationalization
+  name: Security Requirements Translation
+  description: Translating security policies and risk treatments into technical requirements.
+  purpose: Bridge between governance and implementation.
+  country_scope: BOTH
+  tenant_scope: BOTH
+- inputs:
+  - Technical requirements
+  outputs:
+  - Implemented controls
+  - Configuration records
+  roles:
+  - Security Engineer
+  - Platform Engineer
+  tools:
+  - Security platforms
+  - IaC tools
+  evidence:
+  - Implementation records
+  - Config artifacts
+  regulatory_context: []
+  interfaces_with: []
+  notes: null
+  id: sp-ops-implementation
+  stream_id: operationalization
+  name: Control Implementation
+  description: Technical implementation of security controls.
+  purpose: Operationalize security requirements.
+  country_scope: BOTH
+  tenant_scope: BOTH
+- inputs:
+  - Implemented controls
+  - Requirements
+  outputs:
+  - Validation report
+  - Test results
+  roles:
+  - Security Engineer
+  - QA
+  tools:
+  - Testing tools
+  - Scanners
+  evidence:
+  - Test reports
+  regulatory_context: []
+  interfaces_with: []
+  notes: null
+  id: sp-ops-validation
+  stream_id: operationalization
+  name: Control Validation
+  description: Validation that implemented controls meet requirements.
+  purpose: Verify control effectiveness.
+  country_scope: BOTH
+  tenant_scope: BOTH
+- inputs:
+  - Regulatory feeds
+  - Legal updates
+  outputs:
+  - Regulatory change assessments
+  - Impact analyses
+  roles:
+  - Regulatory Analyst
+  - Legal
+  tools:
+  - Regulatory tracking tool
+  evidence:
+  - Change assessments
+  regulatory_context:
+  - NIS2
+  - DORA
+  interfaces_with:
+  - sp-gc-regulatory-mapping
+  notes: null
+  id: sp-cg-regulatory-tracking
+  stream_id: corporate_governance
+  name: Regulatory Change Tracking
+  description: Monitoring and assessing regulatory changes affecting InfoSec.
+  purpose: Ensure timely response to regulatory changes.
+  country_scope: BOTH
+  tenant_scope: SEPARATE
+- inputs:
+  - Risk reports
+  - KPIs
+  - Incident summaries
+  outputs:
+  - Board reports
+  - Management dashboards
+  roles:
+  - CISO
+  - Governance Analyst
+  tools:
+  - BI Dashboard
+  - Reporting tools
+  evidence:
+  - Board meeting minutes
+  - Report archives
+  regulatory_context: []
+  interfaces_with: []
+  notes: null
+  id: sp-cg-board-reporting
+  stream_id: corporate_governance
+  name: Board & Management Reporting
+  description: Preparation and delivery of InfoSec reports to board and senior management.
+  purpose: Inform governance bodies about security posture.
+  country_scope: BOTH
+  tenant_scope: SEPARATE
+- inputs:
+  - Strategy roadmap
+  - Budget
+  outputs:
+  - Initiative status
+  - Milestone reports
+  roles:
+  - Program Manager
+  - CISO
+  tools:
+  - Project management tool
+  evidence:
+  - Status reports
+  - Steering minutes
+  regulatory_context: []
+  interfaces_with: []
+  notes: null
+  id: sp-cg-initiative-steering
+  stream_id: corporate_governance
+  name: Initiative Steering
+  description: Steering of cross-cutting InfoSec improvement initiatives.
+  purpose: Coordinate transformational programs.
+  country_scope: BOTH
+  tenant_scope: SEPARATE
+- inputs:
+  - Policy framework
+  - Control catalog
+  - Evidence
+  outputs:
+  - Compliance status reports
+  - Gap findings
+  roles:
+  - Compliance Analyst
+  tools:
+  - GRC Platform
+  evidence:
+  - Compliance reports
+  - Evidence records
+  regulatory_context: []
+  interfaces_with:
+  - sp-con-monitoring
+  notes: null
+  id: sp-gc-compliance-monitoring
+  stream_id: is_gc_service
+  name: Compliance Monitoring
+  description: Monitoring compliance with internal policies and external regulations.
+  purpose: Detect and report compliance gaps.
+  country_scope: BOTH
+  tenant_scope: SEPARATE
+- inputs:
+  - Control catalog
+  - Test results
+  outputs:
+  - Effectiveness reports
+  - Improvement recommendations
+  roles:
+  - Compliance Analyst
+  - Control Owner
+  tools:
+  - GRC Platform
+  evidence:
+  - Test records
+  - Effectiveness reports
+  regulatory_context: []
+  interfaces_with: []
+  notes: null
+  id: sp-gc-control-effectiveness
+  stream_id: is_gc_service
+  name: Control Effectiveness Assessment
+  description: Assessment of security control operating effectiveness.
+  purpose: Evaluate whether controls achieve their objectives.
+  country_scope: BOTH
+  tenant_scope: SEPARATE
+- inputs:
+  - Regulatory requirements
+  - Control catalog
+  outputs:
+  - Mapping matrix
+  - Gap analysis report
+  roles:
+  - Compliance Analyst
+  - Regulatory Analyst
+  tools:
+  - GRC Platform
+  evidence:
+  - Mapping documents
+  - Gap reports
+  regulatory_context: []
+  interfaces_with:
+  - sp-pol-lifecycle
+  notes: null
+  id: sp-gc-regulatory-mapping
+  stream_id: is_gc_service
+  name: Regulatory Mapping & Gap Analysis
+  description: Mapping regulatory requirements to controls and identifying gaps.
+  purpose: Ensure regulatory coverage and identify gaps.
+  country_scope: BOTH
+  tenant_scope: SEPARATE
+- inputs:
+  - Hiring notification
+  - Role profile
+  outputs:
+  - Provisioned accounts
+  - Completed onboarding checklist
+  roles:
+  - Team Lead
+  - HR Liaison
+  - IT Admin
+  tools:
+  - HR System
+  - IAM
+  - Onboarding checklist
+  evidence:
+  - Onboarding records
+  regulatory_context: []
+  interfaces_with:
+  - backoffice
+  notes: null
+  id: sp-onb-onboarding
+  stream_id: on_offboarding
+  name: Team Member Onboarding
+  description: Onboarding of new InfoSec team members including access, training, and setup.
+  purpose: Ensure new team members are productive quickly.
+  country_scope: BOTH
+  tenant_scope: BOTH
+- inputs:
+  - Departure notification
+  outputs:
+  - Revoked access
+  - Knowledge transfer docs
+  roles:
+  - Team Lead
+  - HR Liaison
+  - IT Admin
+  tools:
+  - HR System
+  - IAM
+  evidence:
+  - Offboarding records
+  regulatory_context: []
+  interfaces_with: []
+  notes: null
+  id: sp-onb-offboarding
+  stream_id: on_offboarding
+  name: Team Member Offboarding
+  description: Offboarding including access revocation, knowledge transfer, and asset return.
+  purpose: Ensure secure and complete departure.
+  country_scope: BOTH
+  tenant_scope: BOTH
+- inputs:
+  - Campaign plan
+  - Target audience
+  outputs:
+  - Campaign metrics
+  - Completion reports
+  roles:
+  - Awareness Lead
+  - Content Creator
+  tools:
+  - Awareness Platform
+  - LMS
+  evidence:
+  - Participation statistics
+  regulatory_context:
+  - ISO 27001 A.7.2.2
+  interfaces_with: []
+  notes: null
+  id: sp-aware-campaign
+  stream_id: awareness_education
+  name: Awareness Campaign Execution
+  description: Planning and delivery of security awareness campaigns.
+  purpose: Increase security awareness across the organization.
+  country_scope: BOTH
+  tenant_scope: BOTH
+- inputs:
+  - Training requirements
+  - Role profiles
+  outputs:
+  - Training records
+  - Certification status
+  roles:
+  - Training Manager
+  - HR
+  tools:
+  - LMS
+  evidence:
+  - Training completions
+  - Certificates
+  regulatory_context: []
+  interfaces_with: []
+  notes: null
+  id: sp-aware-training
+  stream_id: awareness_education
+  name: Training Program Management
+  description: Management of role-based security training programs.
+  purpose: Ensure personnel have required security skills.
+  country_scope: BOTH
+  tenant_scope: BOTH
+- inputs:
+  - Simulation plan
+  - Target lists
+  outputs:
+  - Simulation results
+  - Click rates
+  roles:
+  - Awareness Lead
+  - SOC
+  tools:
+  - Phishing simulation platform
+  evidence:
+  - Simulation reports
+  regulatory_context: []
+  interfaces_with: []
+  notes: null
+  id: sp-aware-phishing
+  stream_id: awareness_education
+  name: Phishing Simulation
+  description: Conducting phishing simulation exercises.
+  purpose: Test and improve employee resilience to phishing.
+  country_scope: BOTH
+  tenant_scope: BOTH
+- inputs:
+  - Risk assessment
+  - Regulatory requirements
+  - Previous findings
+  outputs:
+  - Audit program
+  - Schedule
+  roles:
+  - Audit Manager
+  tools:
+  - Audit management tool
+  evidence:
+  - Approved audit program
+  regulatory_context:
+  - ISO 27001 Clause 9
+  interfaces_with: []
+  notes: null
+  id: sp-audorg-planning
+  stream_id: audit_organisation
+  name: Audit Program Planning
+  description: Development and maintenance of the annual audit program.
+  purpose: Ensure systematic coverage of audit requirements.
+  country_scope: BOTH
+  tenant_scope: BOTH
+- inputs:
+  - Audit program
+  - Auditor requests
+  outputs:
+  - Coordination records
+  - Resource assignments
+  roles:
+  - Audit Coordinator
+  tools:
+  - Audit management tool
+  - Calendar
+  evidence:
+  - Coordination logs
+  regulatory_context: []
+  interfaces_with: []
+  notes: null
+  id: sp-audorg-coordination
+  stream_id: audit_organisation
+  name: Audit Coordination & Support
+  description: Coordination of internal and external audit activities.
+  purpose: Ensure smooth audit execution and resource allocation.
+  country_scope: BOTH
+  tenant_scope: BOTH
 interfaces:
-  - id: iface-risk-to-incident
-    source_process_id: sp-risk-assess
-    target_process_id: sp-inc-intake
-    interface_type: escalation
-    description: >
-      Critical risks with imminent threat indicators are escalated
-      as potential security incidents.
-    trigger: Risk with imminent exploitation likelihood identified
-    exchanged_artifacts:
-      - Risk assessment record
-      - Affected asset details
-    notes: Cross-stream interface between IT-Risk and Incident Mgmt.
-
-  - id: iface-incident-to-governance
-    source_process_id: sp-inc-communication
-    target_process_id: is_gc_service
-    interface_type: notification
-    description: >
-      Major incidents trigger compliance notification to the IS
-      Governance and Compliance service.
-    trigger: Incident severity 1 or 2 confirmed
-    exchanged_artifacts:
-      - Incident summary
-      - Regulatory impact assessment
-    notes: null
-
-  - id: iface-audit-to-risk
-    source_process_id: audits_execution_bps
-    target_process_id: sp-risk-assess
-    interface_type: data_flow
-    description: >
-      Audit findings feed into the risk assessment process as
-      additional risk indicators.
-    trigger: Audit completed with findings
-    exchanged_artifacts:
-      - Audit findings report
-      - Non-conformity records
-    notes: null
-
-  - id: iface-policy-to-awareness
-    source_process_id: sp-pol-lifecycle
-    target_process_id: sp-aware-campaign
-    interface_type: trigger
-    description: >
-      New or updated policies trigger awareness campaigns to
-      communicate changes to the organization.
-    trigger: Policy published or major revision approved
-    exchanged_artifacts:
-      - Policy document
-      - Change summary
-    notes: null
+- id: iface-risk-to-incident
+  source_process_id: sp-risk-identify
+  target_process_id: sp-inc-intake
+  interface_type: escalation
+  description: Critical risks with imminent threat indicators are escalated as potential incidents.
+  trigger: Risk with imminent exploitation likelihood identified
+  exchanged_artifacts:
+  - Risk assessment record
+  - Affected asset details
+  notes: null
+- id: iface-incident-to-governance
+  source_process_id: sp-inc-communication
+  target_process_id: is_gc_service
+  interface_type: notification
+  description: Major incidents trigger compliance notification to IS Governance and Compliance.
+  trigger: Incident severity 1 or 2 confirmed
+  exchanged_artifacts:
+  - Incident summary
+  - Regulatory impact assessment
+  notes: null
+- id: iface-audit-to-risk
+  source_process_id: sp-aud-reporting
+  target_process_id: sp-risk-identify
+  interface_type: data_flow
+  description: Audit findings feed into risk identification as additional risk indicators.
+  trigger: Audit completed with findings
+  exchanged_artifacts:
+  - Audit findings report
+  - Non-conformity records
+  notes: null
+- id: iface-policy-to-awareness
+  source_process_id: sp-pol-lifecycle
+  target_process_id: sp-aware-campaign
+  interface_type: trigger
+  description: New or updated policies trigger awareness campaigns to communicate changes.
+  trigger: Policy published or major revision approved
+  exchanged_artifacts:
+  - Policy document
+  - Change summary
+  notes: null
+- id: iface-risk-to-corpgov
+  source_process_id: sp-risk-monitor
+  target_process_id: sp-cg-board-reporting
+  interface_type: data_flow
+  description: Aggregated risk reports are provided for board and management reporting.
+  trigger: Quarterly risk reporting cycle
+  exchanged_artifacts:
+  - Risk dashboard
+  - Top risks summary
+  notes: null
+- id: iface-contract-to-ops
+  source_process_id: sp-con-review
+  target_process_id: sp-ops-requirements
+  interface_type: handover
+  description: Contract security requirements are handed over for technical implementation.
+  trigger: Contract with new security requirements signed
+  exchanged_artifacts:
+  - Security requirements list
+  - Implementation timeline
+  notes: null
+- id: iface-audit-to-audorg
+  source_process_id: sp-aud-planning
+  target_process_id: sp-audorg-planning
+  interface_type: data_flow
+  description: Audit planning coordinates with audit organization for program alignment.
+  trigger: Annual audit program cycle
+  exchanged_artifacts:
+  - Audit plan draft
+  - Resource requirements
+  notes: null
+- id: iface-bps-to-contract
+  source_process_id: sp-bps-assessment
+  target_process_id: sp-con-assessment
+  interface_type: data_flow
+  description: Business partner security assessments inform vendor security evaluations.
+  trigger: New business partner identified
+  exchanged_artifacts:
+  - Partner assessment results
+  - Risk rating
+  notes: null
+- id: iface-incident-to-bcm
+  source_process_id: sp-inc-triage
+  target_process_id: sp-bcm-plan
+  interface_type: escalation
+  description: Severe incidents may trigger BC plan activation.
+  trigger: Incident with potential service disruption (severity 1)
+  exchanged_artifacts:
+  - Incident ticket
+  - Impact assessment
+  notes: null
+- id: iface-gc-to-contract
+  source_process_id: sp-gc-compliance-monitoring
+  target_process_id: sp-con-monitoring
+  interface_type: notification
+  description: Compliance findings trigger vendor contract security reviews.
+  trigger: Vendor compliance gap identified
+  exchanged_artifacts:
+  - Compliance finding
+  - Vendor reference
+  notes: null
+- id: iface-onb-to-backoffice
+  source_process_id: sp-onb-onboarding
+  target_process_id: backoffice
+  interface_type: handover
+  description: Onboarding triggers backoffice activities (equipment, access cards, budget allocation).
+  trigger: New team member confirmed
+  exchanged_artifacts:
+  - Onboarding checklist
+  - Resource requirements
+  notes: null
+- id: iface-tech-to-ops
+  source_process_id: technology_projects_ai
+  target_process_id: sp-ops-implementation
+  interface_type: handover
+  description: Technology projects hand over completed tools and platforms for operational use.
+  trigger: Project deliverable ready for operations
+  exchanged_artifacts:
+  - Tool documentation
+  - Deployment package
+  notes: null
+- id: iface-gc-to-policy
+  source_process_id: sp-gc-regulatory-mapping
+  target_process_id: sp-pol-lifecycle
+  interface_type: trigger
+  description: Regulatory gaps trigger policy updates or new policy creation.
+  trigger: Gap identified in regulatory mapping
+  exchanged_artifacts:
+  - Gap analysis report
+  - Required policy changes
+  notes: null
+- id: iface-incident-to-risk
+  source_process_id: sp-inc-lessons
+  target_process_id: sp-risk-identify
+  interface_type: data_flow
+  description: Lessons learned from incidents feed into risk identification.
+  trigger: Post-incident review completed
+  exchanged_artifacts:
+  - Lessons learned report
+  - New risk indicators
+  notes: null
+- id: iface-risk-to-ops
+  source_process_id: sp-risk-treatment
+  target_process_id: sp-ops-requirements
+  interface_type: handover
+  description: Risk treatment plans requiring technical controls are handed to operationalization.
+  trigger: Risk treatment plan approved with technical measures
+  exchanged_artifacts:
+  - Treatment plan
+  - Control specifications
+  notes: null
+- id: iface-aware-to-division
+  source_process_id: sp-aware-campaign
+  target_process_id: division_support
+  interface_type: notification
+  description: Awareness campaigns notify division support for local coordination.
+  trigger: Campaign targeting specific division launched
+  exchanged_artifacts:
+  - Campaign plan
+  - Division-specific content
+  notes: null
