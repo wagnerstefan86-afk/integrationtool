@@ -1,0 +1,178 @@
+# Harmonization assessments for example processes.
+#
+# Each assessment evaluates one process across six alignment dimensions
+# and may declare hard constraints that cap the harmonization level.
+
+assessments:
+  # --- Incident Management (Stream level) ---
+  - assessed_object_type: main_process
+    assessed_object_id: stream-incident
+    answers:
+      - dimension: regulatory_alignment
+        score: 3
+        rationale: >
+          NIS2 applies in both countries, but reporting obligations
+          (BSI vs. national CERT/DSB) differ in detail.
+      - dimension: operational_alignment
+        score: 3
+        rationale: >
+          Core incident workflow is similar, but escalation paths
+          and on-call structures differ.
+      - dimension: tooling_alignment
+        score: 4
+        rationale: >
+          SIEM and ticketing are shared platforms. Minor configuration
+          differences per tenant.
+      - dimension: governance_alignment
+        score: 3
+        rationale: >
+          Governance framework is aligned at group level, but local
+          ISMS documentation is separate.
+      - dimension: maturity
+        score: 3
+        rationale: >
+          DE process is more mature (established longer). AT process
+          is catching up but gaps remain.
+      - dimension: local_necessity
+        score: 2
+        rationale: >
+          Incident communication and regulatory reporting require
+          significant local adaptation.
+    hard_constraints:
+      - tenant_separation_blocks_operation
+
+  # --- Incident Intake (subprocess) ---
+  - assessed_object_type: subprocess
+    assessed_object_id: sp-inc-intake
+    answers:
+      - dimension: regulatory_alignment
+        score: 4
+        rationale: Intake process itself has few regulatory differences.
+      - dimension: operational_alignment
+        score: 4
+        rationale: Intake steps are essentially identical across DE/AT.
+      - dimension: tooling_alignment
+        score: 4
+        rationale: Same SIEM, same ticketing. Tenant separation is transparent to intake.
+      - dimension: governance_alignment
+        score: 4
+        rationale: Intake SOP can be unified.
+      - dimension: maturity
+        score: 4
+        rationale: Both countries have established intake procedures.
+      - dimension: local_necessity
+        score: 4
+        rationale: Low local necessity for intake.
+    hard_constraints:
+      - tenant_separation_blocks_operation
+
+  # --- Incident Communication (subprocess, high local necessity) ---
+  - assessed_object_type: subprocess
+    assessed_object_id: sp-inc-communication
+    answers:
+      - dimension: regulatory_alignment
+        score: 2
+        rationale: >
+          DE reports to BSI (BaFin if financial), AT reports to
+          national CERT and DSB. Timelines and formats differ.
+      - dimension: operational_alignment
+        score: 2
+        rationale: >
+          Communication templates, recipient lists, and escalation
+          paths are fundamentally different.
+      - dimension: tooling_alignment
+        score: 3
+        rationale: Same communication platform, but templates and workflows differ.
+      - dimension: governance_alignment
+        score: 3
+        rationale: Central policy exists, but local implementation varies.
+      - dimension: maturity
+        score: 3
+        rationale: Both have established processes, DE slightly ahead.
+      - dimension: local_necessity
+        score: 1
+        rationale: Very high local necessity due to different regulators and laws.
+    hard_constraints:
+      - legal_local_difference
+      - separate_control_ownership
+
+  # --- Vulnerability Management (Stream level) ---
+  - assessed_object_type: main_process
+    assessed_object_id: stream-vuln
+    answers:
+      - dimension: regulatory_alignment
+        score: 4
+        rationale: >
+          ISO 27001 A.12.6 applies uniformly. BSI Grundschutz adds
+          DE-specific overlay but does not contradict.
+      - dimension: operational_alignment
+        score: 4
+        rationale: >
+          Scanning and assessment workflows are nearly identical.
+          Only remediation tracking differs slightly.
+      - dimension: tooling_alignment
+        score: 5
+        rationale: Fully shared vulnerability scanning platform and dashboard.
+      - dimension: governance_alignment
+        score: 4
+        rationale: >
+          Unified vulnerability management policy at group level.
+          Local ISMS references differ in numbering only.
+      - dimension: maturity
+        score: 4
+        rationale: Both countries at comparable maturity.
+      - dimension: local_necessity
+        score: 4
+        rationale: Low local necessity except for remediation SLA enforcement.
+    hard_constraints: []
+
+  # --- Vulnerability Scanning (subprocess) ---
+  - assessed_object_type: subprocess
+    assessed_object_id: sp-vuln-scan
+    answers:
+      - dimension: regulatory_alignment
+        score: 5
+        rationale: No regulatory differences for scanning itself.
+      - dimension: operational_alignment
+        score: 5
+        rationale: Identical scan procedures, shared schedules.
+      - dimension: tooling_alignment
+        score: 5
+        rationale: Single shared scanner instance.
+      - dimension: governance_alignment
+        score: 5
+        rationale: Unified scan policy.
+      - dimension: maturity
+        score: 5
+        rationale: Fully mature, automated process.
+      - dimension: local_necessity
+        score: 5
+        rationale: No local necessity.
+    hard_constraints: []
+
+  # --- Vulnerability Remediation Tracking (subprocess, mixed) ---
+  - assessed_object_type: subprocess
+    assessed_object_id: sp-vuln-remediation
+    answers:
+      - dimension: regulatory_alignment
+        score: 4
+        rationale: SLA requirements are similar under ISO 27001.
+      - dimension: operational_alignment
+        score: 3
+        rationale: >
+          Change management processes are separate. Remediation
+          workflows must go through local change boards.
+      - dimension: tooling_alignment
+        score: 3
+        rationale: >
+          Ticketing is shared, but change management systems differ.
+      - dimension: governance_alignment
+        score: 4
+        rationale: Central SLA policy, local enforcement.
+      - dimension: maturity
+        score: 3
+        rationale: DE more structured; AT relies more on informal processes.
+      - dimension: local_necessity
+        score: 3
+        rationale: Moderate local necessity due to change management separation.
+    hard_constraints: []
