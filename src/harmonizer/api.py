@@ -413,6 +413,8 @@ class ReviewStatusRequest(BaseModel):
     step_id: str
     entity_id: str
     new_status: str
+    review_comment: str = ""
+    reviewed_by: str = ""
 
 
 @app.post("/api/process-analysis/{stream_id}/validate-review-status")
@@ -422,31 +424,20 @@ def validate_review_status_endpoint(stream_id: str, body: ReviewStatusRequest, d
     Input: { step_id, entity_id, new_status }
     Response: { allowed, reasons[], missing_prerequisites[], current_status }
     """
-    from harmonizer.process_analysis import validate_review_status, REVIEW_STATUSES
+    from harmonizer.process_analysis import validate_review_status
     store = _get_store(dataset)
     analysis = store.get_analysis(stream_id)
     if not analysis:
         raise HTTPException(404, f"Process analysis not found for stream: {stream_id}")
 
-    # Find the variant
-    variant = None
-    for step in analysis.get("process_steps", []):
-        if step.get("step_id") == body.step_id:
-            for v in step.get("entity_variants", []):
-                if v.get("entity_id") == body.entity_id:
-                    variant = v
-                    break
-            break
-
+    variant = _find_variant(analysis, body.step_id, body.entity_id)
     if variant is None:
         raise HTTPException(404, f"Variant not found: step={body.step_id}, entity={body.entity_id}")
 
     result = validate_review_status(variant, body.new_status)
-    # Normalize response format
     reasons = [result["reason"]] if result["reason"] else []
     missing = []
     if not result["valid"] and "missing" in result.get("reason", "").lower():
-        # Extract missing fields from reason text
         reason_text = result.get("reason", "")
         if "missing" in reason_text.lower():
             after_missing = reason_text.split("missing ", 1)[-1] if "missing " in reason_text else ""
@@ -458,6 +449,59 @@ def validate_review_status_endpoint(stream_id: str, body: ReviewStatusRequest, d
         "missing_prerequisites": missing,
         "current_status": result["current_status"],
     }
+
+
+@app.post("/api/process-analysis/{stream_id}/apply-review-status")
+def apply_review_status_endpoint(stream_id: str, body: ReviewStatusRequest, dataset: str = "examples"):
+    """Validate and persist a review status transition for a variant.
+
+    Input: { step_id, entity_id, new_status, review_comment?, reviewed_by? }
+    Response: { applied, new_status, review_comment, reviewed_by, reviewed_at, reasons[] }
+
+    Returns 400 if transition is blocked (with reasons).
+    """
+    from harmonizer.process_analysis import validate_review_status
+    store = _get_store(dataset)
+    analysis = store.get_analysis(stream_id)
+    if not analysis:
+        raise HTTPException(404, f"Process analysis not found for stream: {stream_id}")
+
+    # Find variant (mutable reference within analysis dict)
+    variant = _find_variant(analysis, body.step_id, body.entity_id)
+    if variant is None:
+        raise HTTPException(404, f"Variant not found: step={body.step_id}, entity={body.entity_id}")
+
+    result = validate_review_status(variant, body.new_status)
+    if not result["valid"]:
+        raise HTTPException(400, result["reason"])
+
+    # Apply transition
+    now = datetime.utcnow().strftime("%Y-%m-%d %H:%M")
+    variant["review_status"] = body.new_status
+    variant["review_comment"] = body.review_comment or variant.get("review_comment", "")
+    variant["reviewed_by"] = body.reviewed_by or variant.get("reviewed_by", "")
+    variant["reviewed_at"] = now
+
+    store.save_analysis(analysis)
+
+    return {
+        "applied": True,
+        "new_status": body.new_status,
+        "review_comment": variant["review_comment"],
+        "reviewed_by": variant["reviewed_by"],
+        "reviewed_at": now,
+    }
+
+
+def _find_variant(analysis: dict, step_id: str, entity_id: str):
+    """Find a variant dict within an analysis (returns mutable reference)."""
+    for step in analysis.get("process_steps", []):
+        if step.get("step_id") == step_id:
+            for v in step.get("entity_variants", []):
+                if v.get("entity_id") == entity_id:
+                    return v
+            break
+    return None
 
 
 @app.get("/api/process-analysis-guide/{step_id}")

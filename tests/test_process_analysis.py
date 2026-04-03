@@ -848,6 +848,63 @@ class TestProcessAnalysisAPI:
         )
         assert resp.status_code == 404
 
+    # ─── Apply review status endpoint ────────────────────────────────────
+
+    def test_apply_review_status_success(self, client):
+        """DE escalation has all prerequisites — applying 'approved' should work."""
+        resp = client.post(
+            "/api/process-analysis/request_incident_mgmt/apply-review-status",
+            json={"step_id": "escalation", "entity_id": "DE", "new_status": "approved",
+                  "review_comment": "Test approval", "reviewed_by": "Tester"},
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["applied"] is True
+        assert data["new_status"] == "approved"
+        assert data["review_comment"] == "Test approval"
+        assert data["reviewed_by"] == "Tester"
+        assert data["reviewed_at"]  # should be set
+
+        # Verify persistence
+        resp2 = client.get("/api/process-analysis/request_incident_mgmt")
+        analysis = resp2.json()
+        esc_step = next(s for s in analysis["process_steps"] if s["step_id"] == "escalation")
+        de_var = next(v for v in esc_step["entity_variants"] if v["entity_id"] == "DE")
+        assert de_var["review_status"] == "approved"
+        assert de_var["review_comment"] == "Test approval"
+
+    def test_apply_review_status_blocked(self, client):
+        """AT triage has no evidence — applying 'approved' should fail with 400."""
+        resp = client.post(
+            "/api/process-analysis/request_incident_mgmt/apply-review-status",
+            json={"step_id": "triage", "entity_id": "AT", "new_status": "approved"},
+        )
+        assert resp.status_code == 400
+
+    def test_apply_review_status_captured(self, client):
+        """Applying 'captured' should always succeed (no prerequisites)."""
+        resp = client.post(
+            "/api/process-analysis/request_incident_mgmt/apply-review-status",
+            json={"step_id": "closure", "entity_id": "AT", "new_status": "captured",
+                  "review_comment": "Initial capture"},
+        )
+        assert resp.status_code == 200
+        assert resp.json()["new_status"] == "captured"
+
+    def test_apply_review_status_not_found(self, client):
+        resp = client.post(
+            "/api/process-analysis/nonexistent/apply-review-status",
+            json={"step_id": "intake", "entity_id": "DE", "new_status": "captured"},
+        )
+        assert resp.status_code == 404
+
+    def test_apply_review_variant_not_found(self, client):
+        resp = client.post(
+            "/api/process-analysis/request_incident_mgmt/apply-review-status",
+            json={"step_id": "intake", "entity_id": "NONEXISTENT", "new_status": "captured"},
+        )
+        assert resp.status_code == 404
+
     # ─── Delete (moved to end to avoid interfering with other tests) ─────
 
     def test_delete_analysis(self, client):

@@ -192,7 +192,7 @@ async function renderAnalysis(streamId) {
       </div>
     </div>
 
-    ${_renderSummaryCards(summary, deltas, entities)}
+    ${_renderSummaryCards(summary, deltas, entities, recs)}
     ${_renderRecommendationsPanel(recs)}
     ${sections}
   `);
@@ -224,7 +224,7 @@ function _completeBadge(score) {
 
 // ─── Summary cards ───────────────────────────────────────────────────────────
 
-function _renderSummaryCards(summary, deltas, entities) {
+function _renderSummaryCards(summary, deltas, entities, recs) {
   const s = summary;
   const high = deltas.filter(d => d.impact === 'high').length;
   const tendencyLabel = {
@@ -236,31 +236,76 @@ function _renderSummaryCards(summary, deltas, entities) {
     strongly_local: 'badge-info', insufficiently_captured: 'badge-danger',
   };
 
-  const _stat = (value, label, danger) => `
-    <div class="stat-card" ${danger ? 'style="border-color:var(--danger)"' : ''}>
-      <div class="stat-value" ${danger ? 'style="color:var(--danger)"' : ''}>${value}</div>
+  const _stat = (value, label, danger, accent) => {
+    const borderStyle = danger ? 'border-color:var(--danger)' : accent ? 'border-color:#facc15' : '';
+    const colorStyle = danger ? 'color:var(--danger)' : accent ? 'color:#92400e' : '';
+    return `<div class="stat-card" ${borderStyle ? `style="${borderStyle}"` : ''}>
+      <div class="stat-value" ${colorStyle ? `style="${colorStyle}"` : ''}>${value}</div>
       <div class="stat-label">${label}</div>
     </div>`;
+  };
+
+  const controlGaps = s.control_gaps_count || 0;
+  const mgmtDecisions = s.management_decisions_needed_count || 0;
+  const evGaps = s.evidence_gaps_count || 0;
+  const weakWhy = s.weak_why_count || 0;
+
+  // Critical issues row (decision-relevant)
+  const criticalRow = (controlGaps || mgmtDecisions || evGaps || weakWhy) ? `
+    <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:12px">
+      ${controlGaps ? _stat(controlGaps, 'Control Gaps', true) : ''}
+      ${mgmtDecisions ? _stat(mgmtDecisions, 'Mgmt Decisions Needed', true) : ''}
+      ${evGaps ? _stat(evGaps, 'Evidence Gaps', false, true) : ''}
+      ${weakWhy ? _stat(weakWhy, 'Weak WHY', false, true) : ''}
+    </div>` : '';
 
   return `
-    <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:12px">
+    <!-- Tendency + key metrics -->
+    <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:12px;align-items:stretch">
+      <div class="stat-card" style="min-width:160px">
+        <div class="stat-value" style="font-size:14px">${badge(tendencyCls[s.tendency] || 'badge-muted', tendencyLabel[s.tendency] || s.tendency || '---')}</div>
+        <div class="stat-label">Overall Tendency</div>
+      </div>
       ${_stat((s.completeness_score || 0) + '%', 'Completeness')}
-      ${_stat(entities.length, 'Entities')}
       ${_stat(high, 'High-Impact Deltas', high > 0)}
       ${_stat(s.standardization_candidates_count || 0, 'Harmonize Candidates')}
       ${_stat(s.likely_keep_local_count || 0, 'Keep Local')}
     </div>
-    <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:20px">
-      ${_stat(s.control_gaps_count || 0, 'Control Gaps', (s.control_gaps_count || 0) > 0)}
-      ${_stat(s.evidence_gaps_count || 0, 'Evidence Gaps', (s.evidence_gaps_count || 0) > 0)}
-      ${_stat(s.weak_why_count || 0, 'Weak WHY', (s.weak_why_count || 0) > 0)}
-      ${_stat(s.management_decisions_needed_count || 0, 'Mgmt Decisions Needed', (s.management_decisions_needed_count || 0) > 0)}
-      <div class="stat-card">
-        <div class="stat-value" style="font-size:14px">${badge(tendencyCls[s.tendency] || 'badge-muted', tendencyLabel[s.tendency] || s.tendency || '---')}</div>
-        <div class="stat-label">Overall Tendency</div>
-      </div>
-    </div>
+
+    <!-- Critical issues (only shown if any exist) -->
+    ${criticalRow}
+
+    <!-- Decision focus -->
+    ${_renderDecisionFocus(s, deltas)}
+
+    <!-- Open gaps -->
     ${_renderOpenGaps(s.open_gaps || [])}`;
+}
+
+function _renderDecisionFocus(summary, deltas) {
+  const recs = summary.recommendations || [];
+  const harmonize = recs.filter(r => r.recommendation_type === 'harmonize' && r.priority === 'high');
+  const blockers = recs.filter(r => (r.blockers || []).length > 0);
+  const investigate = recs.filter(r => r.recommendation_type === 'investigate_further');
+  const remediate = recs.filter(r => r.recommendation_type === 'remediate_control_gap');
+
+  if (!harmonize.length && !blockers.length && !investigate.length && !remediate.length) return '';
+
+  return `<div class="card" style="margin-bottom:12px;border-color:#3b82f6">
+    <div class="card-header" style="background:#eff6ff;font-size:12px;font-weight:600;color:#1d4ed8">
+      Decision Focus
+    </div>
+    <div class="card-body" style="padding:8px 12px;font-size:12px">
+      ${harmonize.length ? `<div style="margin-bottom:6px"><strong>Top harmonization opportunities:</strong>
+        ${harmonize.slice(0, 3).map(r => `<div style="padding:2px 0">${_recTypeBadge(r.recommendation_type)} ${_priorityBadge(r.priority)} ${esc(r.title)}</div>`).join('')}</div>` : ''}
+      ${remediate.length ? `<div style="margin-bottom:6px"><strong>Control gaps to remediate:</strong>
+        ${remediate.slice(0, 3).map(r => `<div style="padding:2px 0">${_controlGapBadge()} ${esc(r.title)}</div>`).join('')}</div>` : ''}
+      ${investigate.length ? `<div style="margin-bottom:6px"><strong>Needs investigation:</strong>
+        ${investigate.slice(0, 3).map(r => `<div style="padding:2px 0">${_recTypeBadge(r.recommendation_type)} ${esc(r.title)}</div>`).join('')}</div>` : ''}
+      ${blockers.length ? `<div><strong>Blocked recommendations:</strong>
+        ${blockers.slice(0, 3).map(r => `<div style="padding:2px 0;color:var(--danger)">${esc(r.title)}: ${r.blockers.map(b => esc(b)).join(', ')}</div>`).join('')}</div>` : ''}
+    </div>
+  </div>`;
 }
 
 function _renderOpenGaps(gaps) {
@@ -270,9 +315,13 @@ function _renderOpenGaps(gaps) {
       Open Evidence &amp; Review Gaps (Top 5)
     </div>
     <div class="card-body" style="padding:8px 12px">
-      ${gaps.map(g => `<div style="font-size:12px;padding:3px 0;border-bottom:1px solid var(--border)">
+      ${gaps.map(g => `<div style="font-size:12px;padding:4px 0;border-bottom:1px solid var(--border);cursor:pointer" onclick="document.getElementById('step-${esc(g.step_id)}')?.scrollIntoView({behavior:'smooth',block:'start'})">
         <strong>${esc(g.step_name)}</strong> / ${esc(g.entity_id)}:
-        ${g.issues.map(i => badge('badge-warning', i)).join(' ')}
+        ${g.issues.map(i => {
+          const cls = i === 'no evidence' ? 'badge-danger' : i.includes('weak') ? 'badge-danger' : 'badge-warning';
+          return badge(cls, i);
+        }).join(' ')}
+        <span style="font-size:10px;color:var(--text-muted);margin-left:4px">click to scroll</span>
       </div>`).join('')}
     </div>
   </div>`;
@@ -332,7 +381,7 @@ function _renderStep(streamId, step, entities, scores, stepDeltas, stepRecs) {
       </div>`).join('')}
     </div>` : '';
 
-  return `<div class="card" style="margin-bottom:16px${hasControlGap ? ';border-left:3px solid var(--danger)' : ''}">
+  return `<div class="card" id="step-${esc(sid)}" style="margin-bottom:16px${hasControlGap ? ';border-left:3px solid var(--danger)' : ''}">
     <div class="card-header" style="display:flex;justify-content:space-between;align-items:center">
       <span>
         <strong>${esc(step.sort_order)}. ${esc(step.step_name)}</strong>
@@ -436,10 +485,8 @@ function _renderVariantCol(streamId, stepId, entityId, v, scores) {
     <!-- Status badges row -->
     <div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:6px">
       ${_reviewBadge(reviewStatus)}
-      ${_whyQualityBadge(whyQuality)}
+      ${hasWhy ? _whyQualityBadge(whyQuality) : badge('badge-danger', 'WHY missing')}
       ${_evidenceBadge(evStrength, evCount)}
-      ${whyQuality === 'weak' ? badge('badge-danger', 'Weak WHY') : ''}
-      ${evCount === 0 && !legacyEv.length ? badge('badge-danger', 'No evidence') : ''}
     </div>
 
     ${v.description ? `<p style="font-size:13px;margin:0 0 8px">${esc(v.description)}</p>` : '<p style="color:var(--danger);font-size:12px">No description</p>'}
@@ -539,7 +586,7 @@ function _renderRecommendationsPanel(recs) {
   </div>`;
 }
 
-// ─── Review status dialog ───────────────────────────────────────────────────
+// ─── Review status dialog (validate + apply) ───────────────────────────────
 
 async function _openReviewStatusDialog(streamId, stepId, entityId) {
   const statusOptions = REVIEW_STATUSES.map(s =>
@@ -547,45 +594,133 @@ async function _openReviewStatusDialog(streamId, stepId, entityId) {
   ).join('');
 
   openModal(`Review Status: ${esc(stepId)} / ${esc(entityId)}`, `
-    <div style="margin-bottom:12px">
+    <div style="margin-bottom:10px">
       <label style="font-weight:600;font-size:13px">Target Review Status</label>
       <select class="form-control" id="f-review-status" style="margin-top:4px">
         ${statusOptions}
       </select>
     </div>
-    <button class="btn btn-primary" id="btn-validate-review" style="margin-bottom:12px">Validate</button>
+    ${textField('f-review-comment', 'Review Comment (optional)', '')}
+    ${textField('f-review-by', 'Reviewed By (optional)', '')}
+    <div style="display:flex;gap:8px;margin:12px 0">
+      <button class="btn" id="btn-validate-review">Check First</button>
+      <button class="btn btn-primary" id="btn-apply-review">Apply Transition</button>
+    </div>
     <div id="review-validation-result"></div>
-  `, null); // no auto-save button
+  `, null);
 
+  // Validate only
   document.getElementById('btn-validate-review')?.addEventListener('click', async () => {
     const newStatus = document.getElementById('f-review-status')?.value;
     const resultDiv = document.getElementById('review-validation-result');
     if (!resultDiv) return;
     resultDiv.innerHTML = '<span style="color:var(--text-muted)">Validating...</span>';
-
     try {
       const result = await API.post(
         `process-analysis/${encodeURIComponent(streamId)}/validate-review-status`,
         { step_id: stepId, entity_id: entityId, new_status: newStatus }
       );
-
       if (result.allowed) {
-        resultDiv.innerHTML = `
-          <div style="background:#f0fdf4;border:1px solid #86efac;border-radius:6px;padding:10px;font-size:13px">
-            <strong style="color:#166534">Allowed.</strong> Transition to <strong>${esc(newStatus)}</strong> is valid.
-          </div>`;
+        resultDiv.innerHTML = `<div style="background:#f0fdf4;border:1px solid #86efac;border-radius:6px;padding:10px;font-size:13px">
+          <strong style="color:#166534">Allowed.</strong> Transition to <strong>${esc(newStatus)}</strong> is valid. Click <em>Apply Transition</em> to persist.
+        </div>`;
       } else {
-        resultDiv.innerHTML = `
-          <div style="background:#fef2f2;border:1px solid #fca5a5;border-radius:6px;padding:10px;font-size:13px">
-            <strong style="color:#991b1b">Blocked.</strong>
-            ${(result.reasons||[]).map(r => `<div style="margin-top:4px">${esc(r)}</div>`).join('')}
-            ${(result.missing_prerequisites||[]).length ? `<div style="margin-top:6px"><strong>Missing:</strong><ul style="margin:4px 0 0 16px">${result.missing_prerequisites.map(m => `<li>${esc(m)}</li>`).join('')}</ul></div>` : ''}
-          </div>`;
+        resultDiv.innerHTML = `<div style="background:#fef2f2;border:1px solid #fca5a5;border-radius:6px;padding:10px;font-size:13px">
+          <strong style="color:#991b1b">Blocked.</strong>
+          ${(result.reasons||[]).map(r => `<div style="margin-top:4px">${esc(r)}</div>`).join('')}
+          ${(result.missing_prerequisites||[]).length ? `<div style="margin-top:6px"><strong>Missing:</strong><ul style="margin:4px 0 0 16px">${result.missing_prerequisites.map(m => `<li>${esc(m)}</li>`).join('')}</ul></div>` : ''}
+        </div>`;
       }
     } catch (e) {
       resultDiv.innerHTML = `<div style="color:var(--danger)">Error: ${esc(e.message)}</div>`;
     }
   });
+
+  // Apply transition (validate + persist)
+  document.getElementById('btn-apply-review')?.addEventListener('click', async () => {
+    const newStatus = document.getElementById('f-review-status')?.value;
+    const comment = val('f-review-comment');
+    const reviewedBy = val('f-review-by');
+    const resultDiv = document.getElementById('review-validation-result');
+    if (!resultDiv) return;
+    resultDiv.innerHTML = '<span style="color:var(--text-muted)">Applying...</span>';
+    try {
+      const result = await API.post(
+        `process-analysis/${encodeURIComponent(streamId)}/apply-review-status`,
+        { step_id: stepId, entity_id: entityId, new_status: newStatus,
+          review_comment: comment, reviewed_by: reviewedBy }
+      );
+      toast(`Review status updated to: ${result.new_status}`);
+      closeModal();
+      renderAnalysis(streamId);
+    } catch (e) {
+      // HTTP 400 = blocked transition
+      let detail = e.message || 'Unknown error';
+      resultDiv.innerHTML = `<div style="background:#fef2f2;border:1px solid #fca5a5;border-radius:6px;padding:10px;font-size:13px">
+        <strong style="color:#991b1b">Blocked.</strong>
+        <div style="margin-top:4px">${esc(detail)}</div>
+      </div>`;
+    }
+  });
+}
+
+// ─── Evidence sub-form helpers ───────────────────────────────────────────────
+
+const _EV_TYPES = ['interview', 'document', 'ticket_example', 'sop', 'policy', 'system_screenshot', 'other'];
+const _EV_CONF = ['high', 'medium', 'low'];
+
+function _evidenceRowHtml(idx, e, types, conf) {
+  e = e || {};
+  const typeOpts = (types || _EV_TYPES).map(t => `<option value="${t}" ${t === (e.type || '') ? 'selected' : ''}>${t}</option>`).join('');
+  const confOpts = (conf || _EV_CONF).map(c => `<option value="${c}" ${c === (e.confidence || 'medium') ? 'selected' : ''}>${c}</option>`).join('');
+  return `<div class="ev-row" style="border:1px solid #bae6fd;border-radius:4px;padding:8px;margin-bottom:6px;background:#fff">
+    <div style="display:flex;gap:6px;margin-bottom:4px">
+      <div style="flex:1"><label style="font-size:10px;color:var(--text-muted)">Type</label><select class="form-control ev-type" style="font-size:12px">${typeOpts}</select></div>
+      <div style="flex:2"><label style="font-size:10px;color:var(--text-muted)">Title</label><input class="form-control ev-title" style="font-size:12px" value="${esc(e.title || '')}"></div>
+      <div style="flex:1"><label style="font-size:10px;color:var(--text-muted)">Confidence</label><select class="form-control ev-conf" style="font-size:12px">${confOpts}</select></div>
+      <div style="display:flex;align-items:end"><button type="button" class="btn btn-sm ev-remove" style="font-size:11px;color:var(--danger)">Remove</button></div>
+    </div>
+    <div style="display:flex;gap:6px;margin-bottom:4px">
+      <div style="flex:1"><label style="font-size:10px;color:var(--text-muted)">Source</label><input class="form-control ev-source" style="font-size:12px" value="${esc(e.source || '')}"></div>
+      <div style="flex:1"><label style="font-size:10px;color:var(--text-muted)">Collected By</label><input class="form-control ev-collected-by" style="font-size:12px" value="${esc(e.collected_by || '')}"></div>
+      <div style="flex:1"><label style="font-size:10px;color:var(--text-muted)">Date Collected</label><input class="form-control ev-date" style="font-size:12px" type="date" value="${esc(e.date_collected || '')}"></div>
+    </div>
+    <div><label style="font-size:10px;color:var(--text-muted)">Reference Detail</label><input class="form-control ev-detail" style="font-size:12px" value="${esc(e.reference_detail || '')}"></div>
+  </div>`;
+}
+
+function _wireEvidenceControls(stepId, entityId) {
+  // Add evidence button
+  document.getElementById('btn-add-evidence')?.addEventListener('click', () => {
+    const container = document.getElementById('evidence-container');
+    if (!container) return;
+    const emptyMsg = document.getElementById('ev-empty-msg');
+    if (emptyMsg) emptyMsg.remove();
+    const count = container.querySelectorAll('.ev-row').length;
+    container.insertAdjacentHTML('beforeend', _evidenceRowHtml(count, {}, _EV_TYPES, _EV_CONF));
+    _wireEvidenceRemoveButtons();
+  });
+  _wireEvidenceRemoveButtons();
+}
+
+function _wireEvidenceRemoveButtons() {
+  document.querySelectorAll('.ev-remove').forEach(btn => {
+    btn.onclick = () => btn.closest('.ev-row')?.remove();
+  });
+}
+
+function _collectEvidenceRefs(stepId, entityId) {
+  const rows = document.querySelectorAll('#evidence-container .ev-row');
+  return [...rows].map((row, i) => ({
+    id: `ev_${stepId}_${entityId}_${i + 1}`,
+    type: row.querySelector('.ev-type')?.value || 'other',
+    title: row.querySelector('.ev-title')?.value?.trim() || '',
+    source: row.querySelector('.ev-source')?.value?.trim() || '',
+    reference_detail: row.querySelector('.ev-detail')?.value?.trim() || '',
+    date_collected: row.querySelector('.ev-date')?.value || '',
+    collected_by: row.querySelector('.ev-collected-by')?.value?.trim() || '',
+    confidence: row.querySelector('.ev-conf')?.value || 'medium',
+  })).filter(e => e.title);  // Drop rows with no title
 }
 
 // ─── Variant editor modal ────────────────────────────────────────────────────
@@ -617,10 +752,10 @@ async function openVariantEditor(streamId, step, entityId, variant) {
     </label>`;
   }).join('');
 
-  // Evidence references as JSON lines for editing
-  const evRefsText = (v.evidence_references || []).map(e =>
-    `${e.type || 'other'} | ${e.title || ''} | ${e.source || ''} | ${e.confidence || 'medium'}`
-  ).join('\n');
+  // Evidence references — structured sub-form
+  const evTypes = ['interview', 'document', 'ticket_example', 'sop', 'policy', 'system_screenshot', 'other'];
+  const evConf = ['high', 'medium', 'low'];
+  const existingEvRefs = v.evidence_references || [];
 
   openModal(`${esc(step.step_name)} — ${esc(entityId)}`, `
     ${guideHtml}
@@ -658,9 +793,14 @@ async function openVariantEditor(streamId, step, entityId, variant) {
     ${textArea('f-pa-painpoints', 'Pain Points (one per line)', j(v.pain_points), { rows: 2 })}
 
     <div style="background:#f0f9ff;border:1px solid #bae6fd;border-radius:6px;padding:10px 14px;margin:12px 0">
-      <label style="font-weight:600;font-size:13px;color:#0369a1">Evidence References</label>
-      <p style="font-size:11px;color:#0369a1;margin:2px 0 6px">Format: type | title | source | confidence (one per line)</p>
-      <textarea class="form-control" id="f-pa-evrefs" rows="3">${esc(evRefsText)}</textarea>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+        <label style="font-weight:600;font-size:13px;color:#0369a1">Evidence References</label>
+        <button type="button" class="btn btn-sm" id="btn-add-evidence" style="font-size:11px">+ Add Evidence</button>
+      </div>
+      <div id="evidence-container">
+        ${existingEvRefs.map((e, i) => _evidenceRowHtml(i, e, evTypes, evConf)).join('')}
+      </div>
+      ${existingEvRefs.length === 0 ? '<p id="ev-empty-msg" style="font-size:11px;color:var(--text-muted);margin:4px 0">No evidence references yet. Click "+ Add Evidence" to add one.</p>' : ''}
       ${textArea('f-pa-evidence', 'Legacy Evidence / Examples (one per line)', j(v.evidence_or_examples), { rows: 2 })}
     </div>
 
@@ -682,18 +822,8 @@ async function openVariantEditor(streamId, step, entityId, variant) {
     // Parse WHY categories from checkboxes
     const whyCats = [...document.querySelectorAll('.f-pa-whycat:checked')].map(cb => cb.value);
 
-    // Parse evidence references
-    const evRefLines = toList('f-pa-evrefs');
-    const evRefs = evRefLines.map((line, i) => {
-      const parts = line.split('|').map(p => p.trim());
-      return {
-        id: `ev_${stepId}_${entityId}_${i + 1}`,
-        type: parts[0] || 'other',
-        title: parts[1] || '',
-        source: parts[2] || '',
-        confidence: parts[3] || 'medium',
-      };
-    });
+    // Collect structured evidence references
+    const evRefs = _collectEvidenceRefs(stepId, entityId);
 
     const payload = {
       entity_id: entityId,
@@ -723,4 +853,7 @@ async function openVariantEditor(streamId, step, entityId, variant) {
     closeModal();
     renderAnalysis(streamId);
   });
+
+  // Wire evidence sub-form controls after modal is rendered
+  _wireEvidenceControls(stepId, entityId);
 }
