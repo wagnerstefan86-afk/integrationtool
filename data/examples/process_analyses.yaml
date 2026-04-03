@@ -41,9 +41,36 @@ analyses:
       - ServiceNow was introduced as group-wide ITSM in 2021
       - Mailbox kept for legacy reasons and external partner communication
       - SOC integration added in 2023 for automated incident escalation
+      why_categories:
+      - deliberate_local_optimization
+      - technical_constraint
+      why_quality: strong
+      why_review_note: ServiceNow is the strategic group ITSM platform. Multi-channel intake documented and justified.
       evidence_or_examples:
       - ServiceNow ticket SN-2024-001234
       - SOC playbook for automated child case creation
+      evidence_references:
+      - id: ev_intake_de_1
+        type: ticket_example
+        title: ServiceNow ticket SN-2024-001234
+        source: ServiceNow ITSM
+        reference_detail: Example intake ticket showing full lifecycle
+        date_collected: "2024-12-15"
+        collected_by: InfoSec Analyst
+        confidence: high
+      - id: ev_intake_de_2
+        type: sop
+        title: SOC Playbook - Automated Child Case Creation
+        source: Confluence Knowledge Base
+        reference_detail: Playbook v2.3 describing automated alert-to-ticket flow
+        date_collected: "2024-11-20"
+        collected_by: SOC Team Lead
+        confidence: high
+      evidence_strength: high
+      review_status: reviewed
+      review_comment: Intake process well-documented with strong evidence base.
+      reviewed_by: CISO
+      reviewed_at: "2025-01-10"
       performed_in: DE
       maturity_notes: Well-established process. SOC integration relatively new.
     - entity_id: AT
@@ -75,8 +102,27 @@ analyses:
       - Navision is the only IT system available locally in AT
       - ServiceNow license not extended to AT office yet
       - Small team size makes informal handling practical
+      why_categories:
+      - tooling_or_license_limitation
+      - capacity_or_staffing
+      why_quality: medium
+      why_review_note: License limitation is verifiable, but staffing argument needs validation.
       evidence_or_examples:
       - Navision entry NAV-SEC-2024-087
+      evidence_references:
+      - id: ev_intake_at_1
+        type: interview
+        title: Interview with Local ISO
+        source: On-site visit AT office
+        reference_detail: Local ISO confirmed Navision is only available system, ServiceNow license pending budget approval
+        date_collected: "2025-01-08"
+        collected_by: Central Project Lead
+        confidence: medium
+      evidence_strength: low
+      review_status: captured
+      review_comment: ""
+      reviewed_by: ""
+      reviewed_at: ""
       performed_in: AT
       maturity_notes: Low maturity. Manual process, no automation, limited tracking.
 
@@ -106,8 +152,34 @@ analyses:
       why_is_it_done_this_way:
       - ITIL-based classification model adopted company-wide
       - SOC pre-classification reduces manual effort
+      why_categories:
+      - deliberate_local_optimization
+      why_quality: strong
+      why_review_note: ITIL classification is a deliberate, documented design decision.
       evidence_or_examples:
       - Classification matrix document (internal wiki)
+      evidence_references:
+      - id: ev_triage_de_1
+        type: document
+        title: Classification Matrix v3.1
+        source: Internal Wiki / Confluence
+        reference_detail: Documented P1-P4 priority definitions and category mapping
+        date_collected: "2024-10-01"
+        collected_by: InfoSec Analyst
+        confidence: high
+      - id: ev_triage_de_2
+        type: sop
+        title: SIEM Auto-Classification Rules
+        source: Splunk SIEM Configuration
+        reference_detail: Rule set for automated pre-classification of SOC alerts
+        date_collected: "2024-11-15"
+        collected_by: SOC Team Lead
+        confidence: high
+      evidence_strength: high
+      review_status: reviewed
+      review_comment: Classification model well-established and documented.
+      reviewed_by: InfoSec Team Lead
+      reviewed_at: "2025-01-12"
       performed_in: DE
       maturity_notes: Solid classification model. Some edge cases require escalation.
     - entity_id: AT
@@ -133,7 +205,18 @@ analyses:
       why_is_it_done_this_way:
       - Team too small for formal triage process
       - No ticketing system with proper priority fields
+      why_categories:
+      - capacity_or_staffing
+      - historical_growth
+      why_quality: weak
+      why_review_note: "Weak rationale: team size alone does not justify missing classification. Historical growth cited without evidence."
       evidence_or_examples: []
+      evidence_references: []
+      evidence_strength: ""
+      review_status: challenged
+      review_comment: "Challenged: no evidence for triage process, WHY is weak. Need follow-up."
+      reviewed_by: Central Project Lead
+      reviewed_at: "2025-01-15"
       performed_in: AT
       maturity_notes: Very low maturity. Single point of failure.
 
@@ -164,8 +247,34 @@ analyses:
       why_is_it_done_this_way:
       - Specialization enables faster resolution for known request types
       - ServiceNow workflow enforces process adherence
+      why_categories:
+      - deliberate_local_optimization
+      why_quality: strong
+      why_review_note: Clear operational rationale with SLA evidence.
       evidence_or_examples:
       - SLA compliance report Q4 2024
+      evidence_references:
+      - id: ev_proc_de_1
+        type: document
+        title: SLA Compliance Report Q4 2024
+        source: ServiceNow Reporting
+        reference_detail: Shows 94% SLA compliance across P1-P4 tickets
+        date_collected: "2025-01-05"
+        collected_by: InfoSec Analyst
+        confidence: high
+      - id: ev_proc_de_2
+        type: sop
+        title: Request Processing Procedures Manual
+        source: Confluence
+        reference_detail: 45-page document covering all request categories and resolution steps
+        date_collected: "2024-09-20"
+        collected_by: Senior Analyst
+        confidence: high
+      evidence_strength: high
+      review_status: reviewed
+      review_comment: Processing is the strongest documented step in DE.
+      reviewed_by: CISO
+      reviewed_at: "2025-01-10"
       performed_in: DE
       maturity_notes: Mature process with SLA tracking.
     - entity_id: AT
@@ -190,7 +299,25 @@ analyses:
       why_is_it_done_this_way:
       - Only one person responsible for InfoSec in AT
       - Budget for additional headcount not approved
+      why_categories:
+      - capacity_or_staffing
+      why_quality: medium
+      why_review_note: Staffing constraint verifiable but should not permanently justify missing process.
       evidence_or_examples: []
+      evidence_references:
+      - id: ev_proc_at_1
+        type: interview
+        title: Interview with Local ISO on processing workflow
+        source: On-site visit AT
+        reference_detail: Local ISO described manual request handling and forwarding to DE for complex cases
+        date_collected: "2025-01-08"
+        collected_by: Central Project Lead
+        confidence: medium
+      evidence_strength: low
+      review_status: captured
+      review_comment: ""
+      reviewed_by: ""
+      reviewed_at: ""
       performed_in: AT
       maturity_notes: High dependency on single individual.
 
@@ -222,9 +349,36 @@ analyses:
       why_is_it_done_this_way:
       - NIS2 and DSGVO require documented escalation paths
       - PagerDuty integrated for reliable on-call notification
+      why_categories:
+      - regulatory_requirement
+      - legal_constraint
+      why_quality: strong
+      why_review_note: NIS2/DSGVO requirements are hard legal constraints. Escalation design is compliance-driven.
       evidence_or_examples:
       - Escalation matrix document
       - PagerDuty on-call schedule
+      evidence_references:
+      - id: ev_esc_de_1
+        type: policy
+        title: Escalation Matrix v2.0
+        source: InfoSec Governance Framework
+        reference_detail: Defines escalation paths by priority level and incident type, approved by CISO
+        date_collected: "2024-08-15"
+        collected_by: InfoSec Team Lead
+        confidence: high
+      - id: ev_esc_de_2
+        type: system_screenshot
+        title: PagerDuty On-Call Schedule Screenshot
+        source: PagerDuty Admin Console
+        reference_detail: Shows 24/7 on-call rotation for P1 incident response
+        date_collected: "2025-01-02"
+        collected_by: SOC Team Lead
+        confidence: high
+      evidence_strength: high
+      review_status: approved
+      review_comment: Escalation paths are compliance-driven and well-documented. Approved.
+      reviewed_by: CISO
+      reviewed_at: "2025-01-11"
       performed_in: DE
       maturity_notes: Well-defined escalation paths.
     - entity_id: AT
@@ -250,7 +404,18 @@ analyses:
       why_is_it_done_this_way:
       - Small team, direct communication is faster
       - No formal escalation framework established for AT
+      why_categories:
+      - historical_growth
+      - unknown_or_unclear
+      why_quality: weak
+      why_review_note: "Weak: 'direct communication is faster' is not a valid justification for missing escalation framework. Compliance risk."
       evidence_or_examples: []
+      evidence_references: []
+      evidence_strength: ""
+      review_status: challenged
+      review_comment: "Critical control gap: no documented escalation. NIS2 requires escalation paths for all entities. Must be remediated."
+      reviewed_by: Central Project Lead
+      reviewed_at: "2025-01-15"
       performed_in: AT
       maturity_notes: Ad-hoc escalation. Risk of missed critical issues.
 
@@ -279,8 +444,27 @@ analyses:
       why_is_it_done_this_way:
       - ServiceNow enforces mandatory closure fields
       - QC for high-priority tickets required by audit
+      why_categories:
+      - regulatory_requirement
+      - deliberate_local_optimization
+      why_quality: strong
+      why_review_note: Audit requirement is a hard constraint. ServiceNow enforcement is deliberate design.
       evidence_or_examples:
       - Closure rate report Q4 2024
+      evidence_references:
+      - id: ev_close_de_1
+        type: document
+        title: Closure Rate Report Q4 2024
+        source: ServiceNow Reporting
+        reference_detail: Shows 97% closure rate with documented resolutions
+        date_collected: "2025-01-05"
+        collected_by: InfoSec Analyst
+        confidence: high
+      evidence_strength: medium
+      review_status: reviewed
+      review_comment: Closure process solid, documentation quality improving.
+      reviewed_by: InfoSec Team Lead
+      reviewed_at: "2025-01-12"
       performed_in: DE
       maturity_notes: Solid process, documentation quality improving.
     - entity_id: AT
@@ -304,7 +488,18 @@ analyses:
       why_is_it_done_this_way:
       - No system enforces documentation
       - Time pressure with single-person team
+      why_categories:
+      - capacity_or_staffing
+      - historical_growth
+      why_quality: weak
+      why_review_note: "Weak: time pressure does not justify missing audit trail. Historical growth without improvement plan."
       evidence_or_examples: []
+      evidence_references: []
+      evidence_strength: ""
+      review_status: draft
+      review_comment: ""
+      reviewed_by: ""
+      reviewed_at: ""
       performed_in: AT
       maturity_notes: Very weak. Audit risk.
 
@@ -334,8 +529,35 @@ analyses:
       why_is_it_done_this_way:
       - Management reporting required by InfoSec governance framework
       - PowerBI provides better visualization than ServiceNow native
+      why_categories:
+      - regulatory_requirement
+      - deliberate_local_optimization
+      why_quality: strong
+      why_review_note: Governance framework mandates reporting. Tool choice (PowerBI) is deliberate optimization.
       evidence_or_examples:
       - Monthly InfoSec KPI Report December 2024
+      evidence_references:
+      - id: ev_rep_de_1
+        type: document
+        title: Monthly InfoSec KPI Report December 2024
+        source: PowerBI / ServiceNow
+        reference_detail: Full KPI report with SLA compliance, open tickets, and trend analysis
+        date_collected: "2025-01-06"
+        collected_by: InfoSec Analyst
+        confidence: high
+      - id: ev_rep_de_2
+        type: policy
+        title: InfoSec Governance Framework - Reporting Requirements
+        source: Group Policy Repository
+        reference_detail: Section 4.3 mandates monthly KPI reporting to CISO
+        date_collected: "2024-06-01"
+        collected_by: CISO Office
+        confidence: high
+      evidence_strength: high
+      review_status: approved
+      review_comment: Reporting process fully documented and governance-mandated.
+      reviewed_by: CISO
+      reviewed_at: "2025-01-11"
       performed_in: DE
       maturity_notes: Good reporting. Automation potential for data extraction.
     - entity_id: AT
@@ -358,6 +580,17 @@ analyses:
       why_is_it_done_this_way:
       - No reporting system available
       - Management has not required regular reporting yet
+      why_categories:
+      - historical_growth
+      - unknown_or_unclear
+      why_quality: weak
+      why_review_note: "Weak: 'management has not required' is not a valid reason. Governance framework applies to all entities."
       evidence_or_examples: []
+      evidence_references: []
+      evidence_strength: ""
+      review_status: challenged
+      review_comment: "Critical gap: no systematic reporting in AT contradicts group governance framework. Control gap."
+      reviewed_by: Central Project Lead
+      reviewed_at: "2025-01-15"
       performed_in: AT
       maturity_notes: Minimal. No systematic visibility into AT operations.
