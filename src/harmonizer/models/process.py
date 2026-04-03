@@ -56,6 +56,37 @@ class InterfaceType(str, Enum):
     HANDOVER = "handover"
 
 
+class GapLevel(str, Enum):
+    """Three-tier gap/difference level for delta assessment."""
+    LOW = "low"
+    MEDIUM = "medium"
+    HIGH = "high"
+
+
+class TargetOption(str, Enum):
+    """Harmonization target option — which standard to adopt."""
+    DE_STANDARD = "de_standard"
+    AT_STANDARD = "at_standard"
+    CENTRAL = "central"
+
+
+class AsIsProcess(BaseModel):
+    """AS-IS process description for one country variant."""
+    description: str = ""
+    steps: list[str] = Field(default_factory=list)
+    tools: list[str] = Field(default_factory=list)
+    roles: list[str] = Field(default_factory=list)
+    controls: list[str] = Field(default_factory=list)
+
+
+class DeltaAssessment(BaseModel):
+    """Gap analysis between DE and AT AS-IS processes."""
+    structural_diff: GapLevel = GapLevel.LOW
+    tooling_gap: GapLevel = GapLevel.LOW
+    regulatory_gap: GapLevel = GapLevel.LOW
+    role_model_diff: GapLevel = GapLevel.LOW
+
+
 class Area(BaseModel):
     """An organizational grouping of streams.
 

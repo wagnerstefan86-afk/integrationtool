@@ -32,7 +32,7 @@ from harmonizer.scoring.engine import (
     get_weights_for_stream_type,
 )
 from harmonizer.scoring.questions import get_required_questions
-from harmonizer.models.process import StreamType
+from harmonizer.models.process import StreamType, TargetOption, GapLevel
 from harmonizer.models.assessment import (
     AlignmentDimension,
     AssessmentAnswer,
@@ -296,15 +296,21 @@ def delete_interface(iface_id: str, dataset: str = "examples"):
 
 # ===================== Assessments CRUD =====================
 
+VALID_TARGET_OPTIONS = {t.value for t in TargetOption}
+
 @app.get("/api/assessments")
-def list_assessments(dataset: str = "examples"):
-    return _get_store(dataset).list_assessments()
+def list_assessments(dataset: str = "examples", target_option: Optional[str] = None):
+    assessments = _get_store(dataset).list_assessments()
+    if target_option:
+        assessments = [a for a in assessments if a.get("target_option") == target_option]
+    return assessments
 
 @app.get("/api/assessments/{obj_id}")
-def get_assessment(obj_id: str, dataset: str = "examples"):
-    a = _get_store(dataset).get_assessment(obj_id)
+def get_assessment(obj_id: str, dataset: str = "examples", target_option: Optional[str] = None):
+    a = _get_store(dataset).get_assessment(obj_id, target_option=target_option)
     if not a:
-        raise HTTPException(404, f"Assessment not found: {obj_id}")
+        label = f"{obj_id}" + (f" (option={target_option})" if target_option else "")
+        raise HTTPException(404, f"Assessment not found: {label}")
     return a
 
 VALID_DIMENSIONS = {d.value for d in AlignmentDimension}
@@ -321,6 +327,14 @@ def save_assessment(assessment: dict, dataset: str = "examples"):
     obj_type = assessment.get("assessed_object_type", "").strip()
     if obj_type not in ("stream", "subprocess"):
         raise HTTPException(400, "assessed_object_type must be 'stream' or 'subprocess'")
+
+    # Validate target_option for stream assessments
+    target_option = assessment.get("target_option")
+    if target_option:
+        if target_option not in VALID_TARGET_OPTIONS:
+            raise HTTPException(400, f"Invalid target_option: '{target_option}'. Must be one of: {', '.join(sorted(VALID_TARGET_OPTIONS))}")
+        if obj_type != "stream":
+            raise HTTPException(400, "target_option is only valid for stream assessments")
 
     # Validate the referenced object exists
     store = _get_store(dataset)
@@ -358,14 +372,26 @@ def save_assessment(assessment: dict, dataset: str = "examples"):
                 f"Cannot set status to 'completed': missing dimensions: {', '.join(sorted(missing))}"
             )
 
+    # For completed stream assessments with target_option, AS-IS DE+AT must exist
+    if status == "completed" and obj_type == "stream" and target_option:
+        stream = store.get_stream(obj_id)
+        as_is = stream.get("as_is", {}) if stream else {}
+        de_filled = bool(as_is.get("de", {}).get("description", "").strip())
+        at_filled = bool(as_is.get("at", {}).get("description", "").strip())
+        if not (de_filled and at_filled):
+            raise HTTPException(
+                400,
+                "Cannot complete option assessment: stream must have AS-IS descriptions for both DE and AT"
+            )
+
     assessment["status"] = status
     return store.save_assessment(assessment)
 
 @app.delete("/api/assessments/{obj_id}")
-def delete_assessment(obj_id: str, dataset: str = "examples"):
-    if not _get_store(dataset).delete_assessment(obj_id):
+def delete_assessment(obj_id: str, dataset: str = "examples", target_option: Optional[str] = None):
+    if not _get_store(dataset).delete_assessment(obj_id, target_option=target_option):
         raise HTTPException(404, f"Assessment not found: {obj_id}")
-    return {"deleted": obj_id}
+    return {"deleted": obj_id, "target_option": target_option}
 
 # ===================== Outcomes CRUD =====================
 
@@ -490,6 +516,95 @@ def get_questions(stream_type: str):
         raise HTTPException(400, f"Invalid stream type: '{stream_type}'")
     questions = get_required_questions(st)
     return [{"id": q.id, "text": q.text, "focus": q.focus} for q in questions]
+
+# ===================== Stream AS-IS & Delta =====================
+
+VALID_GAP_LEVELS = {g.value for g in GapLevel}
+
+@app.get("/api/streams/{stream_id}/as-is")
+def get_stream_as_is(stream_id: str, dataset: str = "examples"):
+    """Return AS-IS DE/AT process descriptions and delta for a stream."""
+    store = _get_store(dataset)
+    stream = store.get_stream(stream_id)
+    if not stream:
+        raise HTTPException(404, f"Stream not found: {stream_id}")
+    return {
+        "stream_id": stream_id,
+        "as_is": stream.get("as_is", {"de": {}, "at": {}}),
+        "delta": stream.get("delta", {}),
+    }
+
+
+@app.put("/api/streams/{stream_id}/as-is")
+def save_stream_as_is(stream_id: str, body: dict, dataset: str = "examples"):
+    """Save AS-IS DE/AT process descriptions and optional delta."""
+    store = _get_store(dataset)
+    stream = store.get_stream(stream_id)
+    if not stream:
+        raise HTTPException(404, f"Stream not found: {stream_id}")
+
+    as_is = body.get("as_is", {})
+    # Validate structure: only 'de' and 'at' keys with known sub-fields
+    for country in ("de", "at"):
+        entry = as_is.get(country, {})
+        if not isinstance(entry, dict):
+            raise HTTPException(400, f"as_is.{country} must be an object")
+
+    # Validate delta if provided
+    delta = body.get("delta", {})
+    for key in ("structural_diff", "tooling_gap", "regulatory_gap", "role_model_diff"):
+        val = delta.get(key)
+        if val and val not in VALID_GAP_LEVELS:
+            raise HTTPException(400, f"Invalid gap level for delta.{key}: '{val}'")
+
+    stream["as_is"] = as_is
+    if delta:
+        stream["delta"] = delta
+    store.save_stream(stream)
+    return {"stream_id": stream_id, "as_is": as_is, "delta": delta}
+
+
+# ===================== Option Assessments (stream-level) =====================
+
+@app.get("/api/streams/{stream_id}/option-assessments")
+def get_option_assessments(stream_id: str, dataset: str = "examples"):
+    """Return all target option assessments for a stream."""
+    store = _get_store(dataset)
+    if not store.get_stream(stream_id):
+        raise HTTPException(404, f"Stream not found: {stream_id}")
+    return store.get_assessments_for_stream(stream_id)
+
+
+# ===================== Option Comparison Decision =====================
+
+@app.post("/api/decisions/compare/{stream_id}")
+def compare_stream_options(stream_id: str, dataset: str = "examples"):
+    """Compare 3 target options for a stream and recommend the best one.
+
+    Requires at least one option assessment. Ideally all three
+    (de_standard, at_standard, central) should exist.
+    """
+    store = _get_store(dataset)
+    stream = store.get_stream(stream_id)
+    if not stream:
+        raise HTTPException(404, f"Stream not found: {stream_id}")
+
+    option_assessments = store.get_assessments_for_stream(stream_id)
+    if not option_assessments:
+        raise HTTPException(
+            400,
+            f"No option assessments found for stream '{stream_id}'. "
+            "Create assessments with target_option set."
+        )
+
+    from harmonizer.scoring.option_decision import compare_options
+    try:
+        result = compare_options(stream, option_assessments)
+    except Exception as e:
+        logger.error("Option comparison failed for %s: %s", stream_id, e, exc_info=True)
+        raise HTTPException(500, f"Option comparison failed: {e}")
+    return result
+
 
 # ===================== Decisions (computed) =====================
 
@@ -767,4 +882,6 @@ def get_enums():
             "centralized_execution", "central_method_local_execution",
             "federated_standardized", "local_independent",
         ],
+        "target_options": [t.value for t in TargetOption],
+        "gap_levels": [g.value for g in GapLevel],
     }

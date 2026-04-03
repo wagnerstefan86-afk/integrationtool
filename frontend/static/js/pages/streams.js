@@ -173,12 +173,13 @@ async function deleteStream(streamId) {
 // ─── Detail view ──────────────────────────────────────────────────────────────
 
 async function renderDetail(streamId) {
-  const [stream, subprocesses, interfaces, allAssessments, areas] = await Promise.all([
+  const [stream, subprocesses, interfaces, allAssessments, areas, asIsData] = await Promise.all([
     API.get(`streams/${encodeURIComponent(streamId)}`),
     API.get('subprocesses'),
     API.get('interfaces'),
     API.get('assessments'),
     API.get('areas'),
+    API.get(`streams/${encodeURIComponent(streamId)}/as-is`).catch(() => ({ as_is: {}, delta: {} })),
   ]);
 
   const streamSPs = subprocesses.filter(sp => sp.stream_id === streamId);
@@ -266,11 +267,18 @@ async function renderDetail(streamId) {
             <dt>Regulatory</dt><dd>${regulatoryBadges || '—'}</dd>
           </dl>
         </div>
+        ${_renderAsIsSection(streamId, asIsData)}
         <div class="detail-section">
           <div style="display:flex;justify-content:space-between;align-items:center">
-            <h3>Assessment</h3>
-            <a href="#/assessments/${encodeURIComponent(streamId)}" class="btn btn-sm btn-primary">
-              ${assessment ? 'Edit Assessment' : 'Create Assessment'}
+            <h3>Option Assessments</h3>
+          </div>
+          ${_renderOptionAssessments(streamId, allAssessments)}
+        </div>
+        <div class="detail-section">
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <h3>Legacy Assessment</h3>
+            <a href="#/assessments/${encodeURIComponent(streamId)}" class="btn btn-sm">
+              ${assessment ? 'Edit' : 'Create'}
             </a>
           </div>
           ${assessSection}
@@ -328,6 +336,85 @@ async function renderDetail(streamId) {
   });
   document.querySelectorAll('[data-delete-iface]').forEach(btn => {
     btn.addEventListener('click', () => deleteInterface(btn.dataset.deleteIface, streamId));
+  });
+
+  // AS-IS edit button
+  document.getElementById('btn-edit-as-is')?.addEventListener('click', () => {
+    openAsIsForm(streamId, asIsData);
+  });
+}
+
+// ─── AS-IS form ──────────────────────────────────────────────────────────────
+
+async function openAsIsForm(streamId, asIsData) {
+  const asIs = asIsData?.as_is || {};
+  const delta = asIsData?.delta || {};
+  const de = asIs.de || {};
+  const at = asIs.at || {};
+  const e = await enums();
+  const gapOpts = (e.gap_levels || ['low', 'medium', 'high']).map(g => ({ value: g, label: g }));
+
+  openModal('Edit AS-IS: DE / AT', `
+    <h4 style="margin:0 0 8px;color:var(--primary)">DE (Germany)</h4>
+    ${textArea('f-asis-de-desc', 'Description', de.description || '', { rows: 2 })}
+    ${textArea('f-asis-de-steps', 'Steps (one per line)', (de.steps || []).join('\\n'), { rows: 3 })}
+    ${formRow(
+      textArea('f-asis-de-tools', 'Tools (one per line)', (de.tools || []).join('\\n'), { rows: 2 }),
+      textArea('f-asis-de-roles', 'Roles (one per line)', (de.roles || []).join('\\n'), { rows: 2 })
+    )}
+    ${textArea('f-asis-de-controls', 'Controls (one per line)', (de.controls || []).join('\\n'), { rows: 2 })}
+
+    <hr style="border:none;border-top:1px solid var(--border);margin:14px 0">
+    <h4 style="margin:0 0 8px;color:var(--primary)">AT (Austria)</h4>
+    ${textArea('f-asis-at-desc', 'Description', at.description || '', { rows: 2 })}
+    ${textArea('f-asis-at-steps', 'Steps (one per line)', (at.steps || []).join('\\n'), { rows: 3 })}
+    ${formRow(
+      textArea('f-asis-at-tools', 'Tools (one per line)', (at.tools || []).join('\\n'), { rows: 2 }),
+      textArea('f-asis-at-roles', 'Roles (one per line)', (at.roles || []).join('\\n'), { rows: 2 })
+    )}
+    ${textArea('f-asis-at-controls', 'Controls (one per line)', (at.controls || []).join('\\n'), { rows: 2 })}
+
+    <hr style="border:none;border-top:1px solid var(--border);margin:14px 0">
+    <h4 style="margin:0 0 8px;color:var(--primary)">Delta Assessment</h4>
+    ${formRow(
+      selectField('f-delta-structural', 'Structural Diff', gapOpts, delta.structural_diff || 'low'),
+      selectField('f-delta-tooling', 'Tooling Gap', gapOpts, delta.tooling_gap || 'low')
+    )}
+    ${formRow(
+      selectField('f-delta-regulatory', 'Regulatory Gap', gapOpts, delta.regulatory_gap || 'low'),
+      selectField('f-delta-rolemodel', 'Role Model Diff', gapOpts, delta.role_model_diff || 'low')
+    )}
+  `, async () => {
+    const toList = (id) => document.getElementById(id)?.value.split('\\n').map(l => l.trim()).filter(Boolean) || [];
+
+    const body = {
+      as_is: {
+        de: {
+          description: val('f-asis-de-desc'),
+          steps: toList('f-asis-de-steps'),
+          tools: toList('f-asis-de-tools'),
+          roles: toList('f-asis-de-roles'),
+          controls: toList('f-asis-de-controls'),
+        },
+        at: {
+          description: val('f-asis-at-desc'),
+          steps: toList('f-asis-at-steps'),
+          tools: toList('f-asis-at-tools'),
+          roles: toList('f-asis-at-roles'),
+          controls: toList('f-asis-at-controls'),
+        },
+      },
+      delta: {
+        structural_diff: val('f-delta-structural'),
+        tooling_gap: val('f-delta-tooling'),
+        regulatory_gap: val('f-delta-regulatory'),
+        role_model_diff: val('f-delta-rolemodel'),
+      },
+    };
+    await API.put(`streams/${encodeURIComponent(streamId)}/as-is`, body);
+    toast('AS-IS saved');
+    closeModal();
+    renderDetail(streamId);
   });
 }
 
@@ -457,6 +544,109 @@ async function deleteInterface(ifaceId, streamId) {
     toast('Interface deleted');
     renderDetail(streamId);
   } catch (e) { toast(e.message, true); }
+}
+
+// ─── AS-IS DE/AT Section ─────────────────────────────────────────────────────
+
+function _renderAsIsSection(streamId, asIsData) {
+  const asIs = asIsData?.as_is || {};
+  const delta = asIsData?.delta || {};
+  const de = asIs.de || {};
+  const at = asIs.at || {};
+
+  const listOrNone = (items) =>
+    items?.length ? items.map(i => `<li>${esc(i)}</li>`).join('') : '<li style="color:var(--text-muted)">---</li>';
+
+  const countryBlock = (label, data) => `
+    <div style="flex:1;min-width:200px">
+      <h4 style="margin:0 0 8px">${label}</h4>
+      ${data.description?.trim()
+        ? `<p style="font-size:13px;margin:0 0 6px">${esc(data.description)}</p>
+           <div style="font-size:12px">
+             <strong>Steps:</strong><ul style="margin:2px 0 4px 16px">${listOrNone(data.steps)}</ul>
+             <strong>Tools:</strong><ul style="margin:2px 0 4px 16px">${listOrNone(data.tools)}</ul>
+             <strong>Roles:</strong><ul style="margin:2px 0 4px 16px">${listOrNone(data.roles)}</ul>
+             <strong>Controls:</strong><ul style="margin:2px 0 4px 16px">${listOrNone(data.controls)}</ul>
+           </div>`
+        : '<p style="color:var(--text-muted);font-size:12px">Not documented yet.</p>'}
+    </div>`;
+
+  const gapBadge = (level) => {
+    const cls = { low: 'badge-success', medium: 'badge-warning', high: 'badge-danger' };
+    return level ? badge(cls[level] || 'badge-muted', level) : badge('badge-muted', '---');
+  };
+
+  const deltaHtml = (delta.structural_diff || delta.tooling_gap || delta.regulatory_gap || delta.role_model_diff) ? `
+    <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border)">
+      <strong style="font-size:12px">Delta Analysis</strong>
+      <div style="display:flex;gap:16px;margin-top:6px;font-size:12px;flex-wrap:wrap">
+        <span>Structure: ${gapBadge(delta.structural_diff)}</span>
+        <span>Tooling: ${gapBadge(delta.tooling_gap)}</span>
+        <span>Regulatory: ${gapBadge(delta.regulatory_gap)}</span>
+        <span>Role Model: ${gapBadge(delta.role_model_diff)}</span>
+      </div>
+    </div>` : '';
+
+  return `<div class="detail-section">
+    <div style="display:flex;justify-content:space-between;align-items:center">
+      <h3>AS-IS Process Comparison</h3>
+      <button class="btn btn-sm btn-primary" id="btn-edit-as-is">Edit AS-IS</button>
+    </div>
+    <div style="display:flex;gap:16px;flex-wrap:wrap">
+      ${countryBlock('DE (Germany)', de)}
+      ${countryBlock('AT (Austria)', at)}
+    </div>
+    ${deltaHtml}
+  </div>`;
+}
+
+function _renderOptionAssessments(streamId, allAssessments) {
+  const optAssessments = allAssessments.filter(
+    a => a.assessed_object_id === streamId && a.assessed_object_type === 'stream' && a.target_option
+  );
+
+  if (optAssessments.length === 0) {
+    return `<p style="color:var(--text-muted);font-size:13px">
+      No option assessments yet. Evaluate each harmonization strategy:
+    </p>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <a href="#/assessments/${encodeURIComponent(streamId)}?option=de_standard" class="btn btn-sm">Assess DE Standard</a>
+      <a href="#/assessments/${encodeURIComponent(streamId)}?option=at_standard" class="btn btn-sm">Assess AT Standard</a>
+      <a href="#/assessments/${encodeURIComponent(streamId)}?option=central" class="btn btn-sm">Assess Central</a>
+    </div>`;
+  }
+
+  const optMap = Object.fromEntries(optAssessments.map(a => [a.target_option, a]));
+  const statusCls = { draft: 'badge-warning', completed: 'badge-success', reviewed: 'badge-info' };
+  const options = ['de_standard', 'at_standard', 'central'];
+  const labels = { de_standard: 'DE Standard', at_standard: 'AT Standard', central: 'Central' };
+
+  const rows = options.map(opt => {
+    const a = optMap[opt];
+    if (!a) {
+      return `<tr>
+        <td>${esc(labels[opt])}</td>
+        <td>${badge('badge-muted', 'missing')}</td><td>---</td><td>---</td>
+        <td><a href="#/assessments/${encodeURIComponent(streamId)}?option=${opt}" class="btn btn-sm btn-primary">Create</a></td>
+      </tr>`;
+    }
+    const dims = (a.answers || []).length;
+    return `<tr>
+      <td><strong>${esc(labels[opt])}</strong></td>
+      <td>${badge(statusCls[a.status] || 'badge-muted', a.status || 'draft')}</td>
+      <td>${dims}/6 dims</td>
+      <td>${(a.hard_constraints || []).length > 0 ? badge('badge-danger', a.hard_constraints.length + ' constraints') : badge('badge-success', 'none')}</td>
+      <td><a href="#/assessments/${encodeURIComponent(streamId)}?option=${opt}" class="btn btn-sm">Edit</a></td>
+    </tr>`;
+  }).join('');
+
+  return `<div class="table-wrap"><table>
+    <thead><tr><th>Option</th><th>Status</th><th>Answers</th><th>Constraints</th><th></th></tr></thead>
+    <tbody>${rows}</tbody>
+  </table></div>
+  <div style="margin-top:8px">
+    <a href="#/decisions/${encodeURIComponent(streamId)}" class="btn btn-sm btn-primary">View Decision Comparison</a>
+  </div>`;
 }
 
 // ─── Assessment summary (read-only) ──────────────────────────────────────────

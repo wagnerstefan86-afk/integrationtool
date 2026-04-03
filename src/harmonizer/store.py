@@ -198,22 +198,38 @@ class YAMLStore:
         return True
 
     # --- Assessments ---
+    # Assessments are keyed by (assessed_object_id, target_option).
+    # For subprocess assessments and legacy data, target_option may be None.
+    # Stream assessments can have up to 3 records (de_standard, at_standard, central).
+
+    @staticmethod
+    def _assessment_key(a: dict) -> tuple:
+        return (a.get("assessed_object_id"), a.get("target_option"))
 
     def list_assessments(self) -> list[dict]:
         return self._read_assessments_data().get("assessments", [])
 
-    def get_assessment(self, obj_id: str) -> Optional[dict]:
+    def get_assessment(self, obj_id: str, target_option: Optional[str] = None) -> Optional[dict]:
         for a in self.list_assessments():
             if a.get("assessed_object_id") == obj_id:
-                return a
+                if target_option is None or a.get("target_option") == target_option:
+                    return a
         return None
+
+    def get_assessments_for_stream(self, stream_id: str) -> list[dict]:
+        """Return all option assessments for a stream."""
+        return [
+            a for a in self.list_assessments()
+            if a.get("assessed_object_id") == stream_id
+            and a.get("assessed_object_type") == "stream"
+        ]
 
     def save_assessment(self, assessment: dict) -> dict:
         data = self._read_assessments_data()
         assessments = data.setdefault("assessments", [])
-        obj_id = assessment.get("assessed_object_id")
+        key = self._assessment_key(assessment)
         for i, a in enumerate(assessments):
-            if a.get("assessed_object_id") == obj_id:
+            if self._assessment_key(a) == key:
                 assessments[i] = assessment
                 self._write_assessments_data(data)
                 return assessment
@@ -221,10 +237,16 @@ class YAMLStore:
         self._write_assessments_data(data)
         return assessment
 
-    def delete_assessment(self, obj_id: str) -> bool:
+    def delete_assessment(self, obj_id: str, target_option: Optional[str] = None) -> bool:
         data = self._read_assessments_data()
         assessments = data.get("assessments", [])
-        new = [a for a in assessments if a.get("assessed_object_id") != obj_id]
+        new = [
+            a for a in assessments
+            if not (
+                a.get("assessed_object_id") == obj_id
+                and (target_option is None or a.get("target_option") == target_option)
+            )
+        ]
         if len(new) == len(assessments):
             return False
         data["assessments"] = new
@@ -312,6 +334,16 @@ class YAMLStore:
         assessed_stream_ids = {a["assessed_object_id"] for a in stream_assessments}
         unassessed_streams = [s for s in streams if s["id"] not in assessed_stream_ids]
 
+        # Count streams with full 3-option assessment coverage
+        option_coverage = {}
+        for a in stream_assessments:
+            sid = a["assessed_object_id"]
+            option_coverage.setdefault(sid, set()).add(a.get("target_option", "central"))
+        fully_assessed = sum(
+            1 for opts in option_coverage.values()
+            if {"de_standard", "at_standard", "central"} <= opts
+        )
+
         return {
             "area_count": len(areas),
             "stream_count": len(streams),
@@ -319,6 +351,7 @@ class YAMLStore:
             "interface_count": len(ifaces),
             "assessment_count": len(assessments),
             "stream_assessment_count": len(stream_assessments),
+            "fully_assessed_streams": fully_assessed,
             "outcome_count": len(outcomes),
             "unassessed_streams": [s["id"] for s in unassessed_streams],
         }

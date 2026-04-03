@@ -452,10 +452,28 @@ class CalibrationResult(BaseModel):
     deviation_reasons_summary: list[str] = Field(default_factory=list)
 
 
+class OptionDecisionResult(BaseModel):
+    """Decision output comparing three target options for a stream."""
+    recommended_option: str  # de_standard | at_standard | central
+    rationale: str
+    blockers: list[str] = Field(default_factory=list)
+    prerequisites: list[str] = Field(default_factory=list)
+    option_scores: dict[str, float] = Field(default_factory=dict)
+    option_classifications: dict[str, str] = Field(default_factory=dict)
+    discarded_options: list[dict] = Field(default_factory=list)
+
+
 class Assessment(BaseModel):
-    """Full assessment record for a stream or subprocess."""
+    """Full assessment record for a stream or subprocess.
+
+    For stream-level assessments, target_option specifies which harmonization
+    strategy is being evaluated. Each stream can have up to 3 assessments
+    (de_standard, at_standard, central). Legacy assessments without
+    target_option are treated as 'central'.
+    """
     assessed_object_type: AssessedObjectType
     assessed_object_id: str
+    target_option: Optional[str] = None  # de_standard | at_standard | central
     answers: list[AssessmentAnswer] = Field(default_factory=list)
     type_specific_answers: list[TypeSpecificAnswer] = Field(default_factory=list)
     hard_constraints: list[HardConstraint] = Field(default_factory=list)

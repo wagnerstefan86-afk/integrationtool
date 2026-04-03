@@ -397,6 +397,297 @@ class TestDecisionEndpoints:
         assert any(r["stream_id"] == "policies_processes" for r in resp.json())
 
 
+class TestAsIsAndDelta:
+    """Tests for stream AS-IS DE/AT and delta endpoints."""
+
+    def test_get_as_is_empty(self, client) -> None:
+        resp = client.get("/api/streams/policies_processes/as-is")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["stream_id"] == "policies_processes"
+        assert "as_is" in data
+
+    def test_save_and_get_as_is(self, client) -> None:
+        body = {
+            "as_is": {
+                "de": {
+                    "description": "DE process: central policy management",
+                    "steps": ["draft policy", "review", "approve", "publish"],
+                    "tools": ["Confluence", "JIRA"],
+                    "roles": ["Policy Owner", "CISO"],
+                    "controls": ["C-001", "C-002"],
+                },
+                "at": {
+                    "description": "AT process: local policy creation",
+                    "steps": ["draft", "local review", "publish"],
+                    "tools": ["SharePoint"],
+                    "roles": ["Local ISO"],
+                    "controls": ["C-001"],
+                },
+            },
+            "delta": {
+                "structural_diff": "medium",
+                "tooling_gap": "high",
+                "regulatory_gap": "low",
+                "role_model_diff": "medium",
+            },
+        }
+        resp = client.put("/api/streams/policies_processes/as-is", json=body)
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["as_is"]["de"]["description"] == "DE process: central policy management"
+        assert data["delta"]["tooling_gap"] == "high"
+
+        # Verify it persists
+        resp2 = client.get("/api/streams/policies_processes/as-is")
+        assert resp2.json()["as_is"]["at"]["tools"] == ["SharePoint"]
+
+    def test_save_as_is_invalid_gap(self, client) -> None:
+        resp = client.put("/api/streams/policies_processes/as-is", json={
+            "as_is": {"de": {}, "at": {}},
+            "delta": {"structural_diff": "extreme"},
+        })
+        assert resp.status_code == 400
+
+    def test_save_as_is_nonexistent_stream(self, client) -> None:
+        resp = client.put("/api/streams/nonexistent/as-is", json={"as_is": {}})
+        assert resp.status_code == 404
+
+
+class TestOptionAssessments:
+    """Tests for target option-based assessments."""
+
+    def _full_answers(self):
+        return [
+            {"dimension": "regulatory_alignment", "score": 4, "rationale": "good"},
+            {"dimension": "operational_alignment", "score": 4, "rationale": "good"},
+            {"dimension": "tooling_alignment", "score": 3, "rationale": "ok"},
+            {"dimension": "governance_alignment", "score": 4, "rationale": "good"},
+            {"dimension": "maturity", "score": 3, "rationale": "ok"},
+            {"dimension": "local_necessity", "score": 4, "rationale": "low"},
+        ]
+
+    def test_save_option_assessment(self, client) -> None:
+        resp = client.put("/api/assessments", json={
+            "assessed_object_id": "policies_processes",
+            "assessed_object_type": "stream",
+            "target_option": "de_standard",
+            "answers": [{"dimension": "maturity", "score": 4, "rationale": "ok"}],
+            "status": "draft",
+        })
+        assert resp.status_code == 200
+        assert resp.json()["target_option"] == "de_standard"
+
+    def test_save_three_options(self, client) -> None:
+        for opt in ("de_standard", "at_standard", "central"):
+            resp = client.put("/api/assessments", json={
+                "assessed_object_id": "policies_processes",
+                "assessed_object_type": "stream",
+                "target_option": opt,
+                "answers": self._full_answers(),
+                "status": "draft",
+            })
+            assert resp.status_code == 200
+
+        # Should now have 3 option assessments + the original
+        resp = client.get("/api/streams/policies_processes/option-assessments")
+        assert resp.status_code == 200
+        opts = {a["target_option"] for a in resp.json() if a.get("target_option")}
+        assert opts == {"de_standard", "at_standard", "central"}
+
+    def test_filter_by_target_option(self, client) -> None:
+        client.put("/api/assessments", json={
+            "assessed_object_id": "policies_processes",
+            "assessed_object_type": "stream",
+            "target_option": "de_standard",
+            "answers": [{"dimension": "maturity", "score": 4, "rationale": "ok"}],
+            "status": "draft",
+        })
+        resp = client.get("/api/assessments?target_option=de_standard")
+        assert resp.status_code == 200
+        for a in resp.json():
+            assert a.get("target_option") == "de_standard"
+
+    def test_invalid_target_option(self, client) -> None:
+        resp = client.put("/api/assessments", json={
+            "assessed_object_id": "policies_processes",
+            "assessed_object_type": "stream",
+            "target_option": "invalid_option",
+            "answers": [],
+            "status": "draft",
+        })
+        assert resp.status_code == 400
+        assert "target_option" in resp.json()["detail"].lower()
+
+    def test_target_option_only_for_streams(self, client) -> None:
+        resp = client.put("/api/assessments", json={
+            "assessed_object_id": "sp_policy_creation",
+            "assessed_object_type": "subprocess",
+            "target_option": "de_standard",
+            "answers": [],
+            "status": "draft",
+        })
+        assert resp.status_code == 400
+        assert "stream" in resp.json()["detail"].lower()
+
+    def test_completed_requires_as_is(self, client) -> None:
+        """Completing a target_option assessment requires AS-IS DE+AT on stream."""
+        resp = client.put("/api/assessments", json={
+            "assessed_object_id": "policies_processes",
+            "assessed_object_type": "stream",
+            "target_option": "de_standard",
+            "answers": self._full_answers(),
+            "status": "completed",
+        })
+        assert resp.status_code == 400
+        assert "as-is" in resp.json()["detail"].lower()
+
+    def test_completed_with_as_is(self, client) -> None:
+        """Can complete target_option assessment when AS-IS is filled."""
+        # First fill AS-IS
+        client.put("/api/streams/policies_processes/as-is", json={
+            "as_is": {
+                "de": {"description": "DE policy process"},
+                "at": {"description": "AT policy process"},
+            },
+        })
+        resp = client.put("/api/assessments", json={
+            "assessed_object_id": "policies_processes",
+            "assessed_object_type": "stream",
+            "target_option": "de_standard",
+            "answers": self._full_answers(),
+            "status": "completed",
+        })
+        assert resp.status_code == 200
+        assert resp.json()["status"] == "completed"
+
+
+class TestOptionComparison:
+    """Tests for the option comparison decision engine."""
+
+    def _make_assessment(self, stream_id, option, scores, constraints=None, status="draft"):
+        answers = [
+            {"dimension": d, "score": s, "rationale": "test"}
+            for d, s in scores.items()
+        ]
+        return {
+            "assessed_object_id": stream_id,
+            "assessed_object_type": "stream",
+            "target_option": option,
+            "answers": answers,
+            "hard_constraints": constraints or [],
+            "status": status,
+        }
+
+    def _setup_options(self, client, stream_id="policies_processes"):
+        """Create 3 option assessments with varying scores (draft status)."""
+        dims = {
+            "regulatory_alignment": 4, "operational_alignment": 4,
+            "tooling_alignment": 4, "governance_alignment": 4,
+            "maturity": 4, "local_necessity": 4,
+        }
+        # DE: high scores
+        resp = client.put("/api/assessments", json=self._make_assessment(
+            stream_id, "de_standard", dims, [],
+        ))
+        assert resp.status_code == 200, resp.json()
+        # AT: medium scores
+        at_dims = {**dims, "tooling_alignment": 2, "maturity": 2}
+        resp = client.put("/api/assessments", json=self._make_assessment(
+            stream_id, "at_standard", at_dims, [],
+        ))
+        assert resp.status_code == 200, resp.json()
+        # Central: slightly lower than DE
+        central_dims = {**dims, "operational_alignment": 3}
+        resp = client.put("/api/assessments", json=self._make_assessment(
+            stream_id, "central", central_dims, [],
+        ))
+        assert resp.status_code == 200, resp.json()
+
+    def test_compare_recommends_best(self, client) -> None:
+        self._setup_options(client)
+        resp = client.post("/api/decisions/compare/policies_processes")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["recommended_option"] is not None
+        assert "option_scores" in data
+        assert len(data["option_scores"]) == 3
+        assert "discarded_options" in data
+
+    def test_compare_blocked_option(self, client) -> None:
+        """Option with insufficient_documentation is blocked."""
+        dims = {
+            "regulatory_alignment": 4, "operational_alignment": 4,
+            "tooling_alignment": 4, "governance_alignment": 4,
+            "maturity": 4, "local_necessity": 4,
+        }
+        # DE: good scores but blocked by insufficient_documentation
+        resp = client.put("/api/assessments", json=self._make_assessment(
+            "policies_processes", "de_standard", dims,
+            ["insufficient_documentation"],
+        ))
+        assert resp.status_code == 200
+        # AT: good
+        resp = client.put("/api/assessments", json=self._make_assessment(
+            "policies_processes", "at_standard", dims, [],
+        ))
+        assert resp.status_code == 200
+        resp = client.post("/api/decisions/compare/policies_processes")
+        assert resp.status_code == 200
+        data = resp.json()
+        # DE should be discarded, AT or central selected
+        assert data["recommended_option"] != "de_standard"
+        blocked_opts = [d["option"] for d in data["discarded_options"]
+                        if "blocked" in d.get("reason", "").lower() or "constraint" in d.get("reason", "").lower()]
+        assert "de_standard" in blocked_opts
+
+    def test_compare_no_assessments(self, client) -> None:
+        # Create fresh stream
+        client.put("/api/areas", json={"id": "tmp_area", "name": "Tmp"})
+        client.put("/api/streams", json={"id": "tmp_empty", "name": "Empty", "area_id": "tmp_area"})
+        resp = client.post("/api/decisions/compare/tmp_empty")
+        assert resp.status_code == 400
+
+    def test_compare_nonexistent_stream(self, client) -> None:
+        resp = client.post("/api/decisions/compare/nonexistent")
+        assert resp.status_code == 404
+
+    def test_compare_with_delta_penalty(self, client) -> None:
+        """Delta penalties should affect adjusted scores."""
+        # Set high delta
+        resp = client.put("/api/streams/policies_processes/as-is", json={
+            "as_is": {"de": {"description": "DE"}, "at": {"description": "AT"}},
+            "delta": {
+                "structural_diff": "high",
+                "tooling_gap": "high",
+                "regulatory_gap": "high",
+                "role_model_diff": "high",
+            },
+        })
+        assert resp.status_code == 200
+        self._setup_options(client)
+        resp = client.post("/api/decisions/compare/policies_processes")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "option_details" in data
+        details = data["option_details"]
+        # With high delta, adjusted scores should be lower than raw scores
+        for opt, detail in details.items():
+            assert detail["adjusted_score"] <= detail["score"]
+
+
+class TestEnumsExtended:
+    """Test that new enum values are exposed."""
+
+    def test_enums_include_target_options(self, client) -> None:
+        resp = client.get("/api/enums")
+        data = resp.json()
+        assert "target_options" in data
+        assert set(data["target_options"]) == {"de_standard", "at_standard", "central"}
+        assert "gap_levels" in data
+        assert set(data["gap_levels"]) == {"low", "medium", "high"}
+
+
 class TestCalibrateEndpoint:
     def test_calibrate_no_outcomes(self, client) -> None:
         resp = client.post("/calibrate", json={"data_dir": "examples"})

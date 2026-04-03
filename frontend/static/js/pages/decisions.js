@@ -141,12 +141,19 @@ async function renderDetail(streamId) {
     return;
   }
 
-  // Compute decision
+  // Compute decision (legacy single-assessment)
   try {
     decision = await API.post(`decisions/compute/${encodeURIComponent(streamId)}`);
   } catch {
-    // Decision computation may fail if assessment is incomplete
     decision = null;
+  }
+
+  // Option comparison (DE/AT)
+  let optionComparison = null;
+  try {
+    optionComparison = await API.post(`decisions/compare/${encodeURIComponent(streamId)}`);
+  } catch {
+    // No option assessments available
   }
 
   const rv = review?.review || null;
@@ -174,6 +181,8 @@ async function renderDetail(streamId) {
       </div>
     </div>
 
+    ${_renderOptionComparison(optionComparison)}
+
     <div class="grid-2">
       <div>
         ${_renderComputedDecision(decision)}
@@ -193,6 +202,107 @@ async function renderDetail(streamId) {
   document.getElementById('btn-edit-review').addEventListener('click', () => {
     openReviewForm(streamId, rv, decision);
   });
+}
+
+// ─── Option comparison (DE/AT) ───────────────────────────────────────────────
+
+function _renderOptionComparison(cmp) {
+  if (!cmp) {
+    return `<div class="detail-section">
+      <h3>DE / AT Option Comparison</h3>
+      <p style="color:var(--text-muted)">No option assessments available. Create assessments for de_standard, at_standard, and central on the stream detail page.</p>
+    </div>`;
+  }
+
+  const labels = {
+    de_standard: 'DE Standard',
+    at_standard: 'AT Standard',
+    central: 'Central',
+  };
+  const details = cmp.option_details || {};
+  const options = Object.keys(details);
+
+  const headerCells = options.map(opt =>
+    `<th style="text-align:center">${esc(labels[opt] || opt)}
+      ${opt === cmp.recommended_option ? '<br>' + badge('badge-success', 'recommended') : ''}
+    </th>`
+  ).join('');
+
+  const scoreCells = options.map(opt => {
+    const d = details[opt];
+    return `<td style="text-align:center">${scoreBarHtml(d.score)}</td>`;
+  }).join('');
+  const adjScoreCells = options.map(opt => {
+    const d = details[opt];
+    return `<td style="text-align:center">${scoreBarHtml(d.adjusted_score)}</td>`;
+  }).join('');
+  const classCells = options.map(opt => {
+    const d = details[opt];
+    return `<td style="text-align:center">${classificationBadge(d.classification)}</td>`;
+  }).join('');
+  const statusCells = options.map(opt => {
+    const d = details[opt];
+    if (d.blocked) return `<td style="text-align:center">${badge('badge-danger', 'blocked')}</td>`;
+    return `<td style="text-align:center">${badge('badge-success', 'viable')}</td>`;
+  }).join('');
+  const constraintCells = options.map(opt => {
+    const d = details[opt];
+    return `<td style="text-align:center;font-size:12px">${
+      d.hard_constraints.length ? d.hard_constraints.map(c => badge('badge-danger', c.replace(/_/g, ' '))).join(' ') : '---'
+    }</td>`;
+  }).join('');
+
+  const blockersList = (cmp.blockers || []).length
+    ? cmp.blockers.map(b => `<li style="font-size:13px">${esc(b)}</li>`).join('')
+    : '';
+  const prereqList = (cmp.prerequisites || []).length
+    ? cmp.prerequisites.map(p => `<li style="font-size:13px">${esc(p)}</li>`).join('')
+    : '';
+
+  const discardedRows = (cmp.discarded_options || []).map(d => `
+    <tr>
+      <td>${esc(d.label || d.option)}</td>
+      <td>${d.score != null ? scoreBarHtml(d.score) : '---'}</td>
+      <td>${classificationBadge(d.classification)}</td>
+      <td style="font-size:12px">${esc(d.reason)}</td>
+    </tr>
+  `).join('');
+
+  return `<div class="detail-section">
+    <h3>DE / AT Option Comparison</h3>
+    ${cmp.recommended_option
+      ? `<div style="margin-bottom:12px;padding:10px;background:var(--bg-light);border-radius:6px;border:1px solid var(--border)">
+          <strong>Recommendation:</strong> ${badge('badge-success', labels[cmp.recommended_option] || cmp.recommended_option)}
+          <p style="margin:6px 0 0;font-size:13px">${esc(cmp.rationale)}</p>
+        </div>`
+      : `<div style="margin-bottom:12px;padding:10px;background:#fef2f2;border-radius:6px;border:1px solid var(--danger)">
+          <strong>No option can be recommended.</strong>
+          <p style="margin:6px 0 0;font-size:13px">${esc(cmp.rationale)}</p>
+        </div>`}
+
+    <div class="table-wrap"><table>
+      <thead><tr><th></th>${headerCells}</tr></thead>
+      <tbody>
+        <tr><td><strong>Score</strong></td>${scoreCells}</tr>
+        <tr><td><strong>Adjusted</strong></td>${adjScoreCells}</tr>
+        <tr><td><strong>Classification</strong></td>${classCells}</tr>
+        <tr><td><strong>Status</strong></td>${statusCells}</tr>
+        <tr><td><strong>Constraints</strong></td>${constraintCells}</tr>
+      </tbody>
+    </table></div>
+
+    ${blockersList ? `<div style="margin-top:10px"><strong style="font-size:12px">Blockers</strong><ul style="margin:4px 0 0 16px">${blockersList}</ul></div>` : ''}
+    ${prereqList ? `<div style="margin-top:10px"><strong style="font-size:12px">Prerequisites</strong><ul style="margin:4px 0 0 16px">${prereqList}</ul></div>` : ''}
+
+    ${discardedRows ? `
+      <div style="margin-top:12px">
+        <strong style="font-size:12px">Discarded Options</strong>
+        <div class="table-wrap"><table>
+          <thead><tr><th>Option</th><th>Score</th><th>Classification</th><th>Reason</th></tr></thead>
+          <tbody>${discardedRows}</tbody>
+        </table></div>
+      </div>` : ''}
+  </div>`;
 }
 
 // ─── Computed decision section ───────────────────────────────────────────────

@@ -35,7 +35,14 @@ const PRIO_DIMENSIONS = [
 
 // ─── State for current edit ───────────────────────────────────────────────────
 
-let _editState = null;  // { objectId, objectType, streamType, typeQuestions }
+const TARGET_OPTIONS = [
+  { value: '', label: '— none (legacy) —' },
+  { value: 'de_standard', label: 'DE standard (AT adopts DE)' },
+  { value: 'at_standard', label: 'AT standard (DE adopts AT)' },
+  { value: 'central', label: 'Central (new unified process)' },
+];
+
+let _editState = null;  // { objectId, objectType, streamType, typeQuestions, targetOption }
 
 // ─── Entry point ──────────────────────────────────────────────────────────────
 
@@ -60,16 +67,19 @@ async function renderList() {
   const rows = assessments.map(a => {
     const status = a.status || 'not_started';
     const statusCls = { draft: 'badge-warning', completed: 'badge-success', reviewed: 'badge-info' };
+    const optParam = a.target_option ? `?option=${a.target_option}` : '';
+    const optLabel = a.target_option ? a.target_option.replace(/_/g, ' ') : '';
     return `<tr>
       <td><strong>${esc(nameMap[a.assessed_object_id] || a.assessed_object_id)}</strong>
         <br><code style="font-size:11px;color:var(--text-muted)">${esc(a.assessed_object_id)}</code></td>
       <td>${badge(a.assessed_object_type === 'stream' ? 'badge-primary' : 'badge-info', a.assessed_object_type)}</td>
+      <td>${optLabel ? badge('badge-info', optLabel) : ''}</td>
       <td>${badge(statusCls[status] || 'badge-muted', status)}</td>
       <td style="font-size:12px;color:var(--text-muted)">${esc(a.assessor || '—')}</td>
       <td>${(a.answers || []).length}/6 dims</td>
       <td style="white-space:nowrap">
-        <a href="#/assessments/${encodeURIComponent(a.assessed_object_id)}" class="btn btn-sm btn-primary">Edit</a>
-        <button class="btn btn-sm btn-danger" data-del-ass="${esc(a.assessed_object_id)}">Delete</button>
+        <a href="#/assessments/${encodeURIComponent(a.assessed_object_id)}${optParam}" class="btn btn-sm btn-primary">Edit</a>
+        <button class="btn btn-sm btn-danger" data-del-ass="${esc(a.assessed_object_id)}" data-del-opt="${esc(a.target_option || '')}">Delete</button>
       </td>
     </tr>`;
   }).join('');
@@ -83,7 +93,7 @@ async function renderList() {
     </div>
     <div class="card"><div class="table-wrap">
       <table><thead><tr>
-        <th>Object</th><th>Type</th><th>Status</th><th>Assessor</th><th>Answers</th><th></th>
+        <th>Object</th><th>Type</th><th>Option</th><th>Status</th><th>Assessor</th><th>Answers</th><th></th>
       </tr></thead><tbody>${rows}</tbody></table>
     </div></div>
   `);
@@ -91,9 +101,14 @@ async function renderList() {
   document.querySelectorAll('[data-del-ass]').forEach(btn => {
     btn.addEventListener('click', async () => {
       const id = btn.dataset.delAss;
-      if (!confirm(`Delete assessment for "${id}"?`)) return;
-      try { await API.del(`assessments/${encodeURIComponent(id)}`); toast('Deleted'); renderList(); }
-      catch (e) { toast(e.message, true); }
+      const opt = btn.dataset.delOpt;
+      const label = opt ? `${id} (${opt})` : id;
+      if (!confirm(`Delete assessment for "${label}"?`)) return;
+      try {
+        const extra = opt ? { target_option: opt } : {};
+        await API.del(`assessments/${encodeURIComponent(id)}`, extra);
+        toast('Deleted'); renderList();
+      } catch (e) { toast(e.message, true); }
     });
   });
 }
@@ -101,6 +116,11 @@ async function renderList() {
 // ─── Editor ───────────────────────────────────────────────────────────────────
 
 async function renderEditor(objectId) {
+  // Parse target option from URL query: #/assessments/foo?option=de_standard
+  const hashParts = location.hash.split('?');
+  const queryParams = new URLSearchParams(hashParts[1] || '');
+  const targetOption = queryParams.get('option') || '';
+
   // Resolve object type and metadata
   const [streams, sps] = await Promise.all([API.get('streams'), API.get('subprocesses')]);
   const stream = streams.find(s => s.id === objectId);
@@ -127,12 +147,15 @@ async function renderEditor(objectId) {
     } catch { /* no questions for this type */ }
   }
 
-  // Load existing assessment
+  // Load existing assessment (with target_option if set)
   let existing = null;
-  try { existing = await API.get(`assessments/${encodeURIComponent(objectId)}`); } catch { /* new */ }
+  try {
+    const extra = targetOption ? { target_option: targetOption } : {};
+    existing = await API.get(`assessments/${encodeURIComponent(objectId)}`, extra);
+  } catch { /* new */ }
 
   // Set edit state
-  _editState = { objectId, objectType: objType, streamType: effectiveStreamType, typeQuestions };
+  _editState = { objectId, objectType: objType, streamType: effectiveStreamType, typeQuestions, targetOption };
 
   // Prepare existing answer maps
   const dimAnswers = {};
@@ -172,6 +195,23 @@ async function renderEditor(objectId) {
     ? `#/streams/${encodeURIComponent(objectId)}`
     : `#/streams/${encodeURIComponent(sp?.stream_id || '')}`;
 
+  // Target option selector (streams only)
+  const optionSelectorHtml = objType === 'stream' ? `
+    <div class="card" style="margin-bottom:16px">
+      <div class="card-header">Target Option <span class="badge badge-info">DE / AT harmonization</span></div>
+      <div class="card-body">
+        <div class="status-select" id="option-select">
+          ${TARGET_OPTIONS.map(o => `
+            <button type="button" class="status-option ${(targetOption || '') === o.value ? 'active' : ''}"
+                    data-option="${o.value}">${esc(o.label)}</button>
+          `).join('')}
+        </div>
+        <p style="margin-top:8px;font-size:12px;color:var(--text-muted)">
+          Each target option is assessed independently. Select which harmonization strategy you are evaluating.
+        </p>
+      </div>
+    </div>` : '';
+
   setContent(`
     <div class="page-header">
       <div>
@@ -179,6 +219,7 @@ async function renderEditor(objectId) {
         <div class="detail-meta" style="margin-top:6px">
           ${badge(objType === 'stream' ? 'badge-primary' : 'badge-info', objType)}
           ${effectiveStreamType ? badge('badge-muted', effectiveStreamType) : ''}
+          ${targetOption ? badge('badge-info', targetOption.replace(/_/g, ' ')) : ''}
           <code style="font-size:11px;color:var(--text-muted)">${esc(objectId)}</code>
         </div>
       </div>
@@ -187,6 +228,8 @@ async function renderEditor(objectId) {
         <button class="btn btn-primary" id="btn-save-assessment">Save</button>
       </div>
     </div>
+
+    ${optionSelectorHtml}
 
     <!-- Live Score Panel -->
     <div class="card" style="margin-bottom:16px">
@@ -270,6 +313,15 @@ async function renderEditor(objectId) {
     const label = e.target.closest('.hc-check');
     if (label) label.classList.toggle('checked', e.target.checked);
     triggerLiveScore();
+  });
+
+  // Option select — reload editor with new option
+  document.getElementById('option-select')?.addEventListener('click', (e) => {
+    const btn = e.target.closest('.status-option');
+    if (!btn) return;
+    const newOpt = btn.dataset.option;
+    const optQuery = newOpt ? `?option=${newOpt}` : '';
+    location.hash = `#/assessments/${encodeURIComponent(objectId)}${optQuery}`;
   });
 
   // Status select
@@ -372,6 +424,9 @@ async function saveAssessment(existing) {
     assessor: document.getElementById('f-assessor')?.value?.trim() || '',
     notes: document.getElementById('f-notes')?.value?.trim() || '',
   };
+  if (_editState.targetOption) {
+    assessment.target_option = _editState.targetOption;
+  }
 
   try {
     await API.put('assessments', assessment);
