@@ -15,7 +15,15 @@ export function badge(cssClass, text) {
 /** Badge for a decision value. */
 export function decisionBadge(decision) {
   if (!decision) return '—';
-  return `<span class="badge decision-${decision}">${esc(decision.replace(/_/g, ' '))}</span>`;
+  const labels = {
+    centralize_now: 'Jetzt zentralisieren',
+    centralize_later: 'Später zentralisieren',
+    harmonize_only: 'Nur harmonisieren',
+    standardize_only: 'Nur standardisieren',
+    keep_local: 'Lokal beibehalten',
+    reassess_after_data_completion: 'Neu bewerten nach Datenvervollständigung',
+  };
+  return `<span class="badge decision-${decision}">${esc(labels[decision] || decision.replace(/_/g, ' '))}</span>`;
 }
 
 /** Badge for a harmonization classification. */
@@ -27,13 +35,21 @@ export function classificationBadge(cls) {
     partially_harmonizable: 'badge-warning',
     not_harmonizable: 'badge-danger',
   };
-  return badge(map[cls] || 'badge-muted', (cls || '—').replace(/_/g, ' '));
+  const labels = {
+    fully_harmonizable: 'Voll harmonisierbar',
+    harmonizable: 'Harmonisierbar',
+    conditionally_harmonizable: 'Bedingt harmonisierbar',
+    partially_harmonizable: 'Teilweise harmonisierbar',
+    not_harmonizable: 'Nicht harmonisierbar',
+  };
+  return badge(map[cls] || 'badge-muted', labels[cls] || (cls || '—').replace(/_/g, ' '));
 }
 
 /** Badge for confidence level. */
 export function confidenceBadge(level) {
   const cls = { high: 'confidence-high', medium: 'confidence-medium', low: 'confidence-low' };
-  return `<span class="badge ${cls[level] || 'badge-muted'}">${esc(level || '—')}</span>`;
+  const labels = { high: 'Hoch', medium: 'Mittel', low: 'Gering' };
+  return `<span class="badge ${cls[level] || 'badge-muted'}">${esc(labels[level] || level || '—')}</span>`;
 }
 
 /** Score bar HTML (score 0–5). */

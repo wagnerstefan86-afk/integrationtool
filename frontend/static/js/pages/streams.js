@@ -210,7 +210,7 @@ async function renderDetail(streamId) {
       <td><strong>${esc(sp.name)}</strong>
         <br><code style="font-size:11px;color:var(--text-muted)">${esc(sp.id)}</code></td>
       <td style="color:var(--text-muted);font-size:12px;max-width:200px">${esc(sp.purpose || sp.description || '—')}</td>
-      <td>${badge(statusCls[spStatus] || 'badge-muted', spStatus.replace(/_/g, ' '))}</td>
+      <td>${badge(statusCls[spStatus] || 'badge-muted', ({not_started:'Nicht begonnen',draft:'Entwurf',completed:'Abgeschlossen',reviewed:'Geprüft'})[spStatus] || spStatus.replace(/_/g, ' '))}</td>
       <td style="white-space:nowrap">
         <a href="#/assessments/${encodeURIComponent(sp.id)}" class="btn btn-sm">${spAss ? 'Bew. bearbeiten' : 'Bewerten'}</a>
         <button class="btn btn-sm" data-edit-sp="${esc(sp.id)}">Bearbeiten</button>
@@ -235,8 +235,8 @@ async function renderDetail(streamId) {
   const assStatusCls = { draft: 'badge-warning', completed: 'badge-success', reviewed: 'badge-info' };
   const assessSection = assessment
     ? `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
-         ${badge(assStatusCls[assStatus] || 'badge-muted', assStatus.replace(/_/g, ' '))}
-         ${assessment.assessor ? `<span style="font-size:12px;color:var(--text-muted)">by ${esc(assessment.assessor)}</span>` : ''}
+         ${badge(assStatusCls[assStatus] || 'badge-muted', ({not_started:'Nicht begonnen',draft:'Entwurf',completed:'Abgeschlossen',reviewed:'Geprüft'})[assStatus] || assStatus.replace(/_/g, ' '))}
+         ${assessment.assessor ? `<span style="font-size:12px;color:var(--text-muted)">von ${esc(assessment.assessor)}</span>` : ''}
        </div>` + _renderAssessmentSummary(assessment)
     : '<p style="color:var(--text-muted);font-size:12px">Keine Bewertung für diesen Stream erfasst.</p>';
 
@@ -800,7 +800,7 @@ function _renderOptionAssessments(streamId, allAssessments) {
     return `<tr>
       <td><strong>${esc(labels[opt])}</strong></td>
       <td>${badge(statusCls[a.status] || 'badge-muted', a.status || 'draft')}</td>
-      <td>${dims}/6 dims</td>
+      <td>${dims}/6 Dim.</td>
       <td>${(a.hard_constraints || []).length > 0 ? badge('badge-danger', a.hard_constraints.length + ' Einschränkungen') : badge('badge-success', 'keine')}</td>
       <td><a href="#/assessments/${encodeURIComponent(streamId)}?option=${opt}" class="btn btn-sm">Bearbeiten</a></td>
     </tr>`;

@@ -62,7 +62,7 @@ async function renderList() {
       draft: 'badge-warning', completed: 'badge-info', reviewed: 'badge-success', pending: 'badge-muted',
     };
     const overrideFlag = rv?.override_applied
-      ? badge('badge-danger', 'override')
+      ? badge('badge-danger', 'Override')
       : '';
 
     return `<tr class="clickable decision-row"
@@ -74,7 +74,7 @@ async function renderList() {
       <td>${dr ? decisionBadge(dr.decision) : badge('badge-muted', 'nicht berechnet')}</td>
       <td>${rv?.reviewed_decision ? decisionBadge(rv.reviewed_decision) : '<span style="color:var(--text-muted)">--</span>'}</td>
       <td>${overrideFlag}</td>
-      <td>${badge(reviewStatusCls[reviewStatus], reviewStatus.replace(/_/g, ' '))}</td>
+      <td>${badge(reviewStatusCls[reviewStatus], ({pending:'Ausstehend',draft:'Entwurf',completed:'Abgeschlossen',reviewed:'Geprüft'})[reviewStatus] || reviewStatus)}</td>
       <td>${dr?.priority ? badge('badge-info', dr.priority) : '--'}</td>
       <td>${dr?.confidence ? confidenceBadge(dr.confidence) : '--'}</td>
       <td>${dr?.target_operating_model ? badge('badge-muted', dr.target_operating_model.replace(/_/g, ' ')) : '--'}</td>
@@ -85,12 +85,14 @@ async function renderList() {
     </tr>`;
   }).join('');
 
+  const _statusDE = {pending:'Ausstehend',draft:'Entwurf',completed:'Abgeschlossen',reviewed:'Geprüft'};
   const statusOpts = '<option value="">Alle</option>' +
     ['pending', 'draft', 'completed', 'reviewed'].map(s =>
-      `<option value="${s}">${s}</option>`
+      `<option value="${s}">${_statusDE[s]}</option>`
     ).join('');
+  const _decisionDE = {centralize_now:'Jetzt zentralisieren',centralize_later:'Später zentralisieren',harmonize_only:'Nur harmonisieren',standardize_only:'Nur standardisieren',keep_local:'Lokal beibehalten',reassess_after_data_completion:'Nach Datenvervollständigung neu bewerten'};
   const decisionOpts = '<option value="">Alle</option>' +
-    DECISIONS.map(d => `<option value="${d}">${d.replace(/_/g, ' ')}</option>`).join('');
+    DECISIONS.map(d => `<option value="${d}">${_decisionDE[d] || d.replace(/_/g, ' ')}</option>`).join('');
 
   setContent(`
     <div class="page-header">
@@ -169,7 +171,7 @@ async function renderDetail(streamId) {
         <h1>Entscheidung: ${esc(stream.name)}</h1>
         <div class="detail-meta">
           ${badge('badge-info', stream.stream_type || '---')}
-          ${badge(reviewStatusCls[reviewStatus], 'Prüfung: ' + reviewStatus.replace(/_/g, ' '))}
+          ${badge(reviewStatusCls[reviewStatus], 'Prüfung: ' + ({pending:'Ausstehend',draft:'Entwurf',completed:'Abgeschlossen',reviewed:'Geprüft'})[reviewStatus] || reviewStatus)}
           ${rv?.override_applied ? badge('badge-danger', 'Override angewendet') : ''}
         </div>
       </div>

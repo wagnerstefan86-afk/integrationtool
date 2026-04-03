@@ -30,7 +30,7 @@ async function renderList() {
   const rows = reports.map(r => `
     <tr class="clickable" onclick="location.hash='#/reports/${encodeURIComponent(r.name)}'">
       <td><strong>${esc(r.name)}</strong></td>
-      <td>${badge(r.category === 'generated' ? 'badge-info' : 'badge-success', r.category)}</td>
+      <td>${badge(r.category === 'generated' ? 'badge-info' : 'badge-success', r.category === 'generated' ? 'Erstellt' : r.category === 'reviewed' ? 'Geprüft' : r.category)}</td>
       <td style="color:var(--text-muted)">${esc(r.created)}</td>
       <td style="color:var(--text-muted)">${(r.size_bytes / 1024).toFixed(1)} KB</td>
     </tr>

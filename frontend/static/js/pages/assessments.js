@@ -186,9 +186,10 @@ async function renderEditor(objectId) {
   }).join('');
 
   // Status buttons
+  const _assStatusDE = {not_started:'Nicht begonnen',draft:'Entwurf',completed:'Abgeschlossen'};
   const statusHtml = ['not_started', 'draft', 'completed'].map(s =>
     `<button type="button" class="status-option ${s === status ? 'active' : ''}"
-            data-status="${s}">${s.replace(/_/g, ' ')}</button>`
+            data-status="${s}">${_assStatusDE[s]}</button>`
   ).join('');
 
   const backUrl = objType === 'stream'

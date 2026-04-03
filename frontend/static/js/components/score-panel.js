@@ -59,7 +59,14 @@ function classificationBadge(cls) {
     minimum_standard_only: 'badge-warning',
     currently_not_harmonizable: 'badge-danger',
   };
-  return `<span class="badge ${map[cls] || 'badge-muted'}">${esc((cls || '—').replace(/_/g, ' '))}</span>`;
+  const labels = {
+    fully_centralizable: 'Voll zentralisierbar',
+    central_method_local_execution: 'Zentrale Methode, lokale Ausführung',
+    partially_harmonizable: 'Teilweise harmonisierbar',
+    minimum_standard_only: 'Nur Mindeststandard',
+    currently_not_harmonizable: 'Aktuell nicht harmonisierbar',
+  };
+  return `<span class="badge ${map[cls] || 'badge-muted'}">${esc(labels[cls] || (cls || '—').replace(/_/g, ' '))}</span>`;
 }
 
 function _constraintWarnings(reasons) {

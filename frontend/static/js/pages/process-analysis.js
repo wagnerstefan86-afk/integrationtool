@@ -46,8 +46,8 @@ const MATURITY_ICONS = {
 
 function _whyQualityBadge(q) {
   const cls = { strong: 'badge-success', medium: 'badge-warning', weak: 'badge-danger' };
-  const labels = { strong: 'WHY: stark', medium: 'WHY: mittel', weak: 'WHY: schwach' };
-  return q ? badge(cls[q] || 'badge-muted', labels[q] || 'WHY: ' + q) : '';
+  const labels = { strong: 'Begründung: stark', medium: 'Begründung: mittel', weak: 'Begründung: schwach' };
+  return q ? badge(cls[q] || 'badge-muted', labels[q] || 'Begründung: ' + q) : '';
 }
 
 function _evidenceBadge(strength, count) {
@@ -142,8 +142,8 @@ async function renderIndex() {
     return `<tr class="clickable" onclick="location.hash='#/process-analysis/${encodeURIComponent(s.id)}'">
       <td><strong>${esc(s.name)}</strong><br><code style="font-size:11px;color:var(--text-muted)">${esc(s.id)}</code></td>
       <td>${badge('badge-info', s.stream_type || '---')}</td>
-      <td>${badge(statusCls[status] || 'badge-muted', status === 'none' ? 'not started' : status)}</td>
-      <td>${a ? `${a.process_steps?.length || 0} steps` : '---'}</td>
+      <td>${badge(statusCls[status] || 'badge-muted', status === 'none' ? 'Nicht begonnen' : status)}</td>
+      <td>${a ? `${a.process_steps?.length || 0} Schritte` : '---'}</td>
     </tr>`;
   }).join('');
 
@@ -170,10 +170,10 @@ async function renderAnalysis(streamId) {
   if (!analysis) {
     setContent(`
       <div class="page-header">
-        <div><h1>Process Analysis: ${esc(stream.name)}</h1></div>
+        <div><h1>Prozessanalyse: ${esc(stream.name)}</h1></div>
         <div class="actions">
-          <a href="#/process-analysis" class="btn">&larr; Back</a>
-          <a href="#/streams/${encodeURIComponent(streamId)}" class="btn">Stream Detail</a>
+          <a href="#/process-analysis" class="btn">&larr; Zurück</a>
+          <a href="#/streams/${encodeURIComponent(streamId)}" class="btn">Stream-Details</a>
         </div>
       </div>
       <div class="card card-body" style="text-align:center;padding:40px">
@@ -244,8 +244,8 @@ async function renderAnalysis(streamId) {
         <div class="detail-meta">
           ${badge('badge-info', stream.stream_type || '---')}
           ${_completeBadge(totalScore)}
-          ${missingWhys ? badge('badge-danger', missingWhys + ' WHY fehlt') : ''}
-          ${weakWhys ? badge('badge-warning', weakWhys + ' schwache WHY') : ''}
+          ${missingWhys ? badge('badge-danger', missingWhys + '× Begründung fehlt') : ''}
+          ${weakWhys ? badge('badge-warning', weakWhys + '× Begründung schwach') : ''}
           ${highDeltas ? badge('badge-danger', highDeltas + ' kritische Abweichungen') : ''}
           ${controlGaps ? _controlGapBadge() : ''}
           ${highTasks ? badge('badge-danger', highTasks + ' Aufgaben (hoch)') : ''}
@@ -283,9 +283,9 @@ async function renderAnalysis(streamId) {
 }
 
 function _completeBadge(score) {
-  if (score >= 80) return badge('badge-success', score + '% complete');
-  if (score >= 50) return badge('badge-warning', score + '% complete');
-  return badge('badge-danger', score + '% complete');
+  if (score >= 80) return badge('badge-success', score + '% vollständig');
+  if (score >= 50) return badge('badge-warning', score + '% vollständig');
+  return badge('badge-danger', score + '% vollständig');
 }
 
 // ─── Summary cards ───────────────────────────────────────────────────────────
@@ -323,7 +323,7 @@ function _renderSummaryCards(summary, deltas, entities, recs) {
       ${controlGaps ? _stat(controlGaps, 'Kontrolllücken', true) : ''}
       ${mgmtDecisions ? _stat(mgmtDecisions, 'Mgmt-Entscheidungen', true) : ''}
       ${evGaps ? _stat(evGaps, 'Evidenzlücken', false, true) : ''}
-      ${weakWhy ? _stat(weakWhy, 'Schwache WHY', false, true) : ''}
+      ${weakWhy ? _stat(weakWhy, 'Schwache Begründung', false, true) : ''}
     </div>` : '';
 
   // Task counts row
@@ -389,7 +389,12 @@ function _renderDecisionFocus(summary, deltas) {
 
 function _renderOpenGaps(gaps) {
   if (!gaps.length) return '';
-  const issueDE = { 'no evidence': 'Keine Evidenz', 'weak WHY': 'Schwache WHY' };
+  const issueDE = {
+    'no evidence': 'Keine Evidenz',
+    'weak WHY': 'Schwache Begründung',
+    'review: draft': 'Review: Entwurf',
+    'review: captured': 'Review: Erfasst',
+  };
   return `<div class="card" style="margin-bottom:16px;border-color:var(--warning)">
     <div class="card-header" style="background:#fffbeb;font-size:12px;font-weight:600;color:#92400e">
       Offene Evidenz- und Review-Lücken (Top 5)
@@ -442,7 +447,7 @@ function _renderTasksPanel(tasks) {
 
   return `<div class="card" style="margin-bottom:16px;border-color:#ef4444" id="tasks-panel">
     <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;background:#fef2f2">
-      <strong style="color:#991b1b">Aufgaben / Guidance Tasks (${tasks.length})</strong>
+      <strong style="color:#991b1b">Offene Aufgaben (${tasks.length})</strong>
       <div style="display:flex;gap:6px">
         ${blocking.length ? badge('badge-danger', blocking.length + ' blockierend') : ''}
         ${high.length ? badge('badge-danger', high.length + ' hoch') : ''}
@@ -499,7 +504,7 @@ function _renderStep(streamId, step, entities, scores, stepDeltas, stepRecs, ste
           <td style="padding:3px 6px;white-space:nowrap">
             ${d.delta_type === 'control_gap' ? _controlGapBadge() : ''}
             ${d.needs_management_decision ? _mgmtDecisionBadge(true) : ''}
-            ${d.constraint_type && d.constraint_type !== 'none' ? badge('badge-info', d.constraint_type) : ''}
+            ${d.constraint_type && d.constraint_type !== 'none' ? badge('badge-info', ({legal:'Rechtlich',regulatory:'Regulatorisch',technical:'Technisch',contractual:'Vertraglich',organizational:'Organisatorisch',economic:'Wirtschaftlich',unclear:'Unklar'})[d.constraint_type] || d.constraint_type) : ''}
           </td>
         </tr>`).join('')}</tbody>
       </table>
@@ -549,14 +554,15 @@ function _renderStep(streamId, step, entities, scores, stepDeltas, stepRecs, ste
 
 function _impactBadge(impact) {
   const cls = { high: 'badge-danger', medium: 'badge-warning', low: 'badge-success' };
-  return badge(cls[impact] || 'badge-muted', impact);
+  const labels = { high: 'Hoch', medium: 'Mittel', low: 'Gering' };
+  return badge(cls[impact] || 'badge-muted', labels[impact] || impact);
 }
 
 function _deltaTypeBadge(dtype) {
   const labels = {
     system_difference: 'System', channel_difference: 'Kanal',
     role_difference: 'Rolle', variant_difference: 'Variante',
-    missing_rationale: 'WHY fehlt', control_gap: 'Kontrolllücke',
+    missing_rationale: 'Begründung fehlt', control_gap: 'Kontrolllücke',
   };
   const bg = dtype === 'control_gap' ? '#dc2626' : '#f3f4f6';
   const fg = dtype === 'control_gap' ? '#fff' : 'var(--text-muted)';
@@ -565,7 +571,13 @@ function _deltaTypeBadge(dtype) {
 
 function _dimBadge(dim) {
   if (!dim) return '';
-  return `<span style="font-size:10px;padding:1px 5px;border-radius:3px;background:#e0e7ff;color:#3730a3">${esc(dim)}</span>`;
+  const labels = {
+    tooling: 'Werkzeuge', channel: 'Kanal', role_model: 'Rollenmodell',
+    governance: 'Governance', documentation: 'Dokumentation',
+    escalation: 'Eskalation', reporting: 'Reporting',
+    capacity: 'Kapazität', control_design: 'Kontrolldesign',
+  };
+  return `<span style="font-size:10px;padding:1px 5px;border-radius:3px;background:#e0e7ff;color:#3730a3">${esc(labels[dim] || dim)}</span>`;
 }
 
 function _natureBadge(nature) {
@@ -580,7 +592,12 @@ function _natureBadge(nature) {
     operationally_significant: '#92400e', control_relevant: '#991b1b',
     potentially_blocking: '#9d174d',
   };
-  return `<span style="font-size:10px;padding:1px 5px;border-radius:3px;background:${colors[nature] || '#f3f4f6'};color:${fg[nature] || 'var(--text-muted)'}">${esc((nature || '').replace(/_/g, ' '))}</span>`;
+  const labels = {
+    cosmetic: 'Kosmetisch', procedural: 'Prozessual',
+    operationally_significant: 'Operativ relevant', control_relevant: 'Kontrollrelevant',
+    potentially_blocking: 'Potenziell blockierend',
+  };
+  return `<span style="font-size:10px;padding:1px 5px;border-radius:3px;background:${colors[nature] || '#f3f4f6'};color:${fg[nature] || 'var(--text-muted)'}">${esc(labels[nature] || (nature || '').replace(/_/g, ' '))}</span>`;
 }
 
 // ─── Entity variant column ───────────────────────────────────────────────────
@@ -656,7 +673,7 @@ function _renderVariantCol(streamId, stepId, entityId, v, scores, maturity) {
 
     <!-- WHY section -->
     <div style="margin-top:8px;font-size:12px;padding:4px 8px;border-radius:4px;${whyBg ? 'background:' + whyBg + ';' : ''}${whyBorder !== 'transparent' ? 'border:1px solid ' + whyBorder : ''}">
-      <strong style="color:${hasWhy ? 'inherit' : 'var(--danger)'}">Begründung (WHY):</strong>
+      <strong style="color:${hasWhy ? 'inherit' : 'var(--danger)'}">Begründung:</strong>
       ${hasWhy
         ? `<span>${list(whyItems)}</span>`
         : '<span style="color:var(--danger)"> Nicht dokumentiert</span>'}
@@ -668,7 +685,7 @@ function _renderVariantCol(streamId, stepId, entityId, v, scores, maturity) {
     <div style="margin-top:6px;font-size:11px">
       <strong>Evidenz:</strong>
       ${evRefs.length ? evRefs.map(e =>
-        `<div style="padding:2px 0"><span style="font-size:10px;padding:1px 4px;border-radius:3px;background:#dbeafe;color:#1e40af;margin-right:4px">${esc(e.type || 'other')}</span>${esc(e.title || '')}${e.confidence ? ' <span style="color:var(--text-muted)">(' + esc(e.confidence) + ')</span>' : ''}</div>`
+        `<div style="padding:2px 0"><span style="font-size:10px;padding:1px 4px;border-radius:3px;background:#dbeafe;color:#1e40af;margin-right:4px">${esc(e.type || 'other')}</span>${esc(e.title || '')}${e.confidence ? ' <span style="color:var(--text-muted)">(' + esc(({high:'hoch',medium:'mittel',low:'gering'})[e.confidence] || e.confidence) + ')</span>' : ''}</div>`
       ).join('') : legacyEv.length ? list(legacyEv) : '<span style="color:var(--danger)">keine</span>'}
     </div>
 
@@ -676,13 +693,13 @@ function _renderVariantCol(streamId, stepId, entityId, v, scores, maturity) {
 
     <!-- Review metadata -->
     ${reviewComment || reviewedBy ? `<div style="margin-top:6px;font-size:11px;padding:4px 8px;background:#f8fafc;border-radius:4px;border:1px solid var(--border)">
-      ${reviewComment ? `<div><strong>Review-Kommentar:</strong> ${esc(reviewComment)}</div>` : ''}
+      ${reviewComment ? `<div><strong>Prüfkommentar:</strong> ${esc(reviewComment)}</div>` : ''}
       ${reviewedBy ? `<div style="color:var(--text-muted)">von ${esc(reviewedBy)}${reviewedAt ? ' am ' + esc(reviewedAt) : ''}</div>` : ''}
     </div>` : ''}
 
     <!-- Review action -->
     <div style="margin-top:6px;text-align:right">
-      <button class="btn btn-sm" data-review-action="${esc(stepId)}::${esc(entityId)}" style="font-size:11px">Review-Status</button>
+      <button class="btn btn-sm" data-review-action="${esc(stepId)}::${esc(entityId)}" style="font-size:11px">Prüfstatus</button>
     </div>
 
     ${warnings.length ? `<div style="margin-top:4px">${warnings.map(w => `<div style="font-size:11px;color:var(--warning)">&#9888; ${esc(w)}</div>`).join('')}</div>` : ''}
@@ -743,17 +760,17 @@ function _renderRecommendationsPanel(recs) {
 
 async function _openReviewStatusDialog(streamId, stepId, entityId) {
   const statusOptions = REVIEW_STATUSES.map(s =>
-    `<option value="${s}">${s}</option>`
+    `<option value="${s}">${REVIEW_STATUS_DE[s] || s}</option>`
   ).join('');
 
-  openModal(`Review-Status: ${esc(stepId)} / ${esc(entityId)}`, `
+  openModal(`Prüfstatus: ${esc(stepId)} / ${esc(entityId)}`, `
     <div style="margin-bottom:10px">
-      <label style="font-weight:600;font-size:13px">Ziel-Review-Status</label>
+      <label style="font-weight:600;font-size:13px">Ziel-Prüfstatus</label>
       <select class="form-control" id="f-review-status" style="margin-top:4px">
         ${statusOptions}
       </select>
     </div>
-    ${textField('f-review-comment', 'Review-Kommentar (optional)', '')}
+    ${textField('f-review-comment', 'Prüfkommentar (optional)', '')}
     ${textField('f-review-by', 'Geprüft von (optional)', '')}
     <div style="display:flex;gap:8px;margin:12px 0">
       <button class="btn" id="btn-validate-review">Prüfen</button>
@@ -803,7 +820,7 @@ async function _openReviewStatusDialog(streamId, stepId, entityId) {
         { step_id: stepId, entity_id: entityId, new_status: newStatus,
           review_comment: comment, reviewed_by: reviewedBy }
       );
-      toast(`Review-Status aktualisiert: ${result.new_status}`);
+      toast(`Prüfstatus aktualisiert: ${REVIEW_STATUS_DE[result.new_status] || result.new_status}`);
       closeModal();
       renderAnalysis(streamId);
     } catch (e) {
@@ -828,17 +845,17 @@ function _evidenceRowHtml(idx, e, types, conf) {
   const confOpts = (conf || _EV_CONF).map(c => `<option value="${c}" ${c === (e.confidence || 'medium') ? 'selected' : ''}>${c}</option>`).join('');
   return `<div class="ev-row" style="border:1px solid #bae6fd;border-radius:4px;padding:8px;margin-bottom:6px;background:#fff">
     <div style="display:flex;gap:6px;margin-bottom:4px">
-      <div style="flex:1"><label style="font-size:10px;color:var(--text-muted)">Type</label><select class="form-control ev-type" style="font-size:12px">${typeOpts}</select></div>
-      <div style="flex:2"><label style="font-size:10px;color:var(--text-muted)">Title</label><input class="form-control ev-title" style="font-size:12px" value="${esc(e.title || '')}"></div>
-      <div style="flex:1"><label style="font-size:10px;color:var(--text-muted)">Confidence</label><select class="form-control ev-conf" style="font-size:12px">${confOpts}</select></div>
-      <div style="display:flex;align-items:end"><button type="button" class="btn btn-sm ev-remove" style="font-size:11px;color:var(--danger)">Remove</button></div>
+      <div style="flex:1"><label style="font-size:10px;color:var(--text-muted)">Typ</label><select class="form-control ev-type" style="font-size:12px">${typeOpts}</select></div>
+      <div style="flex:2"><label style="font-size:10px;color:var(--text-muted)">Titel</label><input class="form-control ev-title" style="font-size:12px" value="${esc(e.title || '')}"></div>
+      <div style="flex:1"><label style="font-size:10px;color:var(--text-muted)">Konfidenz</label><select class="form-control ev-conf" style="font-size:12px">${confOpts}</select></div>
+      <div style="display:flex;align-items:end"><button type="button" class="btn btn-sm ev-remove" style="font-size:11px;color:var(--danger)">Entfernen</button></div>
     </div>
     <div style="display:flex;gap:6px;margin-bottom:4px">
-      <div style="flex:1"><label style="font-size:10px;color:var(--text-muted)">Source</label><input class="form-control ev-source" style="font-size:12px" value="${esc(e.source || '')}"></div>
-      <div style="flex:1"><label style="font-size:10px;color:var(--text-muted)">Collected By</label><input class="form-control ev-collected-by" style="font-size:12px" value="${esc(e.collected_by || '')}"></div>
-      <div style="flex:1"><label style="font-size:10px;color:var(--text-muted)">Date Collected</label><input class="form-control ev-date" style="font-size:12px" type="date" value="${esc(e.date_collected || '')}"></div>
+      <div style="flex:1"><label style="font-size:10px;color:var(--text-muted)">Quelle</label><input class="form-control ev-source" style="font-size:12px" value="${esc(e.source || '')}"></div>
+      <div style="flex:1"><label style="font-size:10px;color:var(--text-muted)">Erhoben von</label><input class="form-control ev-collected-by" style="font-size:12px" value="${esc(e.collected_by || '')}"></div>
+      <div style="flex:1"><label style="font-size:10px;color:var(--text-muted)">Erhebungsdatum</label><input class="form-control ev-date" style="font-size:12px" type="date" value="${esc(e.date_collected || '')}"></div>
     </div>
-    <div><label style="font-size:10px;color:var(--text-muted)">Reference Detail</label><input class="form-control ev-detail" style="font-size:12px" value="${esc(e.reference_detail || '')}"></div>
+    <div><label style="font-size:10px;color:var(--text-muted)">Referenzdetail</label><input class="form-control ev-detail" style="font-size:12px" value="${esc(e.reference_detail || '')}"></div>
   </div>`;
 }
 
@@ -928,18 +945,18 @@ async function openVariantEditor(streamId, step, entityId, variant) {
     ${textArea('f-pa-variants', 'Prozessvarianten (eine pro Zeile)', j(v.variants), { rows: 2 })}
 
     <div style="background:#fef2f2;border:1px solid var(--danger);border-radius:6px;padding:10px 14px;margin:12px 0">
-      <label for="f-pa-why" style="font-weight:700;color:var(--danger)">Warum wird es so gemacht? (WHY) * (Pflichtfeld)</label>
+      <label for="f-pa-why" style="font-weight:700;color:var(--danger)">Begründung — Warum wird es so gemacht? * (Pflichtfeld)</label>
       <textarea class="form-control" id="f-pa-why" rows="3" style="margin-top:4px;border-color:var(--danger)">${esc(j(v.why_is_it_done_this_way))}</textarea>
-      <p style="font-size:11px;color:var(--danger);margin:4px 0 0">Ohne Begründung ist keine Standardisierungsentscheidung möglich.</p>
+      <p style="font-size:11px;color:var(--danger);margin:4px 0 0">Ohne dokumentierte Begründung ist keine fundierte Harmonisierungsentscheidung möglich.</p>
 
       <div style="margin-top:8px">
-        <label style="font-weight:600;font-size:12px;color:#991b1b">WHY-Kategorien (alle zutreffenden auswählen)</label>
+        <label style="font-weight:600;font-size:12px;color:#991b1b">Begründungskategorien (alle zutreffenden auswählen)</label>
         <div style="margin-top:4px">${whyCatChecks}</div>
       </div>
 
       ${formRow(
-        selectField('f-pa-whyquality', 'WHY-Qualität', ['', 'strong', 'medium', 'weak'], v.why_quality || ''),
-        textField('f-pa-whynote', 'WHY-Prüfnotiz', v.why_review_note || '')
+        selectField('f-pa-whyquality', 'Begründungsqualität', ['', 'strong', 'medium', 'weak'], v.why_quality || ''),
+        textField('f-pa-whynote', 'Prüfnotiz zur Begründung', v.why_review_note || '')
       )}
     </div>
 
