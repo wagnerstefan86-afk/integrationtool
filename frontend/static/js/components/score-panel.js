@@ -10,7 +10,7 @@ import { esc, badge } from '../utils.js';
 export function scorePanel(data) {
   if (!data) {
     return `<div class="score-panel score-panel-empty">
-      <span style="color:var(--text-muted)">Enter scores to see live results</span>
+      <span style="color:var(--text-muted)">Punktzahlen eingeben, um Live-Ergebnisse zu sehen</span>
     </div>`;
   }
 
@@ -22,25 +22,25 @@ export function scorePanel(data) {
   return `<div class="score-panel">
     <div class="score-panel-item">
       <div class="score-panel-value" style="font-size:28px;color:var(--primary)">${fmt(data.blended_score)}</div>
-      <div class="score-panel-label">Blended Score</div>
+      <div class="score-panel-label">Gesamtpunktzahl</div>
     </div>
     <div class="score-panel-item">
       <div class="score-panel-value">${fmt(data.base_score)}</div>
-      <div class="score-panel-label">Base Score</div>
+      <div class="score-panel-label">Basispunktzahl</div>
     </div>
     <div class="score-panel-item">
       <div class="score-panel-value">${classificationBadge(cls)}</div>
-      <div class="score-panel-label">Classification${capped ? ' (constrained)' : ''}</div>
+      <div class="score-panel-label">Klassifikation${capped ? ' (eingeschränkt)' : ''}</div>
     </div>
     <div class="score-panel-item">
       <div class="score-panel-value">${data.completeness_estimate ?? '—'}%</div>
-      <div class="score-panel-label">Completeness</div>
+      <div class="score-panel-label">Vollständigkeit</div>
     </div>
     <div class="score-panel-item">
       <div class="score-panel-value">
         <span class="badge ${confCls[data.confidence] || 'badge-muted'}">${esc(data.confidence || '—')}</span>
       </div>
-      <div class="score-panel-label">Confidence</div>
+      <div class="score-panel-label">Konfidenz</div>
     </div>
   </div>
   ${_constraintWarnings(data.constraint_reasons)}
@@ -72,6 +72,6 @@ function _constraintWarnings(reasons) {
 function _missingWarnings(dims) {
   if (!dims || dims.length === 0) return '';
   return `<div style="margin-top:8px;font-size:12px;color:var(--warning)">
-    Missing: ${dims.map(d => esc(d.replace(/_/g, ' '))).join(', ')}
+    Fehlend: ${dims.map(d => esc(d.replace(/_/g, ' '))).join(', ')}
   </div>`;
 }

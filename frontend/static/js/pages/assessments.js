@@ -1,5 +1,5 @@
 /**
- * Assessments page — list view + full-page assessment editor.
+ * Bewertungen page — list view + full-page assessment editor.
  */
 
 import { API } from '../api.js';
@@ -10,36 +10,36 @@ import { dimensionInputs, wireDimensionInputs, readDimensionValues } from '../co
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const BASE_DIMENSIONS = [
-  { id: 'regulatory_alignment', label: 'Regulatory Alignment' },
-  { id: 'operational_alignment', label: 'Operational Alignment' },
-  { id: 'tooling_alignment', label: 'Tooling Alignment' },
-  { id: 'governance_alignment', label: 'Governance Alignment' },
-  { id: 'maturity', label: 'Maturity' },
-  { id: 'local_necessity', label: 'Local Necessity (high = low local need)' },
+  { id: 'regulatory_alignment', label: 'Regulatorische Ausrichtung' },
+  { id: 'operational_alignment', label: 'Operative Ausrichtung' },
+  { id: 'tooling_alignment', label: 'Tool-Ausrichtung' },
+  { id: 'governance_alignment', label: 'Governance-Ausrichtung' },
+  { id: 'maturity', label: 'Reifegrad' },
+  { id: 'local_necessity', label: 'Lokale Notwendigkeit (hoch = geringe lokale Notwendigkeit)' },
 ];
 
 const HARD_CONSTRAINTS = [
-  { id: 'legal_local_difference', label: 'Legal local difference' },
-  { id: 'tenant_separation_blocks_operation', label: 'Tenant separation blocks operation' },
-  { id: 'separate_control_ownership', label: 'Separate control ownership' },
-  { id: 'insufficient_documentation', label: 'Insufficient documentation' },
+  { id: 'legal_local_difference', label: 'Rechtliche lokale Abweichung' },
+  { id: 'tenant_separation_blocks_operation', label: 'Mandantentrennung blockiert Betrieb' },
+  { id: 'separate_control_ownership', label: 'Getrennte Kontrollzuständigkeit' },
+  { id: 'insufficient_documentation', label: 'Unzureichende Dokumentation' },
 ];
 
 const PRIO_DIMENSIONS = [
-  { id: 'harmonization_potential', label: 'Harmonization Potential' },
-  { id: 'operational_relevance', label: 'Operational Relevance' },
-  { id: 'governance_compliance_benefit', label: 'Governance / Compliance Benefit' },
-  { id: 'implementation_effort', label: 'Implementation Effort (high = easy)' },
-  { id: 'dependencies', label: 'Dependencies (high = few)' },
+  { id: 'harmonization_potential', label: 'Harmonisierungspotenzial' },
+  { id: 'operational_relevance', label: 'Operative Relevanz' },
+  { id: 'governance_compliance_benefit', label: 'Governance / Compliance-Nutzen' },
+  { id: 'implementation_effort', label: 'Umsetzungsaufwand (hoch = einfach)' },
+  { id: 'dependencies', label: 'Abhängigkeiten (hoch = wenige)' },
 ];
 
 // ─── State for current edit ───────────────────────────────────────────────────
 
 const TARGET_OPTIONS = [
-  { value: '', label: '— none (legacy) —' },
-  { value: 'de_standard', label: 'DE standard (AT adopts DE)' },
-  { value: 'at_standard', label: 'AT standard (DE adopts AT)' },
-  { value: 'central', label: 'Central (new unified process)' },
+  { value: '', label: '— keine (Legacy) —' },
+  { value: 'de_standard', label: 'DE-Standard (AT übernimmt DE)' },
+  { value: 'at_standard', label: 'AT-Standard (DE übernimmt AT)' },
+  { value: 'central', label: 'Zentral (neuer einheitlicher Prozess)' },
 ];
 
 let _editState = null;  // { objectId, objectType, streamType, typeQuestions, targetOption }
@@ -76,24 +76,24 @@ async function renderList() {
       <td>${optLabel ? badge('badge-info', optLabel) : ''}</td>
       <td>${badge(statusCls[status] || 'badge-muted', status)}</td>
       <td style="font-size:12px;color:var(--text-muted)">${esc(a.assessor || '—')}</td>
-      <td>${(a.answers || []).length}/6 dims</td>
+      <td>${(a.answers || []).length}/6 Dim.</td>
       <td style="white-space:nowrap">
-        <a href="#/assessments/${encodeURIComponent(a.assessed_object_id)}${optParam}" class="btn btn-sm btn-primary">Edit</a>
-        <button class="btn btn-sm btn-danger" data-del-ass="${esc(a.assessed_object_id)}" data-del-opt="${esc(a.target_option || '')}">Delete</button>
+        <a href="#/assessments/${encodeURIComponent(a.assessed_object_id)}${optParam}" class="btn btn-sm btn-primary">Bearbeiten</a>
+        <button class="btn btn-sm btn-danger" data-del-ass="${esc(a.assessed_object_id)}" data-del-opt="${esc(a.target_option || '')}">Löschen</button>
       </td>
     </tr>`;
   }).join('');
 
   setContent(`
     <div class="page-header">
-      <h1>Assessments</h1>
+      <h1>Bewertungen</h1>
       <div class="actions">
-        <span style="color:var(--text-muted);font-size:13px">${assessments.length} total</span>
+        <span style="color:var(--text-muted);font-size:13px">${assessments.length} gesamt</span>
       </div>
     </div>
     <div class="card"><div class="table-wrap">
       <table><thead><tr>
-        <th>Object</th><th>Type</th><th>Option</th><th>Status</th><th>Assessor</th><th>Answers</th><th></th>
+        <th>Objekt</th><th>Typ</th><th>Option</th><th>Status</th><th>Bewerter</th><th>Antworten</th><th></th>
       </tr></thead><tbody>${rows}</tbody></table>
     </div></div>
   `);
@@ -103,11 +103,11 @@ async function renderList() {
       const id = btn.dataset.delAss;
       const opt = btn.dataset.delOpt;
       const label = opt ? `${id} (${opt})` : id;
-      if (!confirm(`Delete assessment for "${label}"?`)) return;
+      if (!confirm(`Bewertung für „${label}" löschen?`)) return;
       try {
         const extra = opt ? { target_option: opt } : {};
         await API.del(`assessments/${encodeURIComponent(id)}`, extra);
-        toast('Deleted'); renderList();
+        toast('Gelöscht'); renderList();
       } catch (e) { toast(e.message, true); }
     });
   });
@@ -129,7 +129,7 @@ async function renderEditor(objectId) {
 
   if (!objType) {
     setContent(`<div class="card card-body" style="color:var(--danger)">
-      Object not found: ${esc(objectId)}</div>`);
+      Objekt nicht gefunden: ${esc(objectId)}</div>`);
     return;
   }
 
@@ -198,7 +198,7 @@ async function renderEditor(objectId) {
   // Target option selector (streams only)
   const optionSelectorHtml = objType === 'stream' ? `
     <div class="card" style="margin-bottom:16px">
-      <div class="card-header">Target Option <span class="badge badge-info">DE / AT harmonization</span></div>
+      <div class="card-header">Zieloption <span class="badge badge-info">DE / AT Harmonisierung</span></div>
       <div class="card-body">
         <div class="status-select" id="option-select">
           ${TARGET_OPTIONS.map(o => `
@@ -207,7 +207,7 @@ async function renderEditor(objectId) {
           `).join('')}
         </div>
         <p style="margin-top:8px;font-size:12px;color:var(--text-muted)">
-          Each target option is assessed independently. Select which harmonization strategy you are evaluating.
+          Jede Zieloption wird unabhängig bewertet. Wählen Sie die Harmonisierungsstrategie, die Sie auswerten möchten.
         </p>
       </div>
     </div>` : '';
@@ -215,7 +215,7 @@ async function renderEditor(objectId) {
   setContent(`
     <div class="page-header">
       <div>
-        <h1>Assessment: ${esc(objName)}</h1>
+        <h1>Bewertung: ${esc(objName)}</h1>
         <div class="detail-meta" style="margin-top:6px">
           ${badge(objType === 'stream' ? 'badge-primary' : 'badge-info', objType)}
           ${effectiveStreamType ? badge('badge-muted', effectiveStreamType) : ''}
@@ -224,8 +224,8 @@ async function renderEditor(objectId) {
         </div>
       </div>
       <div class="actions">
-        <a href="${backUrl}" class="btn">Cancel</a>
-        <button class="btn btn-primary" id="btn-save-assessment">Save</button>
+        <a href="${backUrl}" class="btn">Abbrechen</a>
+        <button class="btn btn-primary" id="btn-save-assessment">Speichern</button>
       </div>
     </div>
 
@@ -233,7 +233,7 @@ async function renderEditor(objectId) {
 
     <!-- Live Score Panel -->
     <div class="card" style="margin-bottom:16px">
-      <div class="card-header">Live Score Preview</div>
+      <div class="card-header">Live-Punktzahl Vorschau</div>
       <div class="card-body" id="live-score-container">
         ${scorePanel(null)}
       </div>
@@ -243,7 +243,7 @@ async function renderEditor(objectId) {
       <div>
         <!-- Base Dimensions -->
         <div class="card" style="margin-bottom:16px">
-          <div class="card-header">Alignment Dimensions <span class="badge badge-muted">1–5</span></div>
+          <div class="card-header">Ausrichtungsdimensionen <span class="badge badge-muted">1–5</span></div>
           <div class="card-body">
             ${dimensionInputs('dim', BASE_DIMENSIONS, dimAnswers)}
           </div>
@@ -251,7 +251,7 @@ async function renderEditor(objectId) {
 
         <!-- Hard Constraints -->
         <div class="card" style="margin-bottom:16px">
-          <div class="card-header">Hard Constraints</div>
+          <div class="card-header">Harte Einschränkungen</div>
           <div class="card-body" id="hc-container">${hcHtml}</div>
         </div>
       </div>
@@ -260,7 +260,7 @@ async function renderEditor(objectId) {
         ${tsItems.length > 0 ? `
         <!-- Type-Specific Questions -->
         <div class="card" style="margin-bottom:16px">
-          <div class="card-header">Type-Specific: ${esc(effectiveStreamType || '')} <span class="badge badge-muted">1–5</span></div>
+          <div class="card-header">Typspezifisch: ${esc(effectiveStreamType || '')} <span class="badge badge-muted">1–5</span></div>
           <div class="card-body">
             ${dimensionInputs('ts', tsItems, tsAnswers)}
           </div>
@@ -268,7 +268,7 @@ async function renderEditor(objectId) {
 
         <!-- Prioritization -->
         <div class="card" style="margin-bottom:16px">
-          <div class="card-header">Prioritization <span class="badge badge-muted">1–5</span></div>
+          <div class="card-header">Priorisierung <span class="badge badge-muted">1–5</span></div>
           <div class="card-body">
             ${dimensionInputs('prio', PRIO_DIMENSIONS, prioAnswers)}
           </div>
@@ -276,21 +276,22 @@ async function renderEditor(objectId) {
 
         <!-- Metadata -->
         <div class="card" style="margin-bottom:16px">
-          <div class="card-header">Assessment Metadata</div>
+          <div class="card-header">Bewertungsmetadaten</div>
           <div class="card-body">
             <div class="form-group">
               <label>Status</label>
+
               <div class="status-select" id="status-select">${statusHtml}</div>
             </div>
             <div class="form-group">
-              <label for="f-assessor">Assessor</label>
+              <label for="f-assessor">Bewerter</label>
               <input class="form-control" id="f-assessor" value="${esc(existing?.assessor || '')}"
-                     placeholder="Name / team">
+                     placeholder="Name / Team">
             </div>
             <div class="form-group">
-              <label for="f-notes">Notes</label>
+              <label for="f-notes">Notizen</label>
               <textarea class="form-control" id="f-notes" rows="3"
-                        placeholder="Assessment notes…">${esc(existing?.notes || '')}</textarea>
+                        placeholder="Bewertungsnotizen…">${esc(existing?.notes || '')}</textarea>
             </div>
           </div>
         </div>
@@ -299,7 +300,7 @@ async function renderEditor(objectId) {
 
     <div style="margin-top:12px;display:flex;gap:8px;justify-content:flex-end">
       <a href="${backUrl}" class="btn">Cancel</a>
-      <button class="btn btn-primary" id="btn-save-assessment-bottom">Save</button>
+      <button class="btn btn-primary" id="btn-save-assessment-bottom">Speichern</button>
     </div>
   `);
 
@@ -430,7 +431,7 @@ async function saveAssessment(existing) {
 
   try {
     await API.put('assessments', assessment);
-    toast(`Assessment saved (${status})`);
+    toast(`Bewertung gespeichert (${status})`);
     // Navigate back
     const backUrl = _editState.objectType === 'stream'
       ? `#/streams/${encodeURIComponent(_editState.objectId)}`

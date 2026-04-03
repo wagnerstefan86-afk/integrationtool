@@ -34,13 +34,13 @@ register('director',         (_id) => renderDirector());
 register('reports',          (id)  => renderReports(id));
 
 // Stub handlers for future phases
-register('outcomes',    () => Promise.resolve(_comingSoon('Outcomes')));
+register('outcomes',    () => Promise.resolve(_comingSoon('Ergebnisse')));
 
 function _comingSoon(name) {
   setContent(`
     <div class="page-header"><h1>${name}</h1></div>
     <div class="card card-body" style="color:var(--text-muted)">
-      This section is not yet available in the current phase.
+      Dieser Bereich ist in der aktuellen Phase noch nicht verfügbar.
     </div>
   `);
 }

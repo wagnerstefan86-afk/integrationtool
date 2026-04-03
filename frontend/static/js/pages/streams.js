@@ -37,9 +37,9 @@ async function renderList() {
   const areaIds = [...new Set(streams.map(s => s.area_id).filter(Boolean))];
   const types = [...new Set(streams.map(s => s.stream_type).filter(Boolean))];
 
-  const areaOpts = ['<option value="">All Areas</option>',
+  const areaOpts = ['<option value="">Alle Bereiche</option>',
     ...areaIds.map(id => `<option value="${esc(id)}">${esc(areaMap[id] || id)}</option>`)].join('');
-  const typeOpts = ['<option value="">All Types</option>',
+  const typeOpts = ['<option value="">Alle Typen</option>',
     ...types.map(t => `<option value="${esc(t)}">${esc(t)}</option>`)].join('');
 
   const hashQuery = location.hash.includes('?') ? location.hash.split('?')[1] : '';
@@ -56,10 +56,10 @@ async function renderList() {
       <td>${badge('badge-info', s.stream_type || '—')}</td>
       <td>${badge('badge-muted', s.country_scope || '—')} ${badge('badge-muted', s.tenant_scope || '—')}</td>
       <td>${_asIsStatusBadge(s.as_is || {})}</td>
-      <td>${assessedIds.has(s.id) ? badge('badge-success', 'assessed') : badge('badge-muted', 'pending')}</td>
+      <td>${assessedIds.has(s.id) ? badge('badge-success', 'bewertet') : badge('badge-muted', 'ausstehend')}</td>
       <td onclick="event.stopPropagation()" style="white-space:nowrap">
-        <button class="btn btn-sm" data-edit-stream="${esc(s.id)}">Edit</button>
-        <button class="btn btn-sm btn-danger" data-delete-stream="${esc(s.id)}">Delete</button>
+        <button class="btn btn-sm" data-edit-stream="${esc(s.id)}">Bearbeiten</button>
+        <button class="btn btn-sm btn-danger" data-delete-stream="${esc(s.id)}">Löschen</button>
       </td>
     </tr>`).join('');
 
@@ -67,18 +67,18 @@ async function renderList() {
     <div class="page-header">
       <h1>Streams</h1>
       <div class="actions">
-        <button class="btn btn-primary" id="btn-add-stream">+ Add Stream</button>
+        <button class="btn btn-primary" id="btn-add-stream">+ Stream hinzufügen</button>
       </div>
     </div>
     <div class="filters">
       <select id="filter-area" onchange="window._filterStreams()">${areaOpts}</select>
       <select id="filter-type" onchange="window._filterStreams()">${typeOpts}</select>
-      <input id="filter-q" type="search" placeholder="Search by name…" oninput="window._filterStreams()"
+      <input id="filter-q" type="search" placeholder="Nach Name suchen…" oninput="window._filterStreams()"
              style="padding:6px 10px;border:1px solid var(--border);border-radius:4px;font-size:12px;min-width:180px">
     </div>
     <div class="card"><div class="table-wrap">
       <table><thead><tr>
-        <th>Name</th><th>Area</th><th>Type</th><th>Scope</th><th>AS-IS</th><th>Assessment</th><th></th>
+        <th>Name</th><th>Bereich</th><th>Typ</th><th>Scope</th><th>AS-IS</th><th>Bewertung</th><th></th>
       </tr></thead><tbody id="streams-body">${rows}</tbody></table>
     </div></div>
   `);
@@ -118,32 +118,32 @@ async function openStreamForm(stream, areas) {
   const s = stream || {};
   const e = await enums();
 
-  const areaOpts = [{ value: '', label: '— select —' }, ...areas.map(a => ({ value: a.id, label: a.name }))];
-  const typeOpts = [{ value: '', label: '— select —' }, ...e.stream_types.map(t => ({ value: t, label: t }))];
+  const areaOpts = [{ value: '', label: '— auswählen —' }, ...areas.map(a => ({ value: a.id, label: a.name }))];
+  const typeOpts = [{ value: '', label: '— auswählen —' }, ...e.stream_types.map(t => ({ value: t, label: t }))];
   const scopeOpts = e.country_scopes.map(v => ({ value: v, label: v }));
   const tenantOpts = e.tenant_scopes.map(v => ({ value: v, label: v }));
 
-  openModal(isNew ? 'Create Stream' : 'Edit Stream', `
+  openModal(isNew ? 'Stream erstellen' : 'Stream bearbeiten', `
     ${formRow(
-      textField('f-s-id', 'ID', s.id || '', { required: true, readonly: !isNew, placeholder: 'e.g. my_stream' }),
+      textField('f-s-id', 'ID', s.id || '', { required: true, readonly: !isNew, placeholder: 'z.B. my_stream' }),
       textField('f-s-name', 'Name', s.name || '', { required: true })
     )}
     ${formRow(
-      selectField('f-s-area', 'Area', areaOpts, s.area_id || ''),
-      selectField('f-s-type', 'Stream Type', typeOpts, s.stream_type || '')
+      selectField('f-s-area', 'Bereich', areaOpts, s.area_id || ''),
+      selectField('f-s-type', 'Stream-Typ', typeOpts, s.stream_type || '')
     )}
     ${formRow(
       selectField('f-s-country', 'Country Scope', scopeOpts, s.country_scope || 'BOTH'),
       selectField('f-s-tenant', 'Tenant Scope', tenantOpts, s.tenant_scope || 'BOTH')
     )}
-    ${textField('f-s-owner', 'Owner Role', s.owner_role || '')}
-    ${textArea('f-s-desc', 'Description', s.description || '')}
-    ${textArea('f-s-notes', 'Notes', s.notes || '', { rows: 2 })}
+    ${textField('f-s-owner', 'Eigentümer-Rolle', s.owner_role || '')}
+    ${textArea('f-s-desc', 'Beschreibung', s.description || '')}
+    ${textArea('f-s-notes', 'Notizen', s.notes || '', { rows: 2 })}
   `, async () => {
     const id = val('f-s-id');
     const name = val('f-s-name');
-    if (!id) throw new Error('ID is required');
-    if (!name) throw new Error('Name is required');
+    if (!id) throw new Error('ID ist erforderlich');
+    if (!name) throw new Error('Name ist erforderlich');
 
     await API.put('streams', {
       ...(isNew ? {} : s),
@@ -156,17 +156,17 @@ async function openStreamForm(stream, areas) {
       description: val('f-s-desc'),
       notes: val('f-s-notes'),
     });
-    toast(isNew ? 'Stream created' : 'Stream updated');
+    toast(isNew ? 'Stream erstellt' : 'Stream aktualisiert');
     closeModal();
     renderList();
   });
 }
 
 async function deleteStream(streamId) {
-  if (!confirm(`Delete stream "${streamId}"?\n\nFails if subprocesses still reference this stream.`)) return;
+  if (!confirm(`Stream „${streamId}" löschen?\n\nSchlägt fehl, wenn Teilprozesse noch auf diesen Stream verweisen.`)) return;
   try {
     await API.del(`streams/${encodeURIComponent(streamId)}`);
-    toast('Stream deleted');
+    toast('Stream gelöscht');
     renderList();
   } catch (e) { toast(e.message, true); }
 }
@@ -212,9 +212,9 @@ async function renderDetail(streamId) {
       <td style="color:var(--text-muted);font-size:12px;max-width:200px">${esc(sp.purpose || sp.description || '—')}</td>
       <td>${badge(statusCls[spStatus] || 'badge-muted', spStatus.replace(/_/g, ' '))}</td>
       <td style="white-space:nowrap">
-        <a href="#/assessments/${encodeURIComponent(sp.id)}" class="btn btn-sm">${spAss ? 'Edit Assess.' : 'Assess'}</a>
-        <button class="btn btn-sm" data-edit-sp="${esc(sp.id)}">Edit</button>
-        <button class="btn btn-sm btn-danger" data-delete-sp="${esc(sp.id)}">Delete</button>
+        <a href="#/assessments/${encodeURIComponent(sp.id)}" class="btn btn-sm">${spAss ? 'Bew. bearbeiten' : 'Bewerten'}</a>
+        <button class="btn btn-sm" data-edit-sp="${esc(sp.id)}">Bearbeiten</button>
+        <button class="btn btn-sm btn-danger" data-delete-sp="${esc(sp.id)}">Löschen</button>
       </td>
     </tr>`;
   }).join('');
@@ -226,8 +226,8 @@ async function renderDetail(streamId) {
       <td><code style="font-size:11px">${esc(i.target_process_id)}</code></td>
       <td style="color:var(--text-muted);font-size:12px;max-width:200px">${esc(i.description || '—')}</td>
       <td style="white-space:nowrap">
-        <button class="btn btn-sm" data-edit-iface="${esc(i.id)}">Edit</button>
-        <button class="btn btn-sm btn-danger" data-delete-iface="${esc(i.id)}">Delete</button>
+        <button class="btn btn-sm" data-edit-iface="${esc(i.id)}">Bearbeiten</button>
+        <button class="btn btn-sm btn-danger" data-delete-iface="${esc(i.id)}">Löschen</button>
       </td>
     </tr>`).join('');
 
@@ -238,7 +238,7 @@ async function renderDetail(streamId) {
          ${badge(assStatusCls[assStatus] || 'badge-muted', assStatus.replace(/_/g, ' '))}
          ${assessment.assessor ? `<span style="font-size:12px;color:var(--text-muted)">by ${esc(assessment.assessor)}</span>` : ''}
        </div>` + _renderAssessmentSummary(assessment)
-    : '<p style="color:var(--text-muted)">No assessment recorded for this stream.</p>';
+    : '<p style="color:var(--text-muted);font-size:12px">Keine Bewertung für diesen Stream erfasst.</p>';
 
   const streamAsIs = stream.as_is || asIsData?.as_is || {};
 
@@ -255,37 +255,37 @@ async function renderDetail(streamId) {
       </div>
       <div class="actions">
         <a href="#/streams" class="btn">← Streams</a>
-        <a href="#/process-analysis/${encodeURIComponent(streamId)}" class="btn btn-primary">Process Analysis</a>
-        <button class="btn" id="btn-edit-stream">Edit Stream</button>
+        <a href="#/process-analysis/${encodeURIComponent(streamId)}" class="btn btn-primary">Prozessanalyse</a>
+        <button class="btn" id="btn-edit-stream">Stream bearbeiten</button>
       </div>
     </div>
 
     <div class="grid-2">
       <div>
         <div class="detail-section">
-          <h3>Stream Info</h3>
+          <h3>Stream-Info</h3>
           <dl class="key-value">
             <dt>ID</dt>        <dd><code>${esc(stream.id)}</code></dd>
-            <dt>Area</dt>      <dd>${esc(stream.area_id || '—')}</dd>
-            <dt>Owner</dt>     <dd>${esc(stream.owner_role || '—')}</dd>
-            <dt>Description</dt><dd>${esc(stream.description || '—')}</dd>
-            <dt>Notes</dt>     <dd>${esc(stream.notes || '—')}</dd>
-            <dt>Regulatory</dt><dd>${regulatoryBadges || '—'}</dd>
+            <dt>Bereich</dt>   <dd>${esc(stream.area_id || '—')}</dd>
+            <dt>Eigentümer</dt><dd>${esc(stream.owner_role || '—')}</dd>
+            <dt>Beschreibung</dt><dd>${esc(stream.description || '—')}</dd>
+            <dt>Notizen</dt>   <dd>${esc(stream.notes || '—')}</dd>
+            <dt>Regulierung</dt><dd>${regulatoryBadges || '—'}</dd>
           </dl>
         </div>
         ${_renderAsIsSection(streamId, asIsData)}
         ${_renderDeltaSection(deltaData)}
         <div class="detail-section">
           <div style="display:flex;justify-content:space-between;align-items:center">
-            <h3>Option Assessments</h3>
+            <h3>Optionsbewertungen</h3>
           </div>
           ${_renderOptionAssessments(streamId, allAssessments)}
         </div>
         <div class="detail-section">
           <div style="display:flex;justify-content:space-between;align-items:center">
-            <h3>Legacy Assessment</h3>
+            <h3>Legacy-Bewertung</h3>
             <a href="#/assessments/${encodeURIComponent(streamId)}" class="btn btn-sm">
-              ${assessment ? 'Edit' : 'Create'}
+              ${assessment ? 'Bearbeiten' : 'Erstellen'}
             </a>
           </div>
           ${assessSection}
@@ -294,25 +294,25 @@ async function renderDetail(streamId) {
       <div>
         <div class="detail-section">
           <div style="display:flex;justify-content:space-between;align-items:center">
-            <h3>Subprocesses (${streamSPs.length})</h3>
-            <button class="btn btn-sm btn-primary" id="btn-add-sp">+ Add</button>
+            <h3>Teilprozesse (${streamSPs.length})</h3>
+            <button class="btn btn-sm btn-primary" id="btn-add-sp">+ Hinzufügen</button>
           </div>
           ${streamSPs.length === 0
-            ? '<p style="color:var(--text-muted)">No subprocesses defined.</p>'
+            ? '<p style="color:var(--text-muted)">Keine Teilprozesse definiert.</p>'
             : `<div class="table-wrap"><table>
-                <thead><tr><th>Name</th><th>Purpose</th><th>Assessment</th><th></th></tr></thead>
+                <thead><tr><th>Name</th><th>Zweck</th><th>Bewertung</th><th></th></tr></thead>
                 <tbody>${spRows}</tbody>
               </table></div>`}
         </div>
         <div class="detail-section">
           <div style="display:flex;justify-content:space-between;align-items:center">
-            <h3>Interfaces (${streamIfaces.length})</h3>
-            <button class="btn btn-sm btn-primary" id="btn-add-iface">+ Add</button>
+            <h3>Schnittstellen (${streamIfaces.length})</h3>
+            <button class="btn btn-sm btn-primary" id="btn-add-iface">+ Hinzufügen</button>
           </div>
           ${streamIfaces.length === 0
-            ? '<p style="color:var(--text-muted)">No interfaces defined.</p>'
+            ? '<p style="color:var(--text-muted)">Keine Schnittstellen definiert.</p>'
             : `<div class="table-wrap"><table>
-                <thead><tr><th>Source</th><th>Type</th><th>Target</th><th>Description</th><th></th></tr></thead>
+                <thead><tr><th>Quelle</th><th>Typ</th><th>Ziel</th><th>Beschreibung</th><th></th></tr></thead>
                 <tbody>${ifaceRows}</tbody>
               </table></div>`}
         </div>
@@ -357,36 +357,36 @@ function _asIsCountryFields(prefix, data) {
   const j = (arr) => (arr || []).join('\n');
   return `
     <div class="form-group">
-      <label for="f-${prefix}-desc">Description <span style="color:var(--danger)">*</span></label>
+      <label for="f-${prefix}-desc">Beschreibung <span style="color:var(--danger)">*</span></label>
       <textarea class="form-control" id="f-${prefix}-desc" rows="2">${esc(data.description || '')}</textarea>
     </div>
-    <h5 style="margin:12px 0 4px;font-size:12px;color:var(--text-muted)">Process Context</h5>
-    ${textArea('f-' + prefix + '-triggers', 'Triggers (one per line)', j(data.triggers), { rows: 2 })}
+    <h5 style="margin:12px 0 4px;font-size:12px;color:var(--text-muted)">Prozesskontext</h5>
+    ${textArea('f-' + prefix + '-triggers', 'Auslöser (einer pro Zeile)', j(data.triggers), { rows: 2 })}
     ${formRow(
-      textArea('f-' + prefix + '-inputs', 'Inputs (one per line)', j(data.inputs), { rows: 2 }),
-      textArea('f-' + prefix + '-outputs', 'Outputs (one per line)', j(data.outputs), { rows: 2 })
+      textArea('f-' + prefix + '-inputs', 'Eingaben (eine pro Zeile)', j(data.inputs), { rows: 2 }),
+      textArea('f-' + prefix + '-outputs', 'Ausgaben (eine pro Zeile)', j(data.outputs), { rows: 2 })
     )}
-    <h5 style="margin:12px 0 4px;font-size:12px;color:var(--text-muted)">Process Flow</h5>
+    <h5 style="margin:12px 0 4px;font-size:12px;color:var(--text-muted)">Prozessablauf</h5>
     <div class="form-group">
-      <label for="f-${prefix}-steps">Steps (one per line, min 3) <span style="color:var(--danger)">*</span></label>
+      <label for="f-${prefix}-steps">Schritte (einer pro Zeile, mind. 3) <span style="color:var(--danger)">*</span></label>
       <textarea class="form-control" id="f-${prefix}-steps" rows="4">${esc(j(data.steps))}</textarea>
     </div>
-    <h5 style="margin:12px 0 4px;font-size:12px;color:var(--text-muted)">Organization</h5>
+    <h5 style="margin:12px 0 4px;font-size:12px;color:var(--text-muted)">Organisation</h5>
     ${formRow(
-      textArea('f-' + prefix + '-roles', 'Roles (one per line) *', j(data.roles), { rows: 2 }),
-      textArea('f-' + prefix + '-responsibilities', 'Responsibilities (one per line)', j(data.responsibilities), { rows: 2 })
+      textArea('f-' + prefix + '-roles', 'Rollen (eine pro Zeile) *', j(data.roles), { rows: 2 }),
+      textArea('f-' + prefix + '-responsibilities', 'Verantwortlichkeiten (eine pro Zeile)', j(data.responsibilities), { rows: 2 })
     )}
-    <h5 style="margin:12px 0 4px;font-size:12px;color:var(--text-muted)">Tooling</h5>
+    <h5 style="margin:12px 0 4px;font-size:12px;color:var(--text-muted)">Werkzeuge</h5>
     <div class="form-group">
-      <label for="f-${prefix}-tools">Tools / Systems (one per line) <span style="color:var(--danger)">*</span></label>
+      <label for="f-${prefix}-tools">Werkzeuge / Systeme (eines pro Zeile) <span style="color:var(--danger)">*</span></label>
       <textarea class="form-control" id="f-${prefix}-tools" rows="2">${esc(j(data.tools))}</textarea>
     </div>
-    <h5 style="margin:12px 0 4px;font-size:12px;color:var(--text-muted)">Controls & Evidence</h5>
+    <h5 style="margin:12px 0 4px;font-size:12px;color:var(--text-muted)">Kontrollen & Evidenz</h5>
     ${formRow(
-      textArea('f-' + prefix + '-controls', 'Controls / References (one per line)', j(data.controls), { rows: 2 }),
-      textArea('f-' + prefix + '-evidence', 'Evidence (one per line)', j(data.evidence), { rows: 2 })
+      textArea('f-' + prefix + '-controls', 'Kontrollen / Referenzen (eine pro Zeile)', j(data.controls), { rows: 2 }),
+      textArea('f-' + prefix + '-evidence', 'Evidenz (eine pro Zeile)', j(data.evidence), { rows: 2 })
     )}
-    ${textArea('f-' + prefix + '-notes', 'Notes', data.notes || '', { rows: 2 })}
+    ${textArea('f-' + prefix + '-notes', 'Notizen', data.notes || '', { rows: 2 })}
   `;
 }
 
@@ -409,10 +409,10 @@ function _readAsIsCountry(prefix) {
 
 function _validateAsIs(data, label) {
   const errors = [];
-  if (!data.description.trim()) errors.push(`${label}: description is required`);
-  if (data.steps.length < 3) errors.push(`${label}: steps must have at least 3 entries (has ${data.steps.length})`);
-  if (!data.roles.length) errors.push(`${label}: roles must not be empty`);
-  if (!data.tools.length) errors.push(`${label}: tools must not be empty`);
+  if (!data.description.trim()) errors.push(`${label}: Beschreibung ist erforderlich`);
+  if (data.steps.length < 3) errors.push(`${label}: Mindestens 3 Schritte erforderlich (hat ${data.steps.length})`);
+  if (!data.roles.length) errors.push(`${label}: Rollen dürfen nicht leer sein`);
+  if (!data.tools.length) errors.push(`${label}: Werkzeuge dürfen nicht leer sein`);
   return errors;
 }
 
@@ -424,7 +424,7 @@ async function openAsIsForm(streamId, asIsData) {
   const e = await enums();
   const gapOpts = (e.gap_levels || ['low', 'medium', 'high']).map(g => ({ value: g, label: g }));
 
-  openModal('Edit AS-IS: DE / AT', `
+  openModal('AS-IS bearbeiten: DE / AT', `
     <div id="asis-errors" style="display:none;padding:8px 12px;margin-bottom:12px;background:#fef2f2;border:1px solid var(--danger);border-radius:4px;font-size:12px;color:var(--danger)"></div>
 
     <h4 style="margin:0 0 8px;color:var(--primary);border-bottom:2px solid var(--primary);padding-bottom:4px">DE (Germany)</h4>
@@ -436,14 +436,14 @@ async function openAsIsForm(streamId, asIsData) {
     ${_asIsCountryFields('at', at)}
 
     <hr style="border:none;border-top:2px solid var(--border);margin:18px 0">
-    <h4 style="margin:0 0 8px;color:var(--primary)">Delta Assessment</h4>
+    <h4 style="margin:0 0 8px;color:var(--primary)">Delta-Bewertung</h4>
     ${formRow(
-      selectField('f-delta-structural', 'Structural Diff', gapOpts, delta.structural_diff || 'low'),
-      selectField('f-delta-tooling', 'Tooling Gap', gapOpts, delta.tooling_gap || 'low')
+      selectField('f-delta-structural', 'Strukturelle Abweichung', gapOpts, delta.structural_diff || 'low'),
+      selectField('f-delta-tooling', 'Werkzeug-Abweichung', gapOpts, delta.tooling_gap || 'low')
     )}
     ${formRow(
-      selectField('f-delta-regulatory', 'Regulatory Gap', gapOpts, delta.regulatory_gap || 'low'),
-      selectField('f-delta-rolemodel', 'Role Model Diff', gapOpts, delta.role_model_diff || 'low')
+      selectField('f-delta-regulatory', 'Regulatorische Abweichung', gapOpts, delta.regulatory_gap || 'low'),
+      selectField('f-delta-rolemodel', 'Rollenmodell-Abweichung', gapOpts, delta.role_model_diff || 'low')
     )}
   `, async () => {
     const deData = _readAsIsCountry('de');
@@ -457,8 +457,8 @@ async function openAsIsForm(streamId, asIsData) {
     if (deHasContent || atHasContent) {
       if (deHasContent) errors.push(..._validateAsIs(deData, 'DE'));
       if (atHasContent) errors.push(..._validateAsIs(atData, 'AT'));
-      if (deHasContent && !atHasContent) errors.push('AT: description is required when DE is filled');
-      if (atHasContent && !deHasContent) errors.push('DE: description is required when AT is filled');
+      if (deHasContent && !atHasContent) errors.push('AT: Beschreibung ist erforderlich, wenn DE ausgefüllt ist');
+      if (atHasContent && !deHasContent) errors.push('DE: Beschreibung ist erforderlich, wenn AT ausgefüllt ist');
     }
 
     const errEl = document.getElementById('asis-errors');
@@ -480,7 +480,7 @@ async function openAsIsForm(streamId, asIsData) {
       },
     };
     await API.put(`streams/${encodeURIComponent(streamId)}/as-is`, body);
-    toast('AS-IS saved');
+    toast('AS-IS gespeichert');
     closeModal();
     renderDetail(streamId);
   });
@@ -495,28 +495,28 @@ async function openSubprocessForm(sp, streamId) {
   const scopeOpts = e.country_scopes.map(v => ({ value: v, label: v }));
   const tenantOpts = e.tenant_scopes.map(v => ({ value: v, label: v }));
 
-  openModal(isNew ? 'Add Subprocess' : 'Edit Subprocess', `
+  openModal(isNew ? 'Teilprozess hinzufügen' : 'Teilprozess bearbeiten', `
     ${formRow(
-      textField('f-sp-id', 'ID', s.id || '', { required: true, readonly: !isNew, placeholder: 'e.g. sp-my-process' }),
+      textField('f-sp-id', 'ID', s.id || '', { required: true, readonly: !isNew, placeholder: 'z.B. sp-my-process' }),
       textField('f-sp-name', 'Name', s.name || '', { required: true })
     )}
-    ${textField('f-sp-purpose', 'Purpose', s.purpose || '')}
-    ${textArea('f-sp-desc', 'Description', s.description || '')}
+    ${textField('f-sp-purpose', 'Zweck', s.purpose || '')}
+    ${textArea('f-sp-desc', 'Beschreibung', s.description || '')}
     ${formRow(
-      selectField('f-sp-country', 'Country Scope', scopeOpts, s.country_scope || 'BOTH'),
-      selectField('f-sp-tenant', 'Tenant Scope', tenantOpts, s.tenant_scope || 'BOTH')
+      selectField('f-sp-country', 'Länder-Scope', scopeOpts, s.country_scope || 'BOTH'),
+      selectField('f-sp-tenant', 'Mandanten-Scope', tenantOpts, s.tenant_scope || 'BOTH')
     )}
-    ${textArea('f-sp-roles', 'Roles (one per line)', (s.roles || []).join('\n'), { rows: 2 })}
-    ${textArea('f-sp-tools', 'Tools (one per line)', (s.tools || []).join('\n'), { rows: 2 })}
-    ${textArea('f-sp-inputs', 'Inputs (one per line)', (s.inputs || []).join('\n'), { rows: 2 })}
-    ${textArea('f-sp-outputs', 'Outputs (one per line)', (s.outputs || []).join('\n'), { rows: 2 })}
-    ${textArea('f-sp-evidence', 'Evidence (one per line)', (s.evidence || []).join('\n'), { rows: 2 })}
-    ${textArea('f-sp-notes', 'Notes', s.notes || '', { rows: 2 })}
+    ${textArea('f-sp-roles', 'Rollen (eine pro Zeile)', (s.roles || []).join('\n'), { rows: 2 })}
+    ${textArea('f-sp-tools', 'Werkzeuge (eines pro Zeile)', (s.tools || []).join('\n'), { rows: 2 })}
+    ${textArea('f-sp-inputs', 'Eingaben (eine pro Zeile)', (s.inputs || []).join('\n'), { rows: 2 })}
+    ${textArea('f-sp-outputs', 'Ausgaben (eine pro Zeile)', (s.outputs || []).join('\n'), { rows: 2 })}
+    ${textArea('f-sp-evidence', 'Evidenz (eine pro Zeile)', (s.evidence || []).join('\n'), { rows: 2 })}
+    ${textArea('f-sp-notes', 'Notizen', s.notes || '', { rows: 2 })}
   `, async () => {
     const id = val('f-sp-id');
     const name = val('f-sp-name');
-    if (!id) throw new Error('ID is required');
-    if (!name) throw new Error('Name is required');
+    if (!id) throw new Error('ID ist erforderlich');
+    if (!name) throw new Error('Name ist erforderlich');
 
     const toList = (v) => v.split('\n').map(l => l.trim()).filter(Boolean);
 
@@ -535,17 +535,17 @@ async function openSubprocessForm(sp, streamId) {
       evidence: toList(document.getElementById('f-sp-evidence').value),
       notes: val('f-sp-notes'),
     });
-    toast(isNew ? 'Subprocess created' : 'Subprocess updated');
+    toast(isNew ? 'Teilprozess erstellt' : 'Teilprozess aktualisiert');
     closeModal();
     renderDetail(streamId);
   });
 }
 
 async function deleteSubprocess(spId, streamId) {
-  if (!confirm(`Delete subprocess "${spId}"?\n\nFails if interfaces still reference it.`)) return;
+  if (!confirm(`Teilprozess „${spId}" löschen?\n\nSchlägt fehl, wenn Schnittstellen noch darauf verweisen.`)) return;
   try {
     await API.del(`subprocesses/${encodeURIComponent(spId)}`);
-    toast('Subprocess deleted');
+    toast('Teilprozess gelöscht');
     renderDetail(streamId);
   } catch (e) { toast(e.message, true); }
 }
@@ -560,28 +560,28 @@ async function openInterfaceForm(iface, allSubprocesses, contextSpIds) {
   // Build source/target options: all subprocess IDs + all stream IDs
   const streams = await API.get('streams');
   const processOpts = [
-    { value: '', label: '— select —' },
-    ...allSubprocesses.map(sp => ({ value: sp.id, label: `[SP] ${sp.name} (${sp.id})` })),
+    { value: '', label: '— auswählen —' },
+    ...allSubprocesses.map(sp => ({ value: sp.id, label: `[TP] ${sp.name} (${sp.id})` })),
     ...streams.map(s => ({ value: s.id, label: `[Stream] ${s.name} (${s.id})` })),
   ];
   const typeOpts = e.interface_types.map(t => ({ value: t, label: t }));
 
-  openModal(isNew ? 'Add Interface' : 'Edit Interface', `
+  openModal(isNew ? 'Schnittstelle hinzufügen' : 'Schnittstelle bearbeiten', `
     ${formRow(
-      textField('f-if-id', 'ID', i.id || '', { required: true, readonly: !isNew, placeholder: 'e.g. iface-x-to-y' }),
-      selectField('f-if-type', 'Type', typeOpts, i.interface_type || 'data_flow')
+      textField('f-if-id', 'ID', i.id || '', { required: true, readonly: !isNew, placeholder: 'z.B. iface-x-to-y' }),
+      selectField('f-if-type', 'Typ', typeOpts, i.interface_type || 'data_flow')
     )}
     ${formRow(
-      selectField('f-if-src', 'Source Process', processOpts, i.source_process_id || ''),
-      selectField('f-if-tgt', 'Target Process', processOpts, i.target_process_id || '')
+      selectField('f-if-src', 'Quellprozess', processOpts, i.source_process_id || ''),
+      selectField('f-if-tgt', 'Zielprozess', processOpts, i.target_process_id || '')
     )}
-    ${textArea('f-if-desc', 'Description', i.description || '')}
-    ${textField('f-if-trigger', 'Trigger', i.trigger || '')}
-    ${textArea('f-if-artifacts', 'Exchanged Artifacts (one per line)', (i.exchanged_artifacts || []).join('\n'), { rows: 2 })}
-    ${textArea('f-if-notes', 'Notes', i.notes || '', { rows: 2 })}
+    ${textArea('f-if-desc', 'Beschreibung', i.description || '')}
+    ${textField('f-if-trigger', 'Auslöser', i.trigger || '')}
+    ${textArea('f-if-artifacts', 'Ausgetauschte Artefakte (eines pro Zeile)', (i.exchanged_artifacts || []).join('\n'), { rows: 2 })}
+    ${textArea('f-if-notes', 'Notizen', i.notes || '', { rows: 2 })}
   `, async () => {
     const id = val('f-if-id');
-    if (!id) throw new Error('ID is required');
+    if (!id) throw new Error('ID ist erforderlich');
 
     const toList = (v) => v.split('\n').map(l => l.trim()).filter(Boolean);
 
@@ -596,7 +596,7 @@ async function openInterfaceForm(iface, allSubprocesses, contextSpIds) {
       exchanged_artifacts: toList(document.getElementById('f-if-artifacts').value),
       notes: val('f-if-notes'),
     });
-    toast(isNew ? 'Interface created' : 'Interface updated');
+    toast(isNew ? 'Schnittstelle erstellt' : 'Schnittstelle aktualisiert');
     closeModal();
     // Re-render the stream detail page we came from
     const hash = location.hash;
@@ -606,10 +606,10 @@ async function openInterfaceForm(iface, allSubprocesses, contextSpIds) {
 }
 
 async function deleteInterface(ifaceId, streamId) {
-  if (!confirm(`Delete interface "${ifaceId}"?`)) return;
+  if (!confirm(`Schnittstelle „${ifaceId}" löschen?`)) return;
   try {
     await API.del(`interfaces/${encodeURIComponent(ifaceId)}`);
-    toast('Interface deleted');
+    toast('Schnittstelle gelöscht');
     renderDetail(streamId);
   } catch (e) { toast(e.message, true); }
 }
@@ -630,10 +630,10 @@ function _asIsStatusBadge(asIs) {
   const at = asIs?.at || {};
   const deOk = _isAsIsComplete(de);
   const atOk = _isAsIsComplete(at);
-  if (deOk && atOk) return badge('badge-success', 'AS-IS complete');
-  if (deOk || atOk) return badge('badge-warning', 'AS-IS partial');
-  if (de.description?.trim() || at.description?.trim()) return badge('badge-warning', 'AS-IS incomplete');
-  return badge('badge-danger', 'AS-IS missing');
+  if (deOk && atOk) return badge('badge-success', 'AS-IS vollständig');
+  if (deOk || atOk) return badge('badge-warning', 'AS-IS teilweise');
+  if (de.description?.trim() || at.description?.trim()) return badge('badge-warning', 'AS-IS unvollständig');
+  return badge('badge-danger', 'AS-IS fehlt');
 }
 
 // ─── AS-IS DE/AT Section ─────────────────────────────────────────────────────
@@ -663,21 +663,21 @@ function _renderAsIsSection(streamId, asIsData) {
     <div style="flex:1;min-width:220px">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
         <h4 style="margin:0">${label}</h4>
-        ${complete ? badge('badge-success', 'complete') : badge('badge-danger', 'incomplete')}
+        ${complete ? badge('badge-success', 'vollständig') : badge('badge-danger', 'unvollständig')}
       </div>
       ${data.description?.trim()
         ? `<p style="font-size:13px;margin:0 0 8px;padding:6px 8px;background:var(--bg-light);border-radius:4px">${esc(data.description)}</p>
-           ${section('Steps', data.steps)}
-           ${section('Roles', data.roles)}
-           ${section('Tools', data.tools)}
-           ${(data.triggers || []).length ? section('Triggers', data.triggers) : ''}
-           ${(data.inputs || []).length ? section('Inputs', data.inputs) : ''}
-           ${(data.outputs || []).length ? section('Outputs', data.outputs) : ''}
-           ${(data.responsibilities || []).length ? section('Responsibilities', data.responsibilities) : ''}
-           ${section('Controls', data.controls)}
-           ${(data.evidence || []).length ? section('Evidence', data.evidence) : ''}
+           ${section('Schritte', data.steps)}
+           ${section('Rollen', data.roles)}
+           ${section('Werkzeuge', data.tools)}
+           ${(data.triggers || []).length ? section('Auslöser', data.triggers) : ''}
+           ${(data.inputs || []).length ? section('Eingaben', data.inputs) : ''}
+           ${(data.outputs || []).length ? section('Ausgaben', data.outputs) : ''}
+           ${(data.responsibilities || []).length ? section('Verantwortlichkeiten', data.responsibilities) : ''}
+           ${section('Kontrollen', data.controls)}
+           ${(data.evidence || []).length ? section('Evidenz', data.evidence) : ''}
            ${data.notes?.trim() ? `<div style="margin-top:6px;font-size:12px;color:var(--text-muted)"><em>${esc(data.notes)}</em></div>` : ''}`
-        : '<p style="color:var(--text-muted);font-size:12px">Not documented yet.</p>'}
+        : '<p style="color:var(--text-muted);font-size:12px">Noch nicht dokumentiert.</p>'}
     </div>`;
 
   const gapBadge = (level) => {
@@ -687,19 +687,19 @@ function _renderAsIsSection(streamId, asIsData) {
 
   const deltaHtml = (delta.structural_diff || delta.tooling_gap || delta.regulatory_gap || delta.role_model_diff) ? `
     <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border)">
-      <strong style="font-size:12px">Delta Analysis</strong>
+      <strong style="font-size:12px">Delta-Analyse</strong>
       <div style="display:flex;gap:16px;margin-top:6px;font-size:12px;flex-wrap:wrap">
-        <span>Structure: ${gapBadge(delta.structural_diff)}</span>
-        <span>Tooling: ${gapBadge(delta.tooling_gap)}</span>
-        <span>Regulatory: ${gapBadge(delta.regulatory_gap)}</span>
-        <span>Role Model: ${gapBadge(delta.role_model_diff)}</span>
+        <span>Struktur: ${gapBadge(delta.structural_diff)}</span>
+        <span>Werkzeuge: ${gapBadge(delta.tooling_gap)}</span>
+        <span>Regulatorik: ${gapBadge(delta.regulatory_gap)}</span>
+        <span>Rollenmodell: ${gapBadge(delta.role_model_diff)}</span>
       </div>
     </div>` : '';
 
   return `<div class="detail-section">
     <div style="display:flex;justify-content:space-between;align-items:center">
-      <h3>AS-IS Process Comparison ${_asIsStatusBadge(asIs)}</h3>
-      <button class="btn btn-sm btn-primary" id="btn-edit-as-is">Edit AS-IS</button>
+      <h3>AS-IS-Prozessvergleich ${_asIsStatusBadge(asIs)}</h3>
+      <button class="btn btn-sm btn-primary" id="btn-edit-as-is">AS-IS bearbeiten</button>
     </div>
     <div style="display:flex;gap:20px;flex-wrap:wrap">
       ${countryCol('DE (Germany)', de, deOk)}
@@ -712,8 +712,8 @@ function _renderAsIsSection(streamId, asIsData) {
 function _renderDeltaSection(deltaData) {
   if (!deltaData || !deltaData.items || deltaData.items.length === 0) {
     return `<div class="detail-section">
-      <h3>DE vs AT Differences</h3>
-      <p style="color:var(--text-muted);font-size:12px">No delta computed. Complete AS-IS documentation for both DE and AT first.</p>
+      <h3>DE vs. AT Unterschiede</h3>
+      <p style="color:var(--text-muted);font-size:12px">Kein Delta berechnet. Bitte zuerst AS-IS-Dokumentation für DE und AT vervollständigen.</p>
     </div>`;
   }
 
@@ -742,24 +742,24 @@ function _renderDeltaSection(deltaData) {
   `).join('');
 
   return `<div class="detail-section">
-    <h3>DE vs AT Differences</h3>
+    <h3>DE vs. AT Unterschiede</h3>
     <div style="display:flex;gap:16px;margin-bottom:12px;flex-wrap:wrap">
       <div style="padding:8px 14px;background:var(--bg-light);border-radius:6px;font-size:13px">
-        <strong>${summary.total_items || 0}</strong> <span style="color:var(--text-muted)">categories compared</span>
+        <strong>${summary.total_items || 0}</strong> <span style="color:var(--text-muted)">Kategorien verglichen</span>
       </div>
       ${summary.high_impact ? `<div style="padding:8px 14px;background:#fef2f2;border-radius:6px;font-size:13px;border:1px solid var(--danger)">
-        <strong style="color:var(--danger)">${summary.high_impact}</strong> <span>high impact</span>
+        <strong style="color:var(--danger)">${summary.high_impact}</strong> <span>hohe Auswirkung</span>
       </div>` : ''}
       ${summary.medium_impact ? `<div style="padding:8px 14px;background:#fffbeb;border-radius:6px;font-size:13px;border:1px solid var(--warning)">
-        <strong style="color:var(--warning)">${summary.medium_impact}</strong> <span>medium impact</span>
+        <strong style="color:var(--warning)">${summary.medium_impact}</strong> <span>mittlere Auswirkung</span>
       </div>` : ''}
       ${summary.low_impact ? `<div style="padding:8px 14px;background:#f0fdf4;border-radius:6px;font-size:13px">
-        <strong style="color:var(--success)">${summary.low_impact}</strong> <span>low impact</span>
+        <strong style="color:var(--success)">${summary.low_impact}</strong> <span>geringe Auswirkung</span>
       </div>` : ''}
     </div>
     <div class="table-wrap"><table>
       <thead><tr>
-        <th>Category</th><th>DE</th><th>AT</th><th>Difference</th><th>Impact</th>
+        <th>Kategorie</th><th>DE</th><th>AT</th><th>Abweichung</th><th>Auswirkung</th>
       </tr></thead>
       <tbody>${rows}</tbody>
     </table></div>
@@ -773,12 +773,12 @@ function _renderOptionAssessments(streamId, allAssessments) {
 
   if (optAssessments.length === 0) {
     return `<p style="color:var(--text-muted);font-size:13px">
-      No option assessments yet. Evaluate each harmonization strategy:
+      Noch keine Optionsbewertungen. Bewerten Sie die Harmonisierungsstrategien:
     </p>
     <div style="display:flex;gap:8px;flex-wrap:wrap">
-      <a href="#/assessments/${encodeURIComponent(streamId)}?option=de_standard" class="btn btn-sm">Assess DE Standard</a>
-      <a href="#/assessments/${encodeURIComponent(streamId)}?option=at_standard" class="btn btn-sm">Assess AT Standard</a>
-      <a href="#/assessments/${encodeURIComponent(streamId)}?option=central" class="btn btn-sm">Assess Central</a>
+      <a href="#/assessments/${encodeURIComponent(streamId)}?option=de_standard" class="btn btn-sm">DE-Standard bewerten</a>
+      <a href="#/assessments/${encodeURIComponent(streamId)}?option=at_standard" class="btn btn-sm">AT-Standard bewerten</a>
+      <a href="#/assessments/${encodeURIComponent(streamId)}?option=central" class="btn btn-sm">Zentral bewerten</a>
     </div>`;
   }
 
@@ -792,8 +792,8 @@ function _renderOptionAssessments(streamId, allAssessments) {
     if (!a) {
       return `<tr>
         <td>${esc(labels[opt])}</td>
-        <td>${badge('badge-muted', 'missing')}</td><td>---</td><td>---</td>
-        <td><a href="#/assessments/${encodeURIComponent(streamId)}?option=${opt}" class="btn btn-sm btn-primary">Create</a></td>
+        <td>${badge('badge-muted', 'fehlt')}</td><td>---</td><td>---</td>
+        <td><a href="#/assessments/${encodeURIComponent(streamId)}?option=${opt}" class="btn btn-sm btn-primary">Erstellen</a></td>
       </tr>`;
     }
     const dims = (a.answers || []).length;
@@ -801,17 +801,17 @@ function _renderOptionAssessments(streamId, allAssessments) {
       <td><strong>${esc(labels[opt])}</strong></td>
       <td>${badge(statusCls[a.status] || 'badge-muted', a.status || 'draft')}</td>
       <td>${dims}/6 dims</td>
-      <td>${(a.hard_constraints || []).length > 0 ? badge('badge-danger', a.hard_constraints.length + ' constraints') : badge('badge-success', 'none')}</td>
-      <td><a href="#/assessments/${encodeURIComponent(streamId)}?option=${opt}" class="btn btn-sm">Edit</a></td>
+      <td>${(a.hard_constraints || []).length > 0 ? badge('badge-danger', a.hard_constraints.length + ' Einschränkungen') : badge('badge-success', 'keine')}</td>
+      <td><a href="#/assessments/${encodeURIComponent(streamId)}?option=${opt}" class="btn btn-sm">Bearbeiten</a></td>
     </tr>`;
   }).join('');
 
   return `<div class="table-wrap"><table>
-    <thead><tr><th>Option</th><th>Status</th><th>Answers</th><th>Constraints</th><th></th></tr></thead>
+    <thead><tr><th>Option</th><th>Status</th><th>Antworten</th><th>Einschränkungen</th><th></th></tr></thead>
     <tbody>${rows}</tbody>
   </table></div>
   <div style="margin-top:8px">
-    <a href="#/decisions/${encodeURIComponent(streamId)}" class="btn btn-sm btn-primary">View Decision Comparison</a>
+    <a href="#/decisions/${encodeURIComponent(streamId)}" class="btn btn-sm btn-primary">Entscheidungsvergleich anzeigen</a>
   </div>`;
 }
 
@@ -836,19 +836,19 @@ function _renderAssessmentSummary(a) {
 
   const constraintBadges = constraints.length
     ? constraints.map(c => badge('badge-danger', c.replace(/_/g, ' '))).join(' ')
-    : badge('badge-success', 'none');
+    : badge('badge-success', 'keine');
 
   return `
     <table style="width:100%;border-collapse:collapse;font-size:13px">
       <thead><tr>
         <th style="padding:6px 8px;font-size:11px;color:var(--text-muted);text-align:left">Dimension</th>
-        <th style="padding:6px 8px;font-size:11px;color:var(--text-muted)">Score</th>
-        <th style="padding:6px 8px;font-size:11px;color:var(--text-muted)">Rationale</th>
+        <th style="padding:6px 8px;font-size:11px;color:var(--text-muted)">Punktzahl</th>
+        <th style="padding:6px 8px;font-size:11px;color:var(--text-muted)">Begründung</th>
       </tr></thead>
       <tbody>${dimRows}</tbody>
     </table>
     <div style="margin-top:10px">
-      <span style="font-size:12px;color:var(--text-muted)">Hard constraints:</span>
+      <span style="font-size:12px;color:var(--text-muted)">Harte Einschränkungen:</span>
       <span style="margin-left:6px">${constraintBadges}</span>
     </div>`;
 }

@@ -71,7 +71,7 @@ async function renderList() {
                 onclick="location.hash='#/decisions/${encodeURIComponent(s.id)}'">
       <td><strong>${esc(s.name)}</strong>
         <br><code style="font-size:11px;color:var(--text-muted)">${esc(s.id)}</code></td>
-      <td>${dr ? decisionBadge(dr.decision) : badge('badge-muted', 'not computed')}</td>
+      <td>${dr ? decisionBadge(dr.decision) : badge('badge-muted', 'nicht berechnet')}</td>
       <td>${rv?.reviewed_decision ? decisionBadge(rv.reviewed_decision) : '<span style="color:var(--text-muted)">--</span>'}</td>
       <td>${overrideFlag}</td>
       <td>${badge(reviewStatusCls[reviewStatus], reviewStatus.replace(/_/g, ' '))}</td>
@@ -85,18 +85,18 @@ async function renderList() {
     </tr>`;
   }).join('');
 
-  const statusOpts = '<option value="">All</option>' +
+  const statusOpts = '<option value="">Alle</option>' +
     ['pending', 'draft', 'completed', 'reviewed'].map(s =>
       `<option value="${s}">${s}</option>`
     ).join('');
-  const decisionOpts = '<option value="">All</option>' +
+  const decisionOpts = '<option value="">Alle</option>' +
     DECISIONS.map(d => `<option value="${d}">${d.replace(/_/g, ' ')}</option>`).join('');
 
   setContent(`
     <div class="page-header">
-      <h1>Decisions</h1>
+      <h1>Entscheidungen</h1>
       <div class="actions">
-        <span style="color:var(--text-muted);font-size:12px">${assessed.length} assessed streams</span>
+        <span style="color:var(--text-muted);font-size:12px">${assessed.length} bewertete Streams</span>
       </div>
     </div>
     <div class="filters">
@@ -104,11 +104,11 @@ async function renderList() {
       <select id="filter-decision" onchange="window._filterDecisions()">${decisionOpts}</select>
     </div>
     ${assessed.length === 0
-      ? '<div class="card card-body" style="color:var(--text-muted)">No streams have been assessed yet. <a href="#/assessments">Create assessments</a> first.</div>'
+      ? '<div class="card card-body" style="color:var(--text-muted)">Noch keine Streams bewertet. Zuerst <a href="#/assessments">Bewertungen erstellen</a>.</div>'
       : `<div class="card"><div class="table-wrap">
           <table><thead><tr>
-            <th>Stream</th><th>Computed</th><th>Reviewed</th><th>Override</th>
-            <th>Review Status</th><th>Priority</th><th>Confidence</th><th>Operating Model</th><th></th>
+            <th>Stream</th><th>Berechnet</th><th>Geprüft</th><th>Override</th>
+            <th>Prüfstatus</th><th>Priorität</th><th>Konfidenz</th><th>Betriebsmodell</th><th></th>
           </tr></thead><tbody id="decisions-body">${rows}</tbody></table>
         </div></div>`}
   `);
@@ -136,7 +136,7 @@ async function renderDetail(streamId) {
     ]);
   } catch (e) {
     setContent(`<div class="card card-body" style="color:var(--danger)">
-      Failed to load decision data: ${esc(e.message)}
+      Entscheidungsdaten konnten nicht geladen werden: ${esc(e.message)}
     </div>`);
     return;
   }
@@ -166,18 +166,18 @@ async function renderDetail(streamId) {
   setContent(`
     <div class="detail-header">
       <div>
-        <h1>Decision: ${esc(stream.name)}</h1>
+        <h1>Entscheidung: ${esc(stream.name)}</h1>
         <div class="detail-meta">
           ${badge('badge-info', stream.stream_type || '---')}
-          ${badge(reviewStatusCls[reviewStatus], 'review: ' + reviewStatus.replace(/_/g, ' '))}
-          ${rv?.override_applied ? badge('badge-danger', 'override applied') : ''}
+          ${badge(reviewStatusCls[reviewStatus], 'Prüfung: ' + reviewStatus.replace(/_/g, ' '))}
+          ${rv?.override_applied ? badge('badge-danger', 'Override angewendet') : ''}
         </div>
       </div>
       <div class="actions">
-        <a href="#/decisions" class="btn">&larr; Decisions</a>
-        <a href="#/streams/${encodeURIComponent(streamId)}" class="btn">View Stream</a>
-        <a href="#/assessments/${encodeURIComponent(streamId)}" class="btn">View Assessment</a>
-        <button class="btn btn-primary" id="btn-edit-review">Edit Review</button>
+        <a href="#/decisions" class="btn">&larr; Entscheidungen</a>
+        <a href="#/streams/${encodeURIComponent(streamId)}" class="btn">Stream anzeigen</a>
+        <a href="#/assessments/${encodeURIComponent(streamId)}" class="btn">Bewertung anzeigen</a>
+        <button class="btn btn-primary" id="btn-edit-review">Prüfung bearbeiten</button>
       </div>
     </div>
 
@@ -209,8 +209,8 @@ async function renderDetail(streamId) {
 function _renderOptionComparison(cmp) {
   if (!cmp) {
     return `<div class="detail-section">
-      <h3>DE / AT Option Comparison</h3>
-      <p style="color:var(--text-muted)">No option assessments available. Create assessments for de_standard, at_standard, and central on the stream detail page.</p>
+      <h3>DE / AT Optionsvergleich</h3>
+      <p style="color:var(--text-muted)">Keine Optionsbewertungen verfügbar. Bitte Bewertungen für de_standard, at_standard und central auf der Stream-Detailseite erstellen.</p>
     </div>`;
   }
 
@@ -224,7 +224,7 @@ function _renderOptionComparison(cmp) {
 
   const headerCells = options.map(opt =>
     `<th style="text-align:center">${esc(labels[opt] || opt)}
-      ${opt === cmp.recommended_option ? '<br>' + badge('badge-success', 'recommended') : ''}
+      ${opt === cmp.recommended_option ? '<br>' + badge('badge-success', 'empfohlen') : ''}
     </th>`
   ).join('');
 
@@ -242,8 +242,8 @@ function _renderOptionComparison(cmp) {
   }).join('');
   const statusCells = options.map(opt => {
     const d = details[opt];
-    if (d.blocked) return `<td style="text-align:center">${badge('badge-danger', 'blocked')}</td>`;
-    return `<td style="text-align:center">${badge('badge-success', 'viable')}</td>`;
+    if (d.blocked) return `<td style="text-align:center">${badge('badge-danger', 'blockiert')}</td>`;
+    return `<td style="text-align:center">${badge('badge-success', 'geeignet')}</td>`;
   }).join('');
   const constraintCells = options.map(opt => {
     const d = details[opt];
@@ -269,36 +269,36 @@ function _renderOptionComparison(cmp) {
   `).join('');
 
   return `<div class="detail-section">
-    <h3>DE / AT Option Comparison</h3>
+    <h3>DE / AT Optionsvergleich</h3>
     ${cmp.recommended_option
       ? `<div style="margin-bottom:12px;padding:10px;background:var(--bg-light);border-radius:6px;border:1px solid var(--border)">
-          <strong>Recommendation:</strong> ${badge('badge-success', labels[cmp.recommended_option] || cmp.recommended_option)}
+          <strong>Empfehlung:</strong> ${badge('badge-success', labels[cmp.recommended_option] || cmp.recommended_option)}
           <p style="margin:6px 0 0;font-size:13px">${esc(cmp.rationale)}</p>
         </div>`
       : `<div style="margin-bottom:12px;padding:10px;background:#fef2f2;border-radius:6px;border:1px solid var(--danger)">
-          <strong>No option can be recommended.</strong>
+          <strong>Keine Option kann empfohlen werden.</strong>
           <p style="margin:6px 0 0;font-size:13px">${esc(cmp.rationale)}</p>
         </div>`}
 
     <div class="table-wrap"><table>
       <thead><tr><th></th>${headerCells}</tr></thead>
       <tbody>
-        <tr><td><strong>Score</strong></td>${scoreCells}</tr>
-        <tr><td><strong>Adjusted</strong></td>${adjScoreCells}</tr>
-        <tr><td><strong>Classification</strong></td>${classCells}</tr>
+        <tr><td><strong>Punktzahl</strong></td>${scoreCells}</tr>
+        <tr><td><strong>Bereinigt</strong></td>${adjScoreCells}</tr>
+        <tr><td><strong>Klassifikation</strong></td>${classCells}</tr>
         <tr><td><strong>Status</strong></td>${statusCells}</tr>
-        <tr><td><strong>Constraints</strong></td>${constraintCells}</tr>
+        <tr><td><strong>Einschränkungen</strong></td>${constraintCells}</tr>
       </tbody>
     </table></div>
 
-    ${blockersList ? `<div style="margin-top:10px"><strong style="font-size:12px">Blockers</strong><ul style="margin:4px 0 0 16px">${blockersList}</ul></div>` : ''}
-    ${prereqList ? `<div style="margin-top:10px"><strong style="font-size:12px">Prerequisites</strong><ul style="margin:4px 0 0 16px">${prereqList}</ul></div>` : ''}
+    ${blockersList ? `<div style="margin-top:10px"><strong style="font-size:12px">Blockierende Faktoren</strong><ul style="margin:4px 0 0 16px">${blockersList}</ul></div>` : ''}
+    ${prereqList ? `<div style="margin-top:10px"><strong style="font-size:12px">Voraussetzungen</strong><ul style="margin:4px 0 0 16px">${prereqList}</ul></div>` : ''}
 
     ${discardedRows ? `
       <div style="margin-top:12px">
-        <strong style="font-size:12px">Discarded Options</strong>
+        <strong style="font-size:12px">Verworfene Optionen</strong>
         <div class="table-wrap"><table>
-          <thead><tr><th>Option</th><th>Score</th><th>Classification</th><th>Reason</th></tr></thead>
+          <thead><tr><th>Option</th><th>Punktzahl</th><th>Klassifikation</th><th>Begründung</th></tr></thead>
           <tbody>${discardedRows}</tbody>
         </table></div>
       </div>` : ''}
@@ -310,40 +310,40 @@ function _renderOptionComparison(cmp) {
 function _renderComputedDecision(d) {
   if (!d) {
     return `<div class="detail-section">
-      <h3>Computed Decision</h3>
-      <p style="color:var(--text-muted)">Decision could not be computed. Ensure the stream has a completed assessment.</p>
+      <h3>Berechnete Entscheidung</h3>
+      <p style="color:var(--text-muted)">Entscheidung konnte nicht berechnet werden. Stellen Sie sicher, dass der Stream eine abgeschlossene Bewertung hat.</p>
     </div>`;
   }
 
   const blockingList = (d.blocking_factors || []).length
     ? d.blocking_factors.map(b => `<li>${esc(b)}</li>`).join('')
-    : '<li style="color:var(--text-muted)">None</li>';
+    : '<li style="color:var(--text-muted)">Keine</li>';
 
   const prereqList = (d.prerequisites || []).length
     ? d.prerequisites.map(p => `<li>${esc(p)}</li>`).join('')
-    : '<li style="color:var(--text-muted)">None</li>';
+    : '<li style="color:var(--text-muted)">Keine</li>';
 
   return `<div class="detail-section">
-    <h3>Computed Decision</h3>
+    <h3>Berechnete Entscheidung</h3>
     <dl class="key-value">
-      <dt>Recommendation</dt><dd>${decisionBadge(d.decision)}</dd>
-      <dt>Rationale</dt><dd>${esc(d.decision_rationale || '---')}</dd>
-      <dt>Operating Model</dt><dd>${badge('badge-info', (d.target_operating_model || '---').replace(/_/g, ' '))}</dd>
-      <dt>Score</dt><dd>${scoreBarHtml(d.score)}</dd>
-      <dt>Classification</dt><dd>${classificationBadge(d.classification)}</dd>
-      ${d.confidence ? `<dt>Confidence</dt><dd>${confidenceBadge(d.confidence)}</dd>` : ''}
-      ${d.priority ? `<dt>Priority</dt><dd>${badge('badge-info', d.priority)}</dd>` : ''}
-      ${d.completeness_score != null ? `<dt>Completeness</dt><dd>${scoreBarHtml(d.completeness_score, 1)}</dd>` : ''}
-      <dt>Expected Benefit</dt><dd>${esc(d.expected_benefit || '---')}</dd>
-      <dt>Implementation Risk</dt><dd>${esc(d.implementation_risk || '---')}</dd>
-      <dt>Interface Complexity</dt><dd>${scoreBarHtml(d.interface_complexity, 1)}</dd>
+      <dt>Empfehlung</dt><dd>${decisionBadge(d.decision)}</dd>
+      <dt>Begründung</dt><dd>${esc(d.decision_rationale || '---')}</dd>
+      <dt>Betriebsmodell</dt><dd>${badge('badge-info', (d.target_operating_model || '---').replace(/_/g, ' '))}</dd>
+      <dt>Punktzahl</dt><dd>${scoreBarHtml(d.score)}</dd>
+      <dt>Klassifikation</dt><dd>${classificationBadge(d.classification)}</dd>
+      ${d.confidence ? `<dt>Konfidenz</dt><dd>${confidenceBadge(d.confidence)}</dd>` : ''}
+      ${d.priority ? `<dt>Priorität</dt><dd>${badge('badge-info', d.priority)}</dd>` : ''}
+      ${d.completeness_score != null ? `<dt>Vollständigkeit</dt><dd>${scoreBarHtml(d.completeness_score, 1)}</dd>` : ''}
+      <dt>Erwarteter Nutzen</dt><dd>${esc(d.expected_benefit || '---')}</dd>
+      <dt>Umsetzungsrisiko</dt><dd>${esc(d.implementation_risk || '---')}</dd>
+      <dt>Schnittstellenkomplexität</dt><dd>${scoreBarHtml(d.interface_complexity, 1)}</dd>
     </dl>
     <div style="margin-top:10px">
-      <strong style="font-size:12px">Blocking Factors</strong>
+      <strong style="font-size:12px">Blockierende Faktoren</strong>
       <ul style="margin:4px 0 0 16px;font-size:13px">${blockingList}</ul>
     </div>
     <div style="margin-top:10px">
-      <strong style="font-size:12px">Prerequisites</strong>
+      <strong style="font-size:12px">Voraussetzungen</strong>
       <ul style="margin:4px 0 0 16px;font-size:13px">${prereqList}</ul>
     </div>
   </div>`;
@@ -359,16 +359,16 @@ function _renderHarmonizationDegree(d) {
     `<span style="margin-right:10px">${val ? '&#10003;' : '&#10007;'} ${label}</span>`;
 
   return `<div class="detail-section">
-    <h3>Harmonization / Standardization / Centralization</h3>
+    <h3>Harmonisierung / Standardisierung / Zentralisierung</h3>
     <div style="margin-bottom:8px">
-      ${flag(hd.harmonizable, 'Harmonizable')}
-      ${flag(hd.standardizable, 'Standardizable')}
-      ${flag(hd.centralizable, 'Centralizable')}
+      ${flag(hd.harmonizable, 'Harmonisierbar')}
+      ${flag(hd.standardizable, 'Standardisierbar')}
+      ${flag(hd.centralizable, 'Zentralisierbar')}
     </div>
     <dl class="key-value">
-      <dt>Harmonization Degree</dt><dd>${scoreBarHtml(hd.harmonization_degree, 1)}</dd>
-      <dt>Standardization Degree</dt><dd>${scoreBarHtml(hd.standardization_degree, 1)}</dd>
-      <dt>Centralization Degree</dt><dd>${scoreBarHtml(hd.centralization_degree, 1)}</dd>
+      <dt>Harmonisierungsgrad</dt><dd>${scoreBarHtml(hd.harmonization_degree, 1)}</dd>
+      <dt>Standardisierungsgrad</dt><dd>${scoreBarHtml(hd.standardization_degree, 1)}</dd>
+      <dt>Zentralisierungsgrad</dt><dd>${scoreBarHtml(hd.centralization_degree, 1)}</dd>
     </dl>
   </div>`;
 }
@@ -382,17 +382,17 @@ function _renderAlternatives(d) {
     <div class="card" style="margin-bottom:8px;padding:10px">
       <div style="display:flex;justify-content:space-between;align-items:center">
         <strong>${esc(ao.label)}</strong>
-        ${ao.is_recommended ? badge('badge-success', 'recommended') : ''}
+        ${ao.is_recommended ? badge('badge-success', 'empfohlen') : ''}
       </div>
       <p style="margin:4px 0;font-size:13px;color:var(--text-muted)">${esc(ao.description)}</p>
-      ${ao.pros?.length ? `<div style="font-size:12px"><strong style="color:var(--success)">Pros:</strong> ${ao.pros.map(p => esc(p)).join(', ')}</div>` : ''}
-      ${ao.cons?.length ? `<div style="font-size:12px"><strong style="color:var(--danger)">Cons:</strong> ${ao.cons.map(c => esc(c)).join(', ')}</div>` : ''}
-      ${ao.risks?.length ? `<div style="font-size:12px"><strong>Risks:</strong> ${ao.risks.map(r => esc(r)).join(', ')}</div>` : ''}
+      ${ao.pros?.length ? `<div style="font-size:12px"><strong style="color:var(--success)">Vorteile:</strong> ${ao.pros.map(p => esc(p)).join(', ')}</div>` : ''}
+      ${ao.cons?.length ? `<div style="font-size:12px"><strong style="color:var(--danger)">Nachteile:</strong> ${ao.cons.map(c => esc(c)).join(', ')}</div>` : ''}
+      ${ao.risks?.length ? `<div style="font-size:12px"><strong>Risiken:</strong> ${ao.risks.map(r => esc(r)).join(', ')}</div>` : ''}
     </div>
   `).join('');
 
   return `<div class="detail-section">
-    <h3>Alternative Options</h3>
+    <h3>Alternative Optionen</h3>
     ${items}
   </div>`;
 }
@@ -409,13 +409,13 @@ function _renderNoActionImpact(d) {
   };
 
   return `<div class="detail-section">
-    <h3>Impact of No Action</h3>
+    <h3>Auswirkung bei Nichthandeln</h3>
     <dl class="key-value">
-      <dt>Regulatory Risk</dt><dd>${levelBadge(nai.regulatory_risk)}</dd>
-      <dt>Operational Risk</dt><dd>${levelBadge(nai.operational_risk)}</dd>
-      <dt>Inefficiency Cost</dt><dd>${levelBadge(nai.inefficiency_cost)}</dd>
-      <dt>Audit Exposure</dt><dd>${levelBadge(nai.audit_exposure)}</dd>
-      <dt>Rationale</dt><dd style="font-size:13px">${esc(nai.rationale || '---')}</dd>
+      <dt>Regulatorisches Risiko</dt><dd>${levelBadge(nai.regulatory_risk)}</dd>
+      <dt>Operatives Risiko</dt><dd>${levelBadge(nai.operational_risk)}</dd>
+      <dt>Ineffizienzkosten</dt><dd>${levelBadge(nai.inefficiency_cost)}</dd>
+      <dt>Audit-Risiko</dt><dd>${levelBadge(nai.audit_exposure)}</dd>
+      <dt>Begründung</dt><dd style="font-size:13px">${esc(nai.rationale || '---')}</dd>
     </dl>
   </div>`;
 }
@@ -425,26 +425,26 @@ function _renderNoActionImpact(d) {
 function _renderReviewState(rv) {
   if (!rv) {
     return `<div class="detail-section">
-      <h3>Review</h3>
-      <p style="color:var(--text-muted)">No review recorded. Click "Edit Review" to begin.</p>
+      <h3>Prüfung</h3>
+      <p style="color:var(--text-muted)">Keine Prüfung vorhanden. Klicken Sie auf „Prüfung bearbeiten".</p>
     </div>`;
   }
 
   const statusCls = { draft: 'badge-warning', completed: 'badge-info', reviewed: 'badge-success' };
 
   return `<div class="detail-section">
-    <h3>Review</h3>
+    <h3>Prüfung</h3>
     <dl class="key-value">
       <dt>Status</dt><dd>${badge(statusCls[rv.review_status] || 'badge-muted', rv.review_status || 'draft')}</dd>
-      ${rv.reviewer_name ? `<dt>Reviewer</dt><dd>${esc(rv.reviewer_name)}</dd>` : ''}
-      ${rv.review_notes ? `<dt>Notes</dt><dd style="font-size:13px">${esc(rv.review_notes)}</dd>` : ''}
+      ${rv.reviewer_name ? `<dt>Prüfer</dt><dd>${esc(rv.reviewer_name)}</dd>` : ''}
+      ${rv.review_notes ? `<dt>Notizen</dt><dd style="font-size:13px">${esc(rv.review_notes)}</dd>` : ''}
       ${rv.override_applied ? `
-        <dt>Override</dt><dd>${badge('badge-danger', 'yes')}</dd>
-        ${rv.reviewed_decision ? `<dt>Reviewed Decision</dt><dd>${decisionBadge(rv.reviewed_decision)}</dd>` : ''}
-        ${rv.reviewed_operating_model ? `<dt>Reviewed TOM</dt><dd>${badge('badge-info', rv.reviewed_operating_model.replace(/_/g, ' '))}</dd>` : ''}
-        <dt>Override Rationale</dt><dd style="font-size:13px">${esc(rv.override_rationale || '')}</dd>
+        <dt>Override</dt><dd>${badge('badge-danger', 'ja')}</dd>
+        ${rv.reviewed_decision ? `<dt>Geprüfte Entscheidung</dt><dd>${decisionBadge(rv.reviewed_decision)}</dd>` : ''}
+        ${rv.reviewed_operating_model ? `<dt>Geprüftes Betriebsmodell</dt><dd>${badge('badge-info', rv.reviewed_operating_model.replace(/_/g, ' '))}</dd>` : ''}
+        <dt>Override-Begründung</dt><dd style="font-size:13px">${esc(rv.override_rationale || '')}</dd>
       ` : ''}
-      ${rv.reviewed_at ? `<dt>Reviewed At</dt><dd>${esc(rv.reviewed_at)}</dd>` : ''}
+      ${rv.reviewed_at ? `<dt>Geprüft am</dt><dd>${esc(rv.reviewed_at)}</dd>` : ''}
     </dl>
   </div>`;
 }
@@ -458,10 +458,10 @@ function _renderGovernance(d) {
   return `<div class="detail-section">
     <h3>Governance</h3>
     <dl class="key-value">
-      <dt>Decision Owner</dt><dd>${esc(g.decision_owner)}</dd>
-      <dt>Decision Type</dt><dd>${badge('badge-info', (g.decision_type || '').replace(/_/g, ' '))}</dd>
-      <dt>Stakeholders</dt><dd>${(g.involved_stakeholders || []).map(s => esc(s)).join(', ') || '---'}</dd>
-      <dt>Required Approvals</dt><dd>${(g.required_approvals || []).map(a => esc(a)).join(', ') || '---'}</dd>
+      <dt>Entscheidungsverantwortlicher</dt><dd>${esc(g.decision_owner)}</dd>
+      <dt>Entscheidungstyp</dt><dd>${badge('badge-info', (g.decision_type || '').replace(/_/g, ' '))}</dd>
+      <dt>Beteiligte</dt><dd>${(g.involved_stakeholders || []).map(s => esc(s)).join(', ') || '---'}</dd>
+      <dt>Erforderliche Freigaben</dt><dd>${(g.required_approvals || []).map(a => esc(a)).join(', ') || '---'}</dd>
     </dl>
   </div>`;
 }
@@ -473,12 +473,12 @@ function _renderEffort(d) {
   const e = d.effort_estimate;
 
   return `<div class="detail-section">
-    <h3>Effort Estimate</h3>
+    <h3>Aufwandsschätzung</h3>
     <dl class="key-value">
-      <dt>Person-Months</dt><dd>${esc(e.person_months_bucket)}</dd>
-      <dt>Duration</dt><dd>${badge('badge-muted', (e.implementation_duration || '').replace(/_/g, ' '))}</dd>
-      <dt>Cost Category</dt><dd>${badge('badge-muted', (e.cost_category || '').replace(/_/g, ' '))}</dd>
-      <dt>Rationale</dt><dd style="font-size:13px">${esc(e.rationale || '---')}</dd>
+      <dt>Personenmonate</dt><dd>${esc(e.person_months_bucket)}</dd>
+      <dt>Dauer</dt><dd>${badge('badge-muted', (e.implementation_duration || '').replace(/_/g, ' '))}</dd>
+      <dt>Kostenkategorie</dt><dd>${badge('badge-muted', (e.cost_category || '').replace(/_/g, ' '))}</dd>
+      <dt>Begründung</dt><dd style="font-size:13px">${esc(e.rationale || '---')}</dd>
     </dl>
   </div>`;
 }
@@ -490,18 +490,18 @@ function _renderDecisionTrace(d) {
   const dt = d.decision_trace;
 
   const listOrNone = (arr) =>
-    arr?.length ? arr.map(x => `<li>${esc(x)}</li>`).join('') : '<li style="color:var(--text-muted)">None</li>';
+    arr?.length ? arr.map(x => `<li>${esc(x)}</li>`).join('') : '<li style="color:var(--text-muted)">Keine</li>';
 
   return `<div class="detail-section">
-    <h3>Decision Trace (Audit)</h3>
+    <h3>Entscheidungsprotokoll (Audit)</h3>
     <div style="font-size:13px">
-      <strong>Input Factors</strong>
+      <strong>Eingabefaktoren</strong>
       <ul style="margin:2px 0 8px 16px">${listOrNone(dt.input_factors)}</ul>
-      <strong>Rules Triggered</strong>
+      <strong>Ausgelöste Regeln</strong>
       <ul style="margin:2px 0 8px 16px">${listOrNone(dt.rules_triggered)}</ul>
-      <strong>Constraints Applied</strong>
+      <strong>Angewendete Einschränkungen</strong>
       <ul style="margin:2px 0 8px 16px">${listOrNone(dt.constraints_applied)}</ul>
-      <strong>Confidence Basis</strong>
+      <strong>Konfidenzbasis</strong>
       <ul style="margin:2px 0 8px 16px">${listOrNone(dt.confidence_basis)}</ul>
     </div>
   </div>`;
@@ -514,36 +514,36 @@ function openReviewForm(streamId, existingReview, decision) {
   const isOverride = rv.override_applied || false;
 
   const statusOpts = [
-    { value: 'draft', label: 'Draft' },
-    { value: 'completed', label: 'Completed' },
-    { value: 'reviewed', label: 'Reviewed' },
+    { value: 'draft', label: 'Entwurf' },
+    { value: 'completed', label: 'Abgeschlossen' },
+    { value: 'reviewed', label: 'Geprüft' },
   ];
   const decisionOpts = [
-    { value: '', label: '--- use computed ---' },
+    { value: '', label: '--- berechnet verwenden ---' },
     ...DECISIONS.map(d => ({ value: d, label: d.replace(/_/g, ' ') })),
   ];
   const tomOpts = [
-    { value: '', label: '--- use computed ---' },
+    { value: '', label: '--- berechnet verwenden ---' },
     ...OPERATING_MODELS.map(m => ({ value: m, label: m.replace(/_/g, ' ') })),
   ];
 
-  openModal('Edit Review', `
-    ${selectField('f-rv-status', 'Review Status', statusOpts, rv.review_status || 'draft')}
-    ${textField('f-rv-reviewer', 'Reviewer Name', rv.reviewer_name || '')}
-    ${textArea('f-rv-notes', 'Review Notes', rv.review_notes || '')}
+  openModal('Prüfung bearbeiten', `
+    ${selectField('f-rv-status', 'Prüfstatus', statusOpts, rv.review_status || 'draft')}
+    ${textField('f-rv-reviewer', 'Prüfer', rv.reviewer_name || '')}
+    ${textArea('f-rv-notes', 'Prüfnotizen', rv.review_notes || '')}
     <hr style="border:none;border-top:1px solid var(--border);margin:14px 0">
-    <h4 style="margin:0 0 8px">Manual Override</h4>
+    <h4 style="margin:0 0 8px">Manueller Override</h4>
     <div class="form-group">
       <label>
         <input type="checkbox" id="f-rv-override" ${isOverride ? 'checked' : ''}
                onchange="document.getElementById('override-fields').style.display = this.checked ? '' : 'none'">
-        Apply manual override
+        Manuellen Override anwenden
       </label>
     </div>
     <div id="override-fields" style="display:${isOverride ? '' : 'none'}">
-      ${selectField('f-rv-decision', 'Reviewed Decision', decisionOpts, rv.reviewed_decision || '')}
-      ${selectField('f-rv-tom', 'Reviewed Operating Model', tomOpts, rv.reviewed_operating_model || '')}
-      ${textArea('f-rv-rationale', 'Override Rationale (mandatory)', rv.override_rationale || '', { rows: 3 })}
+      ${selectField('f-rv-decision', 'Geprüfte Entscheidung', decisionOpts, rv.reviewed_decision || '')}
+      ${selectField('f-rv-tom', 'Geprüftes Betriebsmodell', tomOpts, rv.reviewed_operating_model || '')}
+      ${textArea('f-rv-rationale', 'Override-Begründung (Pflichtfeld)', rv.override_rationale || '', { rows: 3 })}
     </div>
   `, async () => {
     const overrideApplied = document.getElementById('f-rv-override').checked;
@@ -559,7 +559,7 @@ function openReviewForm(streamId, existingReview, decision) {
       const rd = val('f-rv-decision');
       const rt = val('f-rv-tom');
       const rationale = val('f-rv-rationale');
-      if (!rationale) throw new Error('Override rationale is mandatory when override is applied.');
+      if (!rationale) throw new Error('Override-Begründung ist bei aktiviertem Override erforderlich.');
       if (rd) payload.reviewed_decision = rd;
       if (rt) payload.reviewed_operating_model = rt;
       payload.override_rationale = rationale;
@@ -569,7 +569,7 @@ function openReviewForm(streamId, existingReview, decision) {
     payload.reviewed_at = new Date().toISOString();
 
     await API.put('reviews', payload);
-    toast('Review saved');
+    toast('Prüfung gespeichert');
     closeModal();
     renderDetail(streamId);
   });

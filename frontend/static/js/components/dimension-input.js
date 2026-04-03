@@ -30,7 +30,7 @@ export function dimensionInputs(prefix, items, existingAnswers = {}, onChange = 
         </div>
       </div>
       <input class="form-control dim-rationale" id="${inputId}-rat"
-             placeholder="Rationale (optional)" value="${esc(rationale)}"
+             placeholder="Begründung (optional)" value="${esc(rationale)}"
              style="font-size:12px;padding:4px 8px;margin-top:4px">
     </div>`;
   }).join('');

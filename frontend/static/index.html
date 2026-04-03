@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Harmonizer — InfoSec Process Harmonization</title>
+<title>Harmonizer — InfoSec-Prozessharmonisierung</title>
 <link rel="stylesheet" href="/static/css/app.css">
 <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
 </head>
@@ -17,35 +17,35 @@
     <li><a href="#/" class="nav-link active" data-page="dashboard">
       <span class="nav-icon">&#9632;</span> Dashboard</a></li>
     <li><a href="#/areas" class="nav-link" data-page="areas">
-      <span class="nav-icon">&#9670;</span> Areas</a></li>
+      <span class="nav-icon">&#9670;</span> Bereiche</a></li>
     <li><a href="#/streams" class="nav-link" data-page="streams">
       <span class="nav-icon">&#9654;</span> Streams</a></li>
     <li><a href="#/subprocesses" class="nav-link" data-page="subprocesses">
-      <span class="nav-icon">&#9656;</span> Subprocesses</a></li>
+      <span class="nav-icon">&#9656;</span> Teilprozesse</a></li>
     <li><a href="#/interfaces" class="nav-link" data-page="interfaces">
-      <span class="nav-icon">&#8644;</span> Interfaces</a></li>
+      <span class="nav-icon">&#8644;</span> Schnittstellen</a></li>
     <li><a href="#/process-analysis" class="nav-link" data-page="process-analysis">
-      <span class="nav-icon">&#9776;</span> Process Analysis</a></li>
+      <span class="nav-icon">&#9776;</span> Prozessanalyse</a></li>
     <li><a href="#/assessments" class="nav-link" data-page="assessments">
-      <span class="nav-icon">&#9733;</span> Assessments</a></li>
+      <span class="nav-icon">&#9733;</span> Bewertungen</a></li>
     <li><a href="#/decisions" class="nav-link" data-page="decisions">
-      <span class="nav-icon">&#10003;</span> Decisions</a></li>
+      <span class="nav-icon">&#10003;</span> Entscheidungen</a></li>
     <li><a href="#/director" class="nav-link" data-page="director">
-      <span class="nav-icon">&#9881;</span> Director View</a></li>
+      <span class="nav-icon">&#9881;</span> Steuerung</a></li>
     <li><a href="#/outcomes" class="nav-link" data-page="outcomes">
-      <span class="nav-icon">&#8635;</span> Outcomes</a></li>
+      <span class="nav-icon">&#8635;</span> Ergebnisse</a></li>
     <li><a href="#/reports" class="nav-link" data-page="reports">
-      <span class="nav-icon">&#128196;</span> Reports</a></li>
+      <span class="nav-icon">&#128196;</span> Berichte</a></li>
   </ul>
   <div class="sidebar-footer">
-    <label for="dataset-select">Dataset:</label>
+    <label for="dataset-select">Datensatz:</label>
     <select id="dataset-select"></select>
     <div id="build-info" style="margin-top:8px;font-size:10px;color:var(--text-muted);line-height:1.4"></div>
   </div>
 </nav>
 
 <main id="content">
-  <div id="page-loading" class="loading">Loading...</div>
+  <div id="page-loading" class="loading">Lädt...</div>
   <div id="page-content"></div>
 </main>
 
@@ -53,13 +53,13 @@
 <div id="modal-overlay" class="modal-overlay hidden">
   <div id="modal" class="modal">
     <div class="modal-header">
-      <h3 id="modal-title">Edit</h3>
+      <h3 id="modal-title">Bearbeiten</h3>
       <button id="modal-close" class="btn btn-sm">&times;</button>
     </div>
     <div id="modal-body" class="modal-body"></div>
     <div class="modal-footer">
-      <button id="modal-cancel" class="btn">Cancel</button>
-      <button id="modal-save" class="btn btn-primary">Save</button>
+      <button id="modal-cancel" class="btn">Abbrechen</button>
+      <button id="modal-save" class="btn btn-primary">Speichern</button>
     </div>
   </div>
 </div>

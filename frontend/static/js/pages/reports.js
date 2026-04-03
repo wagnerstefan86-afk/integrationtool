@@ -17,10 +17,10 @@ async function renderList() {
 
   if (reports.length === 0) {
     setContent(`
-      <div class="page-header"><h1>Reports</h1></div>
+      <div class="page-header"><h1>Berichte</h1></div>
       <div class="card card-body">
         <p style="color:var(--text-muted)">
-          No reports found. Run an analysis via the API to generate a report.
+          Keine Berichte gefunden. Führen Sie eine Analyse über die API durch, um einen Bericht zu erstellen.
         </p>
       </div>
     `);
@@ -38,9 +38,9 @@ async function renderList() {
 
   setContent(`
     <div class="page-header">
-      <h1>Reports</h1>
+      <h1>Berichte</h1>
       <div class="actions">
-        <span style="color:var(--text-muted);font-size:13px">${reports.length} report${reports.length !== 1 ? 's' : ''}</span>
+        <span style="color:var(--text-muted);font-size:13px">${reports.length} Bericht${reports.length !== 1 ? 'e' : ''}</span>
       </div>
     </div>
     <div class="card">
@@ -49,9 +49,9 @@ async function renderList() {
           <thead>
             <tr>
               <th>Name</th>
-              <th>Category</th>
-              <th>Created</th>
-              <th>Size</th>
+              <th>Kategorie</th>
+              <th>Erstellt</th>
+              <th>Größe</th>
             </tr>
           </thead>
           <tbody>${rows}</tbody>
@@ -71,7 +71,7 @@ async function renderReport(name) {
         <h1 style="font-size:16px;word-break:break-all">${esc(name)}</h1>
       </div>
       <div class="actions" style="flex-shrink:0">
-        <a href="#/reports" class="btn">← Reports</a>
+        <a href="#/reports" class="btn">← Berichte</a>
       </div>
     </div>
     <div class="card card-body" style="font-size:14px;line-height:1.7;max-width:none">

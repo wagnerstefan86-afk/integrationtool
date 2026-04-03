@@ -36,7 +36,7 @@ export async function route() {
 
   const handler = _handlers[page] || _handlers['dashboard'];
   if (!handler) {
-    setContent(`<div class="card card-body" style="color:var(--danger)">Unknown page: ${esc(page)}</div>`);
+    setContent(`<div class="card card-body" style="color:var(--danger)">Unbekannte Seite: ${esc(page)}</div>`);
     return;
   }
 
@@ -44,7 +44,7 @@ export async function route() {
     await handler(id);
   } catch (err) {
     setContent(`<div class="card card-body" style="color:var(--danger)">
-      <strong>Error loading page</strong><br>${esc(err.message)}
+      <strong>Fehler beim Laden der Seite</strong><br>${esc(err.message)}
     </div>`);
   }
 }

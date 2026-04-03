@@ -1,5 +1,5 @@
 /**
- * Director Dashboard — management cockpit for DE/AT harmonization decisions.
+ * Leitstand-Dashboard — Steuerungszentrale für DE/AT-Harmonisierungsentscheidungen.
  */
 
 import { API } from '../api.js';
@@ -13,7 +13,7 @@ export async function render() {
     data = await API.get('director/overview');
   } catch (e) {
     setContent(`<div class="card card-body" style="color:var(--danger)">
-      Failed to load director overview: ${esc(e.message)}</div>`);
+      Leitstand-Übersicht konnte nicht geladen werden: ${esc(e.message)}</div>`);
     return;
   }
 
@@ -24,9 +24,9 @@ export async function render() {
 
   setContent(`
     <div class="page-header">
-      <h1>Director Dashboard</h1>
+      <h1>Leitstand-Dashboard</h1>
       <div class="actions">
-        <span style="color:var(--text-muted);font-size:13px">${s.total_streams} streams under review</span>
+        <span style="color:var(--text-muted);font-size:13px">${s.total_streams} Streams in Prüfung</span>
       </div>
     </div>
 
@@ -54,12 +54,12 @@ function _renderProgress(s) {
 
   return `
     <div class="stat-grid" style="margin-bottom:20px">
-      ${card(s.as_is_complete, s.total_streams, 'AS-IS Complete', 'var(--primary)')}
-      ${card(s.delta_ready, s.total_streams, 'Delta Available', 'var(--primary)')}
-      ${card(s.options_complete, s.total_streams, 'All 3 Options Assessed', '#8b5cf6')}
-      ${card(s.recommendations_ready, s.total_streams, 'Recommendation Ready', 'var(--success)')}
-      ${card(s.reviewed, s.total_streams, 'Reviewed', 'var(--success)')}
-      ${card(s.total_streams - s.blocked, s.total_streams, 'No Issues', '#22c55e')}
+      ${card(s.as_is_complete, s.total_streams, 'AS-IS Abgeschlossen', 'var(--primary)')}
+      ${card(s.delta_ready, s.total_streams, 'Delta Verfügbar', 'var(--primary)')}
+      ${card(s.options_complete, s.total_streams, 'Alle 3 Optionen Bewertet', '#8b5cf6')}
+      ${card(s.recommendations_ready, s.total_streams, 'Empfehlung Bereit', 'var(--success)')}
+      ${card(s.reviewed, s.total_streams, 'Geprüft', 'var(--success)')}
+      ${card(s.total_streams - s.blocked, s.total_streams, 'Keine Probleme', '#22c55e')}
     </div>`;
 }
 
@@ -80,12 +80,12 @@ function _renderDistribution(dist, total) {
   };
 
   return `<div class="card" style="margin-bottom:20px">
-    <div class="card-header">Recommendation Distribution</div>
+    <div class="card-header">Empfehlungsverteilung</div>
     <div class="card-body">
       ${bar('DE Standard', dist.de_standard, '#3b82f6')}
       ${bar('AT Standard', dist.at_standard, '#8b5cf6')}
-      ${bar('Central', dist.central, '#22c55e')}
-      ${bar('No Decision', dist.none, '#94a3b8')}
+      ${bar('Zentral', dist.central, '#22c55e')}
+      ${bar('Keine Entscheidung', dist.none, '#94a3b8')}
     </div>
   </div>`;
 }
@@ -117,19 +117,19 @@ function _renderTargetPicture(streams) {
         ${esc(title)} <span style="float:right">${items.length}</span>
       </div>
       <div style="border:1px solid var(--border);border-top:none;border-radius:0 0 6px 6px;padding:6px 10px;min-height:40px">
-        ${names || '<span style="color:var(--text-muted);font-size:12px">---</span>'}
+        ${names || '<span style="color:var(--text-muted);font-size:12px">Keine Einträge</span>'}
       </div>
     </div>`;
   };
 
   return `<div class="card" style="margin-bottom:20px">
-    <div class="card-header">Target Operating Model Picture</div>
+    <div class="card-header">Zielbetriebsmodell-Übersicht</div>
     <div class="card-body">
       <div style="display:flex;gap:12px;flex-wrap:wrap">
-        ${col('Adopt DE', '#3b82f6', groups.de)}
-        ${col('Adopt AT', '#8b5cf6', groups.at)}
-        ${col('Central / Unified', '#22c55e', groups.central)}
-        ${col('Local / Undecided', '#94a3b8', groups.local)}
+        ${col('DE Übernehmen', '#3b82f6', groups.de)}
+        ${col('AT Übernehmen', '#8b5cf6', groups.at)}
+        ${col('Zentral / Vereinheitlicht', '#22c55e', groups.central)}
+        ${col('Lokal / Unentschieden', '#94a3b8', groups.local)}
       </div>
     </div>
   </div>`;
@@ -140,8 +140,8 @@ function _renderTargetPicture(streams) {
 function _renderAttention(items) {
   if (!items.length) {
     return `<div class="card" style="margin-bottom:20px">
-      <div class="card-header">Management Attention</div>
-      <div class="card-body"><p style="color:var(--text-muted)">No streams require escalation.</p></div>
+      <div class="card-header">Managementaufmerksamkeit</div>
+      <div class="card-body"><p style="color:var(--text-muted)">Keine Streams erfordern eine Eskalation.</p></div>
     </div>`;
   }
 
@@ -151,16 +151,16 @@ function _renderAttention(items) {
       <td style="font-size:12px">${r.action_reasons.map(reason => `<span style="display:inline-block;padding:2px 6px;margin:1px 2px;background:#fef2f2;border:1px solid var(--danger);border-radius:3px;font-size:11px;color:var(--danger)">${esc(reason)}</span>`).join('')}</td>
       <td style="white-space:nowrap">
         <a href="#/streams/${encodeURIComponent(r.stream_id)}" class="btn btn-sm">Stream</a>
-        <a href="#/decisions/${encodeURIComponent(r.stream_id)}" class="btn btn-sm">Decision</a>
+        <a href="#/decisions/${encodeURIComponent(r.stream_id)}" class="btn btn-sm">Entscheidung</a>
       </td>
     </tr>
   `).join('');
 
   return `<div class="card" style="margin-bottom:20px">
-    <div class="card-header">Management Attention <span class="badge badge-danger">${items.length}</span></div>
+    <div class="card-header">Managementaufmerksamkeit <span class="badge badge-danger">${items.length}</span></div>
     <div class="card-body">
       <div class="table-wrap"><table>
-        <thead><tr><th>Stream</th><th>Issues</th><th></th></tr></thead>
+        <thead><tr><th>Stream</th><th>Probleme</th><th></th></tr></thead>
         <tbody>${rows}</tbody>
       </table></div>
     </div>
@@ -171,17 +171,18 @@ function _renderAttention(items) {
 
 function _renderStreamTable(streams) {
   const optLabel = (opt) => {
-    const map = { de_standard: 'DE Standard', at_standard: 'AT Standard', central: 'Central' };
+    const map = { de_standard: 'DE Standard', at_standard: 'AT Standard', central: 'Zentral' };
     return map[opt] || '---';
   };
   const optBadge = (opt) => {
-    if (!opt) return badge('badge-muted', 'none');
+    if (!opt) return badge('badge-muted', 'keine');
     const cls = { de_standard: 'badge-primary', at_standard: 'badge-info', central: 'badge-success' };
     return badge(cls[opt] || 'badge-muted', optLabel(opt));
   };
   const statusBadge = (status) => {
     const cls = { not_started: 'badge-muted', draft: 'badge-warning', completed: 'badge-info', reviewed: 'badge-success' };
-    return badge(cls[status] || 'badge-muted', (status || 'not started').replace(/_/g, ' '));
+    const labels = { not_started: 'nicht gestartet', draft: 'Entwurf', completed: 'Abgeschlossen', reviewed: 'Geprüft' };
+    return badge(cls[status] || 'badge-muted', labels[status] || (status || 'nicht gestartet').replace(/_/g, ' '));
   };
   const deltaCell = (d) => {
     const parts = [];
@@ -197,23 +198,23 @@ function _renderStreamTable(streams) {
         <strong>${esc(r.stream_name)}</strong>
         <br><span style="font-size:11px;color:var(--text-muted)">${esc(r.stream_id)}</span>
       </td>
-      <td>${r.as_is_complete ? badge('badge-success', 'complete') : badge('badge-danger', 'incomplete')}</td>
+      <td>${r.as_is_complete ? badge('badge-success', 'vollständig') : badge('badge-danger', 'unvollständig')}</td>
       <td>${deltaCell(r.delta_summary)}</td>
       <td>${r.option_count}/3</td>
       <td>${optBadge(r.recommended_option)}</td>
       <td>${r.reviewed_decision ? optBadge(r.reviewed_decision) : '<span style="color:var(--text-muted)">---</span>'}</td>
       <td>${statusBadge(r.review_status)}</td>
-      <td>${r.needs_action ? badge('badge-danger', 'action needed') : badge('badge-success', 'ok')}</td>
+      <td>${r.needs_action ? badge('badge-danger', 'Handlungsbedarf') : badge('badge-success', 'ok')}</td>
     </tr>
   `).join('');
 
   return `<div class="card">
-    <div class="card-header">All Streams — Recommendation Overview</div>
+    <div class="card-header">Alle Streams — Empfehlungsübersicht</div>
     <div class="card-body">
       <div class="table-wrap"><table>
         <thead><tr>
-          <th>Stream</th><th>AS-IS</th><th>Delta</th><th>Options</th>
-          <th>Recommended</th><th>Reviewed</th><th>Status</th><th>Action</th>
+          <th>Stream</th><th>AS-IS</th><th>Delta</th><th>Optionen</th>
+          <th>Empfohlen</th><th>Geprüft</th><th>Status</th><th>Aktion</th>
         </tr></thead>
         <tbody>${rows}</tbody>
       </table></div>

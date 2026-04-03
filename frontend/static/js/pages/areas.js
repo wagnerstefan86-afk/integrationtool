@@ -28,17 +28,17 @@ export async function render() {
       <td style="color:var(--text-muted)">${esc(a.description || '—')}</td>
       <td style="text-align:center">${badge('badge-primary', String(count))}</td>
       <td onclick="event.stopPropagation()" style="white-space:nowrap">
-        <button class="btn btn-sm" data-edit-area="${esc(a.id)}">Edit</button>
-        <button class="btn btn-sm btn-danger" data-delete-area="${esc(a.id)}">Delete</button>
+        <button class="btn btn-sm" data-edit-area="${esc(a.id)}">Bearbeiten</button>
+        <button class="btn btn-sm btn-danger" data-delete-area="${esc(a.id)}">Löschen</button>
       </td>
     </tr>`;
   }).join('');
 
   setContent(`
     <div class="page-header">
-      <h1>Areas</h1>
+      <h1>Bereiche</h1>
       <div class="actions">
-        <button class="btn btn-primary" id="btn-add-area">+ Add Area</button>
+        <button class="btn btn-primary" id="btn-add-area">+ Bereich hinzufügen</button>
       </div>
     </div>
     <div class="card">
@@ -46,8 +46,8 @@ export async function render() {
         <table>
           <thead>
             <tr>
-              <th>Area</th>
-              <th>Description</th>
+              <th>Bereich</th>
+              <th>Beschreibung</th>
               <th style="text-align:center">Streams</th>
               <th></th>
             </tr>
@@ -74,16 +74,16 @@ function openAreaForm(area) {
   const isNew = !area;
   const a = area || {};
 
-  openModal(isNew ? 'Create Area' : 'Edit Area', `
-    ${textField('f-area-id', 'ID', a.id || '', { required: true, readonly: !isNew, placeholder: 'e.g. my_area' })}
+  openModal(isNew ? 'Bereich erstellen' : 'Bereich bearbeiten', `
+    ${textField('f-area-id', 'ID', a.id || '', { required: true, readonly: !isNew, placeholder: 'z. B. my_area' })}
     ${textField('f-area-name', 'Name', a.name || '', { required: true })}
-    ${textArea('f-area-desc', 'Description', a.description || '')}
-    ${textArea('f-area-notes', 'Notes', a.notes || '', { rows: 2 })}
+    ${textArea('f-area-desc', 'Beschreibung', a.description || '')}
+    ${textArea('f-area-notes', 'Notizen', a.notes || '', { rows: 2 })}
   `, async () => {
     const id = val('f-area-id');
     const name = val('f-area-name');
-    if (!id) throw new Error('ID is required');
-    if (!name) throw new Error('Name is required');
+    if (!id) throw new Error('ID ist erforderlich');
+    if (!name) throw new Error('Name ist erforderlich');
 
     await API.put('areas', {
       id,
@@ -91,17 +91,17 @@ function openAreaForm(area) {
       description: val('f-area-desc'),
       notes: val('f-area-notes'),
     });
-    toast(isNew ? 'Area created' : 'Area updated');
+    toast(isNew ? 'Bereich erstellt' : 'Bereich aktualisiert');
     closeModal();
     render();
   });
 }
 
 async function deleteArea(areaId) {
-  if (!confirm(`Delete area "${areaId}"?\n\nThis will fail if streams still reference this area.`)) return;
+  if (!confirm(`Bereich „${areaId}" löschen?\n\nDies schlägt fehl, wenn Streams noch auf diesen Bereich verweisen.`)) return;
   try {
     await API.del(`areas/${encodeURIComponent(areaId)}`);
-    toast('Area deleted');
+    toast('Bereich gelöscht');
     render();
   } catch (e) {
     toast(e.message, true);

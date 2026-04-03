@@ -785,7 +785,7 @@ async function _openReviewStatusDialog(streamId, stepId, entityId) {
         </div>`;
       }
     } catch (e) {
-      resultDiv.innerHTML = `<div style="color:var(--danger)">Error: ${esc(e.message)}</div>`;
+      resultDiv.innerHTML = `<div style="color:var(--danger)">Fehler: ${esc(e.message)}</div>`;
     }
   });
 

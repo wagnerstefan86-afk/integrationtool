@@ -1,5 +1,5 @@
 /**
- * Subprocesses list page — overview of all subprocesses across all streams.
+ * Teilprozesse list page — overview of all subprocesses across all streams.
  */
 
 import { API } from '../api.js';
@@ -13,7 +13,7 @@ export async function render() {
   const streamMap = Object.fromEntries(streams.map(s => [s.id, s.name]));
 
   const streamOpts = [
-    '<option value="">All Streams</option>',
+    '<option value="">Alle Streams</option>',
     ...streams.map(s => `<option value="${esc(s.id)}">${esc(s.name)}</option>`),
   ].join('');
 
@@ -30,22 +30,22 @@ export async function render() {
 
   setContent(`
     <div class="page-header">
-      <h1>Subprocesses</h1>
+      <h1>Teilprozesse</h1>
       <div class="actions">
-        <span style="color:var(--text-muted);font-size:13px">${sps.length} total</span>
+        <span style="color:var(--text-muted);font-size:13px">${sps.length} gesamt</span>
       </div>
     </div>
     <div class="filters">
       <select id="filter-sp-stream" onchange="window._filterSPs()">${streamOpts}</select>
-      <input id="filter-sp-q" type="search" placeholder="Search…" oninput="window._filterSPs()"
+      <input id="filter-sp-q" type="search" placeholder="Suchen…" oninput="window._filterSPs()"
              style="padding:6px 10px;border:1px solid var(--border);border-radius:4px;font-size:12px;min-width:180px">
     </div>
     <div class="card"><div class="table-wrap">
-      <table><thead><tr><th>Name</th><th>Stream</th><th>Purpose</th><th>Scope</th></tr></thead>
+      <table><thead><tr><th>Name</th><th>Stream</th><th>Zweck</th><th>Bereich</th></tr></thead>
       <tbody id="sp-body">${rows}</tbody></table>
     </div></div>
     <p style="color:var(--text-muted);font-size:12px;margin-top:8px">
-      To add or edit subprocesses, navigate to the parent stream's detail page.
+      Um Teilprozesse hinzuzufügen oder zu bearbeiten, navigieren Sie zur Detailseite des übergeordneten Streams.
     </p>
   `);
 }

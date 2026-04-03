@@ -1,5 +1,5 @@
 /**
- * Interfaces list page — overview of all interfaces.
+ * Schnittstellen-Listenseite — Übersicht aller Schnittstellen.
  */
 
 import { API } from '../api.js';
@@ -21,7 +21,7 @@ export async function render() {
 
   const typeSet = [...new Set(ifaces.map(i => i.interface_type).filter(Boolean))];
   const typeOpts = [
-    '<option value="">All Types</option>',
+    '<option value="">Alle Typen</option>',
     ...typeSet.map(t => `<option value="${esc(t)}">${esc(t)}</option>`),
   ].join('');
 
@@ -45,22 +45,22 @@ export async function render() {
 
   setContent(`
     <div class="page-header">
-      <h1>Interfaces</h1>
+      <h1>Schnittstellen</h1>
       <div class="actions">
-        <span style="color:var(--text-muted);font-size:13px">${ifaces.length} total</span>
+        <span style="color:var(--text-muted);font-size:13px">${ifaces.length} gesamt</span>
       </div>
     </div>
     <div class="filters">
       <select id="filter-if-type" onchange="window._filterIfaces()">${typeOpts}</select>
-      <input id="filter-if-q" type="search" placeholder="Search…" oninput="window._filterIfaces()"
+      <input id="filter-if-q" type="search" placeholder="Suchen…" oninput="window._filterIfaces()"
              style="padding:6px 10px;border:1px solid var(--border);border-radius:4px;font-size:12px;min-width:180px">
     </div>
     <div class="card"><div class="table-wrap">
-      <table><thead><tr><th>Source</th><th>Type</th><th>Target</th><th>Description</th></tr></thead>
+      <table><thead><tr><th>Quelle</th><th>Typ</th><th>Ziel</th><th>Beschreibung</th></tr></thead>
       <tbody id="iface-body">${rows}</tbody></table>
     </div></div>
     <p style="color:var(--text-muted);font-size:12px;margin-top:8px">
-      To add or edit interfaces, navigate to a stream's detail page.
+      Um Schnittstellen hinzuzufügen oder zu bearbeiten, navigieren Sie zur Detailseite eines Streams.
     </p>
   `);
 }
