@@ -47,6 +47,25 @@ export const API = {
   },
 
   /**
+   * PUT /api/{endpoint}?dataset=X — create or update
+   */
+  async put(endpoint, data, extra = {}) {
+    return _fetch(`/api/${endpoint}?${datasetQS(extra)}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  },
+
+  /**
+   * DELETE /api/{endpoint}?dataset=X
+   */
+  async del(endpoint, extra = {}) {
+    return _fetch(`/api/${endpoint}?${datasetQS(extra)}`, {
+      method: 'DELETE',
+    });
+  },
+
+  /**
    * GET /api/reports/{name} — returns plain text (markdown)
    */
   async getReportText(name) {

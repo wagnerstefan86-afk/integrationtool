@@ -1,17 +1,28 @@
 /**
- * Streams page — list view and detail view.
+ * Streams page — list view with filters, detail view with subprocess & interface CRUD.
  */
 
 import { API } from '../api.js';
-import { setContent, esc, badge, scoreBarHtml, decisionBadge, classificationBadge, confidenceBadge } from '../utils.js';
+import { setContent, esc, badge, toast } from '../utils.js';
+import { openModal, closeModal } from '../components/modal.js';
+import { textField, textArea, selectField, formRow, val } from '../components/forms.js';
+
+let _cachedEnums = null;
+async function enums() {
+  if (!_cachedEnums) _cachedEnums = await API.getGlobal('enums');
+  return _cachedEnums;
+}
+
+// ─── Entry point ──────────────────────────────────────────────────────────────
+
+export async function render(id) {
+  if (id) return renderDetail(id);
+  return renderList();
+}
 
 // ─── List view ────────────────────────────────────────────────────────────────
 
-export async function render(id) {
-  if (id) {
-    return renderDetail(id);
-  }
-
+async function renderList() {
   const [streams, areas, assessments] = await Promise.all([
     API.get('streams'),
     API.get('areas'),
@@ -19,130 +30,194 @@ export async function render(id) {
   ]);
 
   const areaMap = Object.fromEntries(areas.map(a => [a.id, a.name]));
-  const assMap = Object.fromEntries(
-    assessments
-      .filter(a => a.assessed_object_type === 'stream')
-      .map(a => [a.assessed_object_id, a])
+  const assessedIds = new Set(
+    assessments.filter(a => a.assessed_object_type === 'stream').map(a => a.assessed_object_id)
   );
 
-  // Collect unique values for filters
   const areaIds = [...new Set(streams.map(s => s.area_id).filter(Boolean))];
   const types = [...new Set(streams.map(s => s.stream_type).filter(Boolean))];
 
-  const areaOpts = [
-    '<option value="">All Areas</option>',
-    ...areaIds.map(id => `<option value="${esc(id)}">${esc(areaMap[id] || id)}</option>`),
-  ].join('');
+  const areaOpts = ['<option value="">All Areas</option>',
+    ...areaIds.map(id => `<option value="${esc(id)}">${esc(areaMap[id] || id)}</option>`)].join('');
+  const typeOpts = ['<option value="">All Types</option>',
+    ...types.map(t => `<option value="${esc(t)}">${esc(t)}</option>`)].join('');
 
-  const typeOpts = [
-    '<option value="">All Types</option>',
-    ...types.map(t => `<option value="${esc(t)}">${esc(t)}</option>`),
-  ].join('');
-
-  // Pre-select area from hash query (?area=X)
   const hashQuery = location.hash.includes('?') ? location.hash.split('?')[1] : '';
   const preArea = new URLSearchParams(hashQuery).get('area') || '';
 
-  const rows = streams.map(s => {
-    const ass = assMap[s.id];
-    const hasAssessment = !!ass;
-    return `<tr class="clickable stream-row"
-              data-area="${esc(s.area_id || '')}"
-              data-type="${esc(s.stream_type || '')}"
-              data-name="${esc(s.name.toLowerCase())}"
-              onclick="location.hash='#/streams/${encodeURIComponent(s.id)}'">
-      <td>
-        <strong>${esc(s.name)}</strong>
-        <br><code style="font-size:11px;color:var(--text-muted)">${esc(s.id)}</code>
-      </td>
+  const rows = streams.map(s => `
+    <tr class="clickable stream-row"
+        data-area="${esc(s.area_id || '')}" data-type="${esc(s.stream_type || '')}"
+        data-name="${esc(s.name.toLowerCase())}"
+        onclick="location.hash='#/streams/${encodeURIComponent(s.id)}'">
+      <td><strong>${esc(s.name)}</strong>
+        <br><code style="font-size:11px;color:var(--text-muted)">${esc(s.id)}</code></td>
       <td>${esc(areaMap[s.area_id] || s.area_id || '—')}</td>
       <td>${badge('badge-info', s.stream_type || '—')}</td>
       <td>${badge('badge-muted', s.country_scope || '—')} ${badge('badge-muted', s.tenant_scope || '—')}</td>
-      <td>${hasAssessment ? badge('badge-success', 'assessed') : badge('badge-muted', 'pending')}</td>
-    </tr>`;
-  }).join('');
+      <td>${assessedIds.has(s.id) ? badge('badge-success', 'assessed') : badge('badge-muted', 'pending')}</td>
+      <td onclick="event.stopPropagation()" style="white-space:nowrap">
+        <button class="btn btn-sm" data-edit-stream="${esc(s.id)}">Edit</button>
+        <button class="btn btn-sm btn-danger" data-delete-stream="${esc(s.id)}">Delete</button>
+      </td>
+    </tr>`).join('');
 
   setContent(`
     <div class="page-header">
       <h1>Streams</h1>
       <div class="actions">
-        <span style="color:var(--text-muted);font-size:13px">${streams.length} streams</span>
+        <button class="btn btn-primary" id="btn-add-stream">+ Add Stream</button>
       </div>
     </div>
-
     <div class="filters">
-      <select id="filter-area" onchange="filterStreams()">${areaOpts}</select>
-      <select id="filter-type" onchange="filterStreams()">${typeOpts}</select>
-      <input id="filter-q" type="search" placeholder="Search by name…"
-             oninput="filterStreams()"
+      <select id="filter-area" onchange="window._filterStreams()">${areaOpts}</select>
+      <select id="filter-type" onchange="window._filterStreams()">${typeOpts}</select>
+      <input id="filter-q" type="search" placeholder="Search by name…" oninput="window._filterStreams()"
              style="padding:6px 10px;border:1px solid var(--border);border-radius:4px;font-size:12px;min-width:180px">
     </div>
-
-    <div class="card">
-      <div class="table-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th>Name</th>
-              <th>Area</th>
-              <th>Type</th>
-              <th>Scope</th>
-              <th>Assessment</th>
-            </tr>
-          </thead>
-          <tbody id="streams-body">${rows}</tbody>
-        </table>
-      </div>
-    </div>
+    <div class="card"><div class="table-wrap">
+      <table><thead><tr>
+        <th>Name</th><th>Area</th><th>Type</th><th>Scope</th><th>Assessment</th><th></th>
+      </tr></thead><tbody id="streams-body">${rows}</tbody></table>
+    </div></div>
   `);
 
-  // Apply pre-selected area filter
   if (preArea) {
     const sel = document.getElementById('filter-area');
-    if (sel) { sel.value = preArea; filterStreams(); }
+    if (sel) { sel.value = preArea; window._filterStreams(); }
   }
+
+  // Wire buttons
+  document.getElementById('btn-add-stream').addEventListener('click', () => openStreamForm(null, areas));
+  document.querySelectorAll('[data-edit-stream]').forEach(btn => {
+    const s = streams.find(s => s.id === btn.dataset.editStream);
+    btn.addEventListener('click', () => openStreamForm(s, areas));
+  });
+  document.querySelectorAll('[data-delete-stream]').forEach(btn => {
+    btn.addEventListener('click', () => deleteStream(btn.dataset.deleteStream));
+  });
 }
 
-// Exposed globally so onclick handlers can call it
-window.filterStreams = function () {
+window._filterStreams = function () {
   const area = document.getElementById('filter-area')?.value || '';
   const type = document.getElementById('filter-type')?.value || '';
   const q = (document.getElementById('filter-q')?.value || '').toLowerCase().trim();
-
   document.querySelectorAll('#streams-body .stream-row').forEach(row => {
-    const areaMatch = !area || row.dataset.area === area;
-    const typeMatch = !type || row.dataset.type === type;
-    const qMatch = !q || row.dataset.name.includes(q) || row.textContent.toLowerCase().includes(q);
-    row.style.display = areaMatch && typeMatch && qMatch ? '' : 'none';
+    const ok = (!area || row.dataset.area === area)
+            && (!type || row.dataset.type === type)
+            && (!q || row.dataset.name.includes(q) || row.textContent.toLowerCase().includes(q));
+    row.style.display = ok ? '' : 'none';
   });
 };
+
+// ─── Stream form ──────────────────────────────────────────────────────────────
+
+async function openStreamForm(stream, areas) {
+  const isNew = !stream;
+  const s = stream || {};
+  const e = await enums();
+
+  const areaOpts = [{ value: '', label: '— select —' }, ...areas.map(a => ({ value: a.id, label: a.name }))];
+  const typeOpts = [{ value: '', label: '— select —' }, ...e.stream_types.map(t => ({ value: t, label: t }))];
+  const scopeOpts = e.country_scopes.map(v => ({ value: v, label: v }));
+  const tenantOpts = e.tenant_scopes.map(v => ({ value: v, label: v }));
+
+  openModal(isNew ? 'Create Stream' : 'Edit Stream', `
+    ${formRow(
+      textField('f-s-id', 'ID', s.id || '', { required: true, readonly: !isNew, placeholder: 'e.g. my_stream' }),
+      textField('f-s-name', 'Name', s.name || '', { required: true })
+    )}
+    ${formRow(
+      selectField('f-s-area', 'Area', areaOpts, s.area_id || ''),
+      selectField('f-s-type', 'Stream Type', typeOpts, s.stream_type || '')
+    )}
+    ${formRow(
+      selectField('f-s-country', 'Country Scope', scopeOpts, s.country_scope || 'BOTH'),
+      selectField('f-s-tenant', 'Tenant Scope', tenantOpts, s.tenant_scope || 'BOTH')
+    )}
+    ${textField('f-s-owner', 'Owner Role', s.owner_role || '')}
+    ${textArea('f-s-desc', 'Description', s.description || '')}
+    ${textArea('f-s-notes', 'Notes', s.notes || '', { rows: 2 })}
+  `, async () => {
+    const id = val('f-s-id');
+    const name = val('f-s-name');
+    if (!id) throw new Error('ID is required');
+    if (!name) throw new Error('Name is required');
+
+    await API.put('streams', {
+      ...(isNew ? {} : s),
+      id, name,
+      area_id: val('f-s-area'),
+      stream_type: val('f-s-type'),
+      country_scope: val('f-s-country'),
+      tenant_scope: val('f-s-tenant'),
+      owner_role: val('f-s-owner'),
+      description: val('f-s-desc'),
+      notes: val('f-s-notes'),
+    });
+    toast(isNew ? 'Stream created' : 'Stream updated');
+    closeModal();
+    renderList();
+  });
+}
+
+async function deleteStream(streamId) {
+  if (!confirm(`Delete stream "${streamId}"?\n\nFails if subprocesses still reference this stream.`)) return;
+  try {
+    await API.del(`streams/${encodeURIComponent(streamId)}`);
+    toast('Stream deleted');
+    renderList();
+  } catch (e) { toast(e.message, true); }
+}
 
 // ─── Detail view ──────────────────────────────────────────────────────────────
 
 async function renderDetail(streamId) {
-  const [stream, subprocesses, allAssessments] = await Promise.all([
+  const [stream, subprocesses, interfaces, allAssessments, areas] = await Promise.all([
     API.get(`streams/${encodeURIComponent(streamId)}`),
     API.get('subprocesses'),
+    API.get('interfaces'),
     API.get('assessments'),
+    API.get('areas'),
   ]);
 
   const streamSPs = subprocesses.filter(sp => sp.stream_id === streamId);
+  const spIds = new Set(streamSPs.map(sp => sp.id));
+  // Show interfaces where source or target is a subprocess of this stream
+  const streamIfaces = interfaces.filter(i =>
+    spIds.has(i.source_process_id) || spIds.has(i.target_process_id)
+  );
   const assessment = allAssessments.find(a => a.assessed_object_id === streamId);
 
-  const regulatoryBadges = (stream.regulatory_context || [])
-    .map(r => badge('badge-muted', r)).join(' ');
-
-  const assessmentSection = assessment
-    ? _renderAssessmentSummary(assessment)
-    : `<p style="color:var(--text-muted)">No assessment recorded for this stream.</p>`;
+  const regulatoryBadges = (stream.regulatory_context || []).map(r => badge('badge-muted', r)).join(' ');
 
   const spRows = streamSPs.map(sp => `
     <tr>
-      <td>${esc(sp.name)}</td>
-      <td style="color:var(--text-muted);font-size:12px">${esc(sp.purpose || sp.description || '—')}</td>
+      <td><strong>${esc(sp.name)}</strong>
+        <br><code style="font-size:11px;color:var(--text-muted)">${esc(sp.id)}</code></td>
+      <td style="color:var(--text-muted);font-size:12px;max-width:250px">${esc(sp.purpose || sp.description || '—')}</td>
       <td>${badge('badge-muted', sp.country_scope || '')} ${badge('badge-muted', sp.tenant_scope || '')}</td>
-    </tr>
-  `).join('');
+      <td style="white-space:nowrap">
+        <button class="btn btn-sm" data-edit-sp="${esc(sp.id)}">Edit</button>
+        <button class="btn btn-sm btn-danger" data-delete-sp="${esc(sp.id)}">Delete</button>
+      </td>
+    </tr>`).join('');
+
+  const ifaceRows = streamIfaces.map(i => `
+    <tr>
+      <td><code style="font-size:11px">${esc(i.source_process_id)}</code></td>
+      <td>${badge('badge-info', i.interface_type || '—')}</td>
+      <td><code style="font-size:11px">${esc(i.target_process_id)}</code></td>
+      <td style="color:var(--text-muted);font-size:12px;max-width:200px">${esc(i.description || '—')}</td>
+      <td style="white-space:nowrap">
+        <button class="btn btn-sm" data-edit-iface="${esc(i.id)}">Edit</button>
+        <button class="btn btn-sm btn-danger" data-delete-iface="${esc(i.id)}">Delete</button>
+      </td>
+    </tr>`).join('');
+
+  const assessSection = assessment
+    ? _renderAssessmentSummary(assessment)
+    : '<p style="color:var(--text-muted)">No assessment recorded for this stream.</p>';
 
   setContent(`
     <div class="detail-header">
@@ -156,6 +231,7 @@ async function renderDetail(streamId) {
       </div>
       <div class="actions">
         <a href="#/streams" class="btn">← Streams</a>
+        <button class="btn" id="btn-edit-stream">Edit Stream</button>
       </div>
     </div>
 
@@ -172,46 +248,209 @@ async function renderDetail(streamId) {
             <dt>Regulatory</dt><dd>${regulatoryBadges || '—'}</dd>
           </dl>
         </div>
-
         <div class="detail-section">
           <h3>Assessment</h3>
-          ${assessmentSection}
+          ${assessSection}
         </div>
       </div>
-
       <div>
         <div class="detail-section">
-          <h3>Subprocesses (${streamSPs.length})</h3>
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <h3>Subprocesses (${streamSPs.length})</h3>
+            <button class="btn btn-sm btn-primary" id="btn-add-sp">+ Add</button>
+          </div>
           ${streamSPs.length === 0
             ? '<p style="color:var(--text-muted)">No subprocesses defined.</p>'
             : `<div class="table-wrap"><table>
-                <thead><tr><th>Name</th><th>Purpose</th><th>Scope</th></tr></thead>
+                <thead><tr><th>Name</th><th>Purpose</th><th>Scope</th><th></th></tr></thead>
                 <tbody>${spRows}</tbody>
-              </table></div>`
-          }
+              </table></div>`}
+        </div>
+        <div class="detail-section">
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <h3>Interfaces (${streamIfaces.length})</h3>
+            <button class="btn btn-sm btn-primary" id="btn-add-iface">+ Add</button>
+          </div>
+          ${streamIfaces.length === 0
+            ? '<p style="color:var(--text-muted)">No interfaces defined.</p>'
+            : `<div class="table-wrap"><table>
+                <thead><tr><th>Source</th><th>Type</th><th>Target</th><th>Description</th><th></th></tr></thead>
+                <tbody>${ifaceRows}</tbody>
+              </table></div>`}
         </div>
       </div>
     </div>
   `);
+
+  // Wire buttons
+  document.getElementById('btn-edit-stream').addEventListener('click', () => {
+    openStreamForm(stream, areas);
+  });
+  document.getElementById('btn-add-sp').addEventListener('click', () => {
+    openSubprocessForm(null, streamId);
+  });
+  document.getElementById('btn-add-iface').addEventListener('click', () => {
+    openInterfaceForm(null, subprocesses, [...new Set([...spIds])]);
+  });
+  document.querySelectorAll('[data-edit-sp]').forEach(btn => {
+    const sp = streamSPs.find(sp => sp.id === btn.dataset.editSp);
+    btn.addEventListener('click', () => openSubprocessForm(sp, streamId));
+  });
+  document.querySelectorAll('[data-delete-sp]').forEach(btn => {
+    btn.addEventListener('click', () => deleteSubprocess(btn.dataset.deleteSp, streamId));
+  });
+  document.querySelectorAll('[data-edit-iface]').forEach(btn => {
+    const iface = streamIfaces.find(i => i.id === btn.dataset.editIface);
+    btn.addEventListener('click', () => openInterfaceForm(iface, subprocesses, [...spIds]));
+  });
+  document.querySelectorAll('[data-delete-iface]').forEach(btn => {
+    btn.addEventListener('click', () => deleteInterface(btn.dataset.deleteIface, streamId));
+  });
 }
 
+// ─── Subprocess form ──────────────────────────────────────────────────────────
+
+async function openSubprocessForm(sp, streamId) {
+  const isNew = !sp;
+  const s = sp || {};
+  const e = await enums();
+  const scopeOpts = e.country_scopes.map(v => ({ value: v, label: v }));
+  const tenantOpts = e.tenant_scopes.map(v => ({ value: v, label: v }));
+
+  openModal(isNew ? 'Add Subprocess' : 'Edit Subprocess', `
+    ${formRow(
+      textField('f-sp-id', 'ID', s.id || '', { required: true, readonly: !isNew, placeholder: 'e.g. sp-my-process' }),
+      textField('f-sp-name', 'Name', s.name || '', { required: true })
+    )}
+    ${textField('f-sp-purpose', 'Purpose', s.purpose || '')}
+    ${textArea('f-sp-desc', 'Description', s.description || '')}
+    ${formRow(
+      selectField('f-sp-country', 'Country Scope', scopeOpts, s.country_scope || 'BOTH'),
+      selectField('f-sp-tenant', 'Tenant Scope', tenantOpts, s.tenant_scope || 'BOTH')
+    )}
+    ${textArea('f-sp-roles', 'Roles (one per line)', (s.roles || []).join('\n'), { rows: 2 })}
+    ${textArea('f-sp-tools', 'Tools (one per line)', (s.tools || []).join('\n'), { rows: 2 })}
+    ${textArea('f-sp-inputs', 'Inputs (one per line)', (s.inputs || []).join('\n'), { rows: 2 })}
+    ${textArea('f-sp-outputs', 'Outputs (one per line)', (s.outputs || []).join('\n'), { rows: 2 })}
+    ${textArea('f-sp-evidence', 'Evidence (one per line)', (s.evidence || []).join('\n'), { rows: 2 })}
+    ${textArea('f-sp-notes', 'Notes', s.notes || '', { rows: 2 })}
+  `, async () => {
+    const id = val('f-sp-id');
+    const name = val('f-sp-name');
+    if (!id) throw new Error('ID is required');
+    if (!name) throw new Error('Name is required');
+
+    const toList = (v) => v.split('\n').map(l => l.trim()).filter(Boolean);
+
+    await API.put('subprocesses', {
+      ...(isNew ? {} : s),
+      id, name,
+      stream_id: streamId,
+      purpose: val('f-sp-purpose'),
+      description: val('f-sp-desc'),
+      country_scope: val('f-sp-country'),
+      tenant_scope: val('f-sp-tenant'),
+      roles: toList(document.getElementById('f-sp-roles').value),
+      tools: toList(document.getElementById('f-sp-tools').value),
+      inputs: toList(document.getElementById('f-sp-inputs').value),
+      outputs: toList(document.getElementById('f-sp-outputs').value),
+      evidence: toList(document.getElementById('f-sp-evidence').value),
+      notes: val('f-sp-notes'),
+    });
+    toast(isNew ? 'Subprocess created' : 'Subprocess updated');
+    closeModal();
+    renderDetail(streamId);
+  });
+}
+
+async function deleteSubprocess(spId, streamId) {
+  if (!confirm(`Delete subprocess "${spId}"?\n\nFails if interfaces still reference it.`)) return;
+  try {
+    await API.del(`subprocesses/${encodeURIComponent(spId)}`);
+    toast('Subprocess deleted');
+    renderDetail(streamId);
+  } catch (e) { toast(e.message, true); }
+}
+
+// ─── Interface form ───────────────────────────────────────────────────────────
+
+async function openInterfaceForm(iface, allSubprocesses, contextSpIds) {
+  const isNew = !iface;
+  const i = iface || {};
+  const e = await enums();
+
+  // Build source/target options: all subprocess IDs + all stream IDs
+  const streams = await API.get('streams');
+  const processOpts = [
+    { value: '', label: '— select —' },
+    ...allSubprocesses.map(sp => ({ value: sp.id, label: `[SP] ${sp.name} (${sp.id})` })),
+    ...streams.map(s => ({ value: s.id, label: `[Stream] ${s.name} (${s.id})` })),
+  ];
+  const typeOpts = e.interface_types.map(t => ({ value: t, label: t }));
+
+  openModal(isNew ? 'Add Interface' : 'Edit Interface', `
+    ${formRow(
+      textField('f-if-id', 'ID', i.id || '', { required: true, readonly: !isNew, placeholder: 'e.g. iface-x-to-y' }),
+      selectField('f-if-type', 'Type', typeOpts, i.interface_type || 'data_flow')
+    )}
+    ${formRow(
+      selectField('f-if-src', 'Source Process', processOpts, i.source_process_id || ''),
+      selectField('f-if-tgt', 'Target Process', processOpts, i.target_process_id || '')
+    )}
+    ${textArea('f-if-desc', 'Description', i.description || '')}
+    ${textField('f-if-trigger', 'Trigger', i.trigger || '')}
+    ${textArea('f-if-artifacts', 'Exchanged Artifacts (one per line)', (i.exchanged_artifacts || []).join('\n'), { rows: 2 })}
+    ${textArea('f-if-notes', 'Notes', i.notes || '', { rows: 2 })}
+  `, async () => {
+    const id = val('f-if-id');
+    if (!id) throw new Error('ID is required');
+
+    const toList = (v) => v.split('\n').map(l => l.trim()).filter(Boolean);
+
+    await API.put('interfaces', {
+      ...(isNew ? {} : i),
+      id,
+      interface_type: val('f-if-type'),
+      source_process_id: val('f-if-src'),
+      target_process_id: val('f-if-tgt'),
+      description: val('f-if-desc'),
+      trigger: val('f-if-trigger'),
+      exchanged_artifacts: toList(document.getElementById('f-if-artifacts').value),
+      notes: val('f-if-notes'),
+    });
+    toast(isNew ? 'Interface created' : 'Interface updated');
+    closeModal();
+    // Re-render the stream detail page we came from
+    const hash = location.hash;
+    const match = hash.match(/#\/streams\/([^?]+)/);
+    if (match) renderDetail(decodeURIComponent(match[1]));
+  });
+}
+
+async function deleteInterface(ifaceId, streamId) {
+  if (!confirm(`Delete interface "${ifaceId}"?`)) return;
+  try {
+    await API.del(`interfaces/${encodeURIComponent(ifaceId)}`);
+    toast('Interface deleted');
+    renderDetail(streamId);
+  } catch (e) { toast(e.message, true); }
+}
+
+// ─── Assessment summary (read-only) ──────────────────────────────────────────
+
 function _renderAssessmentSummary(a) {
-  const dims = (a.answers || []);
-  const constraints = (a.hard_constraints || []);
+  const dims = a.answers || [];
+  const constraints = a.hard_constraints || [];
 
   const dimRows = dims.map(d => {
     const pct = Math.round((d.score / 5) * 100);
     const cls = pct >= 70 ? 'high' : pct >= 45 ? 'medium' : 'low';
     return `<tr>
       <td style="font-size:12px">${esc(d.dimension.replace(/_/g, ' '))}</td>
-      <td>
-        <div class="score-bar" style="min-width:120px">
-          <div class="score-bar-track">
-            <div class="score-bar-fill ${cls}" style="width:${pct}%"></div>
-          </div>
-          <span>${d.score}/5</span>
-        </div>
-      </td>
+      <td><div class="score-bar" style="min-width:120px">
+        <div class="score-bar-track"><div class="score-bar-fill ${cls}" style="width:${pct}%"></div></div>
+        <span>${d.score}/5</span>
+      </div></td>
       <td style="font-size:11px;color:var(--text-muted)">${esc(d.rationale || '')}</td>
     </tr>`;
   }).join('');
@@ -232,6 +471,5 @@ function _renderAssessmentSummary(a) {
     <div style="margin-top:10px">
       <span style="font-size:12px;color:var(--text-muted)">Hard constraints:</span>
       <span style="margin-left:6px">${constraintBadges}</span>
-    </div>
-  `;
+    </div>`;
 }

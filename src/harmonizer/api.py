@@ -132,11 +132,24 @@ def get_area(area_id: str, dataset: str = "examples"):
 def save_area(area: dict, dataset: str = "examples"):
     if "id" not in area or "name" not in area:
         raise HTTPException(400, "Area requires 'id' and 'name'")
+    area_id = area["id"].strip()
+    if not area_id:
+        raise HTTPException(400, "Area ID must not be empty")
+    area["id"] = area_id
     return _get_store(dataset).save_area(area)
 
 @app.delete("/api/areas/{area_id}")
 def delete_area(area_id: str, dataset: str = "examples"):
-    if not _get_store(dataset).delete_area(area_id):
+    store = _get_store(dataset)
+    # Prevent deleting areas with dependent streams
+    dependent = [s["id"] for s in store.list_streams() if s.get("area_id") == area_id]
+    if dependent:
+        raise HTTPException(
+            409,
+            f"Cannot delete area '{area_id}': {len(dependent)} stream(s) still reference it: "
+            + ", ".join(dependent[:5]),
+        )
+    if not store.delete_area(area_id):
         raise HTTPException(404, f"Area not found: {area_id}")
     return {"deleted": area_id}
 
@@ -157,11 +170,28 @@ def get_stream(stream_id: str, dataset: str = "examples"):
 def save_stream(stream: dict, dataset: str = "examples"):
     if "id" not in stream or "name" not in stream:
         raise HTTPException(400, "Stream requires 'id' and 'name'")
-    return _get_store(dataset).save_stream(stream)
+    stream_id = stream["id"].strip()
+    if not stream_id:
+        raise HTTPException(400, "Stream ID must not be empty")
+    stream["id"] = stream_id
+    # Validate area_id reference
+    store = _get_store(dataset)
+    area_id = stream.get("area_id", "").strip()
+    if area_id and not store.get_area(area_id):
+        raise HTTPException(400, f"Referenced area not found: '{area_id}'")
+    return store.save_stream(stream)
 
 @app.delete("/api/streams/{stream_id}")
 def delete_stream(stream_id: str, dataset: str = "examples"):
-    if not _get_store(dataset).delete_stream(stream_id):
+    store = _get_store(dataset)
+    dependent = [sp["id"] for sp in store.list_subprocesses() if sp.get("stream_id") == stream_id]
+    if dependent:
+        raise HTTPException(
+            409,
+            f"Cannot delete stream '{stream_id}': {len(dependent)} subprocess(es) still reference it: "
+            + ", ".join(dependent[:5]),
+        )
+    if not store.delete_stream(stream_id):
         raise HTTPException(404, f"Stream not found: {stream_id}")
     return {"deleted": stream_id}
 
@@ -182,11 +212,32 @@ def get_subprocess(sp_id: str, dataset: str = "examples"):
 def save_subprocess(sp: dict, dataset: str = "examples"):
     if "id" not in sp or "name" not in sp:
         raise HTTPException(400, "Subprocess requires 'id' and 'name'")
-    return _get_store(dataset).save_subprocess(sp)
+    sp_id = sp["id"].strip()
+    if not sp_id:
+        raise HTTPException(400, "Subprocess ID must not be empty")
+    sp["id"] = sp_id
+    # Validate stream_id reference
+    store = _get_store(dataset)
+    stream_id = sp.get("stream_id", "").strip()
+    if stream_id and not store.get_stream(stream_id):
+        raise HTTPException(400, f"Referenced stream not found: '{stream_id}'")
+    return store.save_subprocess(sp)
 
 @app.delete("/api/subprocesses/{sp_id}")
 def delete_subprocess(sp_id: str, dataset: str = "examples"):
-    if not _get_store(dataset).delete_subprocess(sp_id):
+    store = _get_store(dataset)
+    # Check if any interface references this subprocess
+    dependent = [
+        i["id"] for i in store.list_interfaces()
+        if i.get("source_process_id") == sp_id or i.get("target_process_id") == sp_id
+    ]
+    if dependent:
+        raise HTTPException(
+            409,
+            f"Cannot delete subprocess '{sp_id}': {len(dependent)} interface(s) reference it: "
+            + ", ".join(dependent[:5]),
+        )
+    if not store.delete_subprocess(sp_id):
         raise HTTPException(404, f"Subprocess not found: {sp_id}")
     return {"deleted": sp_id}
 
@@ -207,7 +258,22 @@ def get_interface(iface_id: str, dataset: str = "examples"):
 def save_interface(iface: dict, dataset: str = "examples"):
     if "id" not in iface:
         raise HTTPException(400, "Interface requires 'id'")
-    return _get_store(dataset).save_interface(iface)
+    iface_id = iface["id"].strip()
+    if not iface_id:
+        raise HTTPException(400, "Interface ID must not be empty")
+    iface["id"] = iface_id
+    # Validate source/target references exist (subprocess or stream)
+    store = _get_store(dataset)
+    all_sp_ids = {sp["id"] for sp in store.list_subprocesses()}
+    all_stream_ids = {s["id"] for s in store.list_streams()}
+    valid_ids = all_sp_ids | all_stream_ids
+    src = iface.get("source_process_id", "").strip()
+    tgt = iface.get("target_process_id", "").strip()
+    if src and src not in valid_ids:
+        raise HTTPException(400, f"Source process not found: '{src}'")
+    if tgt and tgt not in valid_ids:
+        raise HTTPException(400, f"Target process not found: '{tgt}'")
+    return store.save_interface(iface)
 
 @app.delete("/api/interfaces/{iface_id}")
 def delete_interface(iface_id: str, dataset: str = "examples"):

@@ -104,6 +104,91 @@ class TestReportsEndpoint:
         assert resp.status_code == 404
 
 
+class TestCRUDValidation:
+    """Tests for reference validation and dependency checks."""
+
+    def test_save_area_and_get(self, client) -> None:
+        area = {"id": "test_area", "name": "Test Area", "description": "A test"}
+        resp = client.put("/api/areas", json=area)
+        assert resp.status_code == 200
+        assert resp.json()["id"] == "test_area"
+        # Get it back
+        resp2 = client.get("/api/areas/test_area")
+        assert resp2.status_code == 200
+        assert resp2.json()["name"] == "Test Area"
+
+    def test_save_area_requires_id_and_name(self, client) -> None:
+        resp = client.put("/api/areas", json={"id": "x"})
+        assert resp.status_code == 400
+        resp = client.put("/api/areas", json={"name": "x"})
+        assert resp.status_code == 400
+
+    def test_save_area_empty_id_rejected(self, client) -> None:
+        resp = client.put("/api/areas", json={"id": "  ", "name": "x"})
+        assert resp.status_code == 400
+
+    def test_delete_area_with_streams_fails(self, client) -> None:
+        # definition_design has streams in example data
+        resp = client.delete("/api/areas/definition_design")
+        assert resp.status_code == 409
+        assert "stream" in resp.json()["detail"].lower()
+
+    def test_save_stream_validates_area_id(self, client) -> None:
+        stream = {"id": "s1", "name": "S1", "area_id": "nonexistent_area"}
+        resp = client.put("/api/streams", json=stream)
+        assert resp.status_code == 400
+        assert "area" in resp.json()["detail"].lower()
+
+    def test_save_stream_valid_area_id(self, client) -> None:
+        stream = {"id": "test_stream", "name": "TS", "area_id": "definition_design"}
+        resp = client.put("/api/streams", json=stream)
+        assert resp.status_code == 200
+
+    def test_delete_stream_with_subprocesses_fails(self, client) -> None:
+        # policies_processes has subprocesses in example data
+        resp = client.delete("/api/streams/policies_processes")
+        assert resp.status_code == 409
+        assert "subprocess" in resp.json()["detail"].lower()
+
+    def test_save_subprocess_validates_stream_id(self, client) -> None:
+        sp = {"id": "sp1", "name": "SP1", "stream_id": "nonexistent_stream"}
+        resp = client.put("/api/subprocesses", json=sp)
+        assert resp.status_code == 400
+        assert "stream" in resp.json()["detail"].lower()
+
+    def test_delete_subprocess_with_interfaces_fails(self, client) -> None:
+        # sp-risk-identify is referenced by interface iface-risk-to-incident
+        resp = client.delete("/api/subprocesses/sp-risk-identify")
+        assert resp.status_code == 409
+        assert "interface" in resp.json()["detail"].lower()
+
+    def test_save_interface_validates_source_target(self, client) -> None:
+        iface = {"id": "if1", "source_process_id": "nonexistent_sp", "target_process_id": "sp-inc-intake"}
+        resp = client.put("/api/interfaces", json=iface)
+        assert resp.status_code == 400
+        assert "source" in resp.json()["detail"].lower()
+
+    def test_save_interface_valid_references(self, client) -> None:
+        iface = {"id": "if-test", "source_process_id": "sp-inc-intake",
+                 "target_process_id": "sp-inc-communication", "interface_type": "data_flow"}
+        resp = client.put("/api/interfaces", json=iface)
+        assert resp.status_code == 200
+
+    def test_delete_interface_success(self, client) -> None:
+        # First create one
+        iface = {"id": "if-del-test", "source_process_id": "sp-inc-intake",
+                 "target_process_id": "sp-inc-communication", "interface_type": "data_flow"}
+        client.put("/api/interfaces", json=iface)
+        resp = client.delete("/api/interfaces/if-del-test")
+        assert resp.status_code == 200
+
+    def test_delete_area_success_when_no_dependents(self, client) -> None:
+        # Create area with no streams
+        client.put("/api/areas", json={"id": "orphan_area", "name": "Orphan"})
+        resp = client.delete("/api/areas/orphan_area")
+        assert resp.status_code == 200
+
+
 class TestCalibrateEndpoint:
     def test_calibrate_no_outcomes(self, client) -> None:
         resp = client.post("/calibrate", json={"data_dir": "examples"})
