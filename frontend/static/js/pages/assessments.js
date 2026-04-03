@@ -300,7 +300,7 @@ async function renderEditor(objectId) {
     </div>
 
     <div style="margin-top:12px;display:flex;gap:8px;justify-content:flex-end">
-      <a href="${backUrl}" class="btn">Cancel</a>
+      <a href="${backUrl}" class="btn">Abbrechen</a>
       <button class="btn btn-primary" id="btn-save-assessment-bottom">Speichern</button>
     </div>
   `);

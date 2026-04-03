@@ -666,7 +666,7 @@ function _renderVariantCol(streamId, stepId, entityId, v, scores, maturity) {
       ${(v.input_channels||[]).length ? `<div><strong>Eingangskanäle:</strong> ${list(v.input_channels)}</div>` : ''}
       <div><strong>Systeme:</strong> ${missingFields.includes('systems_used') ? '<span style="color:var(--danger)">fehlt</span>' : list(v.systems_used)}</div>
       <div><strong>Rollen:</strong> ${missingFields.includes('roles_involved') ? '<span style="color:var(--danger)">fehlt</span>' : list(v.roles_involved)}</div>
-      ${v.output ? `<div><strong>Output:</strong> ${esc(v.output)}</div>` : ''}
+      ${v.output ? `<div><strong>Ergebnis:</strong> ${esc(v.output)}</div>` : ''}
       ${v.sla_or_target ? `<div><strong>SLA/Ziel:</strong> ${esc(v.sla_or_target)}</div>` : ''}
       ${v.approx_volume ? `<div><strong>Volumen:</strong> ${esc(v.approx_volume)}</div>` : ''}
     </div>
@@ -747,7 +747,7 @@ function _renderRecommendationsPanel(recs) {
               <div><strong>Begründung:</strong> ${esc(r.rationale)}</div>
               <div><strong>Erwarteter Nutzen:</strong> ${esc(r.expected_benefit)}</div>
               ${(r.assumptions||[]).length ? `<div><strong>Annahmen:</strong> ${r.assumptions.map(a => esc(a)).join('; ')}</div>` : ''}
-              ${(r.blockers||[]).length ? `<div style="color:var(--danger)"><strong>Blocker:</strong> ${r.blockers.map(b => esc(b)).join('; ')}</div>` : ''}
+              ${(r.blockers||[]).length ? `<div style="color:var(--danger)"><strong>Hindernisse:</strong> ${r.blockers.map(b => esc(b)).join('; ')}</div>` : ''}
             </td>
           </tr>`).join('')}
         </tbody>
@@ -938,7 +938,7 @@ async function openVariantEditor(streamId, step, entityId, variant) {
     )}
     ${textArea('f-pa-roles', 'Rollen & Verantwortlichkeiten * (eine pro Zeile, Format: Rolle: Verantwortung)', jr(v.roles_involved), { rows: 3 })}
     ${formRow(
-      textField('f-pa-output', 'Output', v.output || ''),
+      textField('f-pa-output', 'Ergebnis / Output', v.output || ''),
       textField('f-pa-sla', 'SLA / Zielzeit', v.sla_or_target || '')
     )}
     ${textField('f-pa-volume', 'Ungefähres Volumen', v.approx_volume || '')}
@@ -960,7 +960,7 @@ async function openVariantEditor(streamId, step, entityId, variant) {
       )}
     </div>
 
-    ${textArea('f-pa-painpoints', 'Probleme / Pain Points (eines pro Zeile)', j(v.pain_points), { rows: 2 })}
+    ${textArea('f-pa-painpoints', 'Schwachstellen / Probleme (eines pro Zeile)', j(v.pain_points), { rows: 2 })}
 
     <div style="background:#f0f9ff;border:1px solid #bae6fd;border-radius:6px;padding:10px 14px;margin:12px 0">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
@@ -971,7 +971,7 @@ async function openVariantEditor(streamId, step, entityId, variant) {
         ${existingEvRefs.map((e, i) => _evidenceRowHtml(i, e, evTypes, evConf)).join('')}
       </div>
       ${existingEvRefs.length === 0 ? '<p id="ev-empty-msg" style="font-size:11px;color:var(--text-muted);margin:4px 0">Noch keine Evidenznachweise. Klicken Sie auf "+ Evidenz hinzufügen".</p>' : ''}
-      ${textArea('f-pa-evidence', 'Legacy-Evidenz / Beispiele (eines pro Zeile)', j(v.evidence_or_examples), { rows: 2 })}
+      ${textArea('f-pa-evidence', 'Bestehende Nachweise / Beispiele (eines pro Zeile)', j(v.evidence_or_examples), { rows: 2 })}
     </div>
 
     ${formRow(

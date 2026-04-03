@@ -12,7 +12,7 @@ async function _fetch(url, opts = {}) {
   try {
     resp = await fetch(url, { headers: { 'Content-Type': 'application/json' }, ...opts });
   } catch (e) {
-    throw new Error('Backend unreachable: ' + e.message);
+    throw new Error('Backend nicht erreichbar: ' + e.message);
   }
   if (!resp.ok) {
     let detail = resp.statusText;
@@ -83,7 +83,7 @@ export const API = {
     try {
       resp = await fetch(`/api/reports/${encodeURIComponent(name)}`);
     } catch (e) {
-      throw new Error('Backend unreachable');
+      throw new Error('Backend nicht erreichbar');
     }
     if (!resp.ok) throw new Error(`HTTP ${resp.status}: ${resp.statusText}`);
     return resp.text();

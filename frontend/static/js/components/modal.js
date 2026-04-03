@@ -14,14 +14,14 @@ export function initModal() {
     if (!_onSave) return;
     const btn = document.getElementById('modal-save');
     btn.disabled = true;
-    btn.textContent = 'Saving…';
+    btn.textContent = 'Speichern…';
     try {
       await _onSave();
     } catch (e) {
       toast(e.message, true);
     } finally {
       btn.disabled = false;
-      btn.textContent = 'Save';
+      btn.textContent = 'Speichern';
     }
   });
   document.getElementById('modal-overlay').addEventListener('click', (e) => {

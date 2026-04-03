@@ -133,8 +133,8 @@ async function openStreamForm(stream, areas) {
       selectField('f-s-type', 'Stream-Typ', typeOpts, s.stream_type || '')
     )}
     ${formRow(
-      selectField('f-s-country', 'Country Scope', scopeOpts, s.country_scope || 'BOTH'),
-      selectField('f-s-tenant', 'Tenant Scope', tenantOpts, s.tenant_scope || 'BOTH')
+      selectField('f-s-country', 'Länder-Scope', scopeOpts, s.country_scope || 'BOTH'),
+      selectField('f-s-tenant', 'Mandanten-Scope', tenantOpts, s.tenant_scope || 'BOTH')
     )}
     ${textField('f-s-owner', 'Eigentümer-Rolle', s.owner_role || '')}
     ${textArea('f-s-desc', 'Beschreibung', s.description || '')}
