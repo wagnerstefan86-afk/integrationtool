@@ -212,7 +212,7 @@ async function renderDetail(streamId) {
       <td style="color:var(--text-muted);font-size:12px;max-width:200px">${esc(sp.purpose || sp.description || '—')}</td>
       <td>${badge(statusCls[spStatus] || 'badge-muted', ({not_started:'Nicht begonnen',draft:'Entwurf',completed:'Abgeschlossen',reviewed:'Geprüft'})[spStatus] || spStatus.replace(/_/g, ' '))}</td>
       <td style="white-space:nowrap">
-        <a href="#/assessments/${encodeURIComponent(sp.id)}" class="btn btn-sm">${spAss ? 'Bew. bearbeiten' : 'Bewerten'}</a>
+        <a href="#/assessments/${encodeURIComponent(sp.id)}" class="btn btn-sm">${spAss ? 'Bewertung bearbeiten' : 'Bewerten'}</a>
         <button class="btn btn-sm" data-edit-sp="${esc(sp.id)}">Bearbeiten</button>
         <button class="btn btn-sm btn-danger" data-delete-sp="${esc(sp.id)}">Löschen</button>
       </td>
@@ -427,12 +427,12 @@ async function openAsIsForm(streamId, asIsData) {
   openModal('AS-IS bearbeiten: DE / AT', `
     <div id="asis-errors" style="display:none;padding:8px 12px;margin-bottom:12px;background:#fef2f2;border:1px solid var(--danger);border-radius:4px;font-size:12px;color:var(--danger)"></div>
 
-    <h4 style="margin:0 0 8px;color:var(--primary);border-bottom:2px solid var(--primary);padding-bottom:4px">DE (Germany)</h4>
+    <h4 style="margin:0 0 8px;color:var(--primary);border-bottom:2px solid var(--primary);padding-bottom:4px">DE (Deutschland)</h4>
     ${_asIsCountryFields('de', de)}
 
     <hr style="border:none;border-top:2px solid var(--border);margin:18px 0">
 
-    <h4 style="margin:0 0 8px;color:var(--primary);border-bottom:2px solid var(--primary);padding-bottom:4px">AT (Austria)</h4>
+    <h4 style="margin:0 0 8px;color:var(--primary);border-bottom:2px solid var(--primary);padding-bottom:4px">AT (Österreich)</h4>
     ${_asIsCountryFields('at', at)}
 
     <hr style="border:none;border-top:2px solid var(--border);margin:18px 0">
@@ -702,8 +702,8 @@ function _renderAsIsSection(streamId, asIsData) {
       <button class="btn btn-sm btn-primary" id="btn-edit-as-is">AS-IS bearbeiten</button>
     </div>
     <div style="display:flex;gap:20px;flex-wrap:wrap">
-      ${countryCol('DE (Germany)', de, deOk)}
-      ${countryCol('AT (Austria)', at, atOk)}
+      ${countryCol('DE (Deutschland)', de, deOk)}
+      ${countryCol('AT (Österreich)', at, atOk)}
     </div>
     ${deltaHtml}
   </div>`;

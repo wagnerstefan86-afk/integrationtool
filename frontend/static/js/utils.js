@@ -48,7 +48,7 @@ export function classificationBadge(cls) {
 /** Badge for confidence level. */
 export function confidenceBadge(level) {
   const cls = { high: 'confidence-high', medium: 'confidence-medium', low: 'confidence-low' };
-  const labels = { high: 'Hoch', medium: 'Mittel', low: 'Gering' };
+  const labels = { high: 'Hoch', medium: 'Mittel', low: 'Niedrig' };
   return `<span class="badge ${cls[level] || 'badge-muted'}">${esc(labels[level] || level || '—')}</span>`;
 }
 

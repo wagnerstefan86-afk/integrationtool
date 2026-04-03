@@ -54,7 +54,7 @@ function _evidenceBadge(strength, count) {
   if (!count && count !== 0) return '';
   if (count === 0) return badge('badge-danger', 'Keine Evidenz');
   const cls = { high: 'badge-success', medium: 'badge-warning', low: 'badge-danger' };
-  const strengthDe = { high: 'stark', medium: 'mittel', low: 'schwach' };
+  const strengthDe = { high: 'hoch', medium: 'mittel', low: 'niedrig' };
   return badge(cls[strength] || 'badge-muted', count + ' Evidenz (' + (strengthDe[strength] || strength || '?') + ')');
 }
 
@@ -89,7 +89,7 @@ function _priorityBadge(p) {
 
 function _complexityBadge(c) {
   const cls = { hoch: 'badge-danger', mittel: 'badge-warning', niedrig: 'badge-success' };
-  const labels = { hoch: 'Aufwand: hoch', mittel: 'Aufwand: mittel', niedrig: 'Aufwand: gering' };
+  const labels = { hoch: 'Aufwand: hoch', mittel: 'Aufwand: mittel', niedrig: 'Aufwand: niedrig' };
   return badge(cls[c] || 'badge-muted', labels[c] || c);
 }
 
@@ -554,7 +554,7 @@ function _renderStep(streamId, step, entities, scores, stepDeltas, stepRecs, ste
 
 function _impactBadge(impact) {
   const cls = { high: 'badge-danger', medium: 'badge-warning', low: 'badge-success' };
-  const labels = { high: 'Hoch', medium: 'Mittel', low: 'Gering' };
+  const labels = { high: 'Hoch', medium: 'Mittel', low: 'Niedrig' };
   return badge(cls[impact] || 'badge-muted', labels[impact] || impact);
 }
 
@@ -685,7 +685,7 @@ function _renderVariantCol(streamId, stepId, entityId, v, scores, maturity) {
     <div style="margin-top:6px;font-size:11px">
       <strong>Evidenz:</strong>
       ${evRefs.length ? evRefs.map(e =>
-        `<div style="padding:2px 0"><span style="font-size:10px;padding:1px 4px;border-radius:3px;background:#dbeafe;color:#1e40af;margin-right:4px">${esc(e.type || 'other')}</span>${esc(e.title || '')}${e.confidence ? ' <span style="color:var(--text-muted)">(' + esc(({high:'hoch',medium:'mittel',low:'gering'})[e.confidence] || e.confidence) + ')</span>' : ''}</div>`
+        `<div style="padding:2px 0"><span style="font-size:10px;padding:1px 4px;border-radius:3px;background:#dbeafe;color:#1e40af;margin-right:4px">${esc(e.type || 'other')}</span>${esc(e.title || '')}${e.confidence ? ' <span style="color:var(--text-muted)">(' + esc(({high:'hoch',medium:'mittel',low:'niedrig'})[e.confidence] || e.confidence) + ')</span>' : ''}</div>`
       ).join('') : legacyEv.length ? list(legacyEv) : '<span style="color:var(--danger)">keine</span>'}
     </div>
 

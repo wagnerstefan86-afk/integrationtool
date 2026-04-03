@@ -54,12 +54,12 @@ function _renderProgress(s) {
 
   return `
     <div class="stat-grid" style="margin-bottom:20px">
-      ${card(s.as_is_complete, s.total_streams, 'AS-IS Abgeschlossen', 'var(--primary)')}
-      ${card(s.delta_ready, s.total_streams, 'Delta Verfügbar', 'var(--primary)')}
-      ${card(s.options_complete, s.total_streams, 'Alle 3 Optionen Bewertet', '#8b5cf6')}
-      ${card(s.recommendations_ready, s.total_streams, 'Empfehlung Bereit', 'var(--success)')}
+      ${card(s.as_is_complete, s.total_streams, 'IST-Aufnahme abgeschlossen', 'var(--primary)')}
+      ${card(s.delta_ready, s.total_streams, 'Delta verfügbar', 'var(--primary)')}
+      ${card(s.options_complete, s.total_streams, 'Alle 3 Optionen bewertet', '#8b5cf6')}
+      ${card(s.recommendations_ready, s.total_streams, 'Empfehlung bereit', 'var(--success)')}
       ${card(s.reviewed, s.total_streams, 'Geprüft', 'var(--success)')}
-      ${card(s.total_streams - s.blocked, s.total_streams, 'Keine Probleme', '#22c55e')}
+      ${card(s.total_streams - s.blocked, s.total_streams, 'Ohne Hindernisse', '#22c55e')}
     </div>`;
 }
 
@@ -85,7 +85,7 @@ function _renderDistribution(dist, total) {
       ${bar('DE Standard', dist.de_standard, '#3b82f6')}
       ${bar('AT Standard', dist.at_standard, '#8b5cf6')}
       ${bar('Zentral', dist.central, '#22c55e')}
-      ${bar('Keine Entscheidung', dist.none, '#94a3b8')}
+      ${bar('Keine Empfehlung', dist.none, '#94a3b8')}
     </div>
   </div>`;
 }
@@ -126,10 +126,10 @@ function _renderTargetPicture(streams) {
     <div class="card-header">Zielbetriebsmodell-Übersicht</div>
     <div class="card-body">
       <div style="display:flex;gap:12px;flex-wrap:wrap">
-        ${col('DE Übernehmen', '#3b82f6', groups.de)}
-        ${col('AT Übernehmen', '#8b5cf6', groups.at)}
-        ${col('Zentral / Vereinheitlicht', '#22c55e', groups.central)}
-        ${col('Lokal / Unentschieden', '#94a3b8', groups.local)}
+        ${col('DE-Standard', '#3b82f6', groups.de)}
+        ${col('AT-Standard', '#8b5cf6', groups.at)}
+        ${col('Zentral', '#22c55e', groups.central)}
+        ${col('Lokal / offen', '#94a3b8', groups.local)}
       </div>
     </div>
   </div>`;
@@ -175,7 +175,7 @@ function _renderStreamTable(streams) {
     return map[opt] || '---';
   };
   const optBadge = (opt) => {
-    if (!opt) return badge('badge-muted', 'keine');
+    if (!opt) return badge('badge-muted', 'offen');
     const cls = { de_standard: 'badge-primary', at_standard: 'badge-info', central: 'badge-success' };
     return badge(cls[opt] || 'badge-muted', optLabel(opt));
   };
@@ -204,7 +204,7 @@ function _renderStreamTable(streams) {
       <td>${optBadge(r.recommended_option)}</td>
       <td>${r.reviewed_decision ? optBadge(r.reviewed_decision) : '<span style="color:var(--text-muted)">---</span>'}</td>
       <td>${statusBadge(r.review_status)}</td>
-      <td>${r.needs_action ? badge('badge-danger', 'Handlungsbedarf') : badge('badge-success', 'ok')}</td>
+      <td>${r.needs_action ? badge('badge-danger', 'Handlungsbedarf') : badge('badge-success', 'kein Handlungsbedarf')}</td>
     </tr>
   `).join('');
 
