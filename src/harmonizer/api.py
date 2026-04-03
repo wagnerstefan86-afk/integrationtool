@@ -392,6 +392,74 @@ def delete_analysis(stream_id: str, dataset: str = "examples"):
     return {"deleted": stream_id}
 
 
+@app.get("/api/process-analysis/{stream_id}/recommendations")
+def get_analysis_recommendations(stream_id: str, dataset: str = "examples"):
+    """Return rule-based recommendations for a process analysis.
+
+    Response: list of recommendation objects, each with:
+      id, title, recommendation_type, rationale, based_on_step_ids[],
+      based_on_delta_ids[], priority, assumptions[], blockers[],
+      expected_benefit, implementation_complexity
+    """
+    from harmonizer.process_analysis import generate_recommendations
+    store = _get_store(dataset)
+    analysis = store.get_analysis(stream_id)
+    if not analysis:
+        raise HTTPException(404, f"Process analysis not found for stream: {stream_id}")
+    return generate_recommendations(analysis)
+
+
+class ReviewStatusRequest(BaseModel):
+    step_id: str
+    entity_id: str
+    new_status: str
+
+
+@app.post("/api/process-analysis/{stream_id}/validate-review-status")
+def validate_review_status_endpoint(stream_id: str, body: ReviewStatusRequest, dataset: str = "examples"):
+    """Validate whether a review status transition is allowed for a variant.
+
+    Input: { step_id, entity_id, new_status }
+    Response: { allowed, reasons[], missing_prerequisites[], current_status }
+    """
+    from harmonizer.process_analysis import validate_review_status, REVIEW_STATUSES
+    store = _get_store(dataset)
+    analysis = store.get_analysis(stream_id)
+    if not analysis:
+        raise HTTPException(404, f"Process analysis not found for stream: {stream_id}")
+
+    # Find the variant
+    variant = None
+    for step in analysis.get("process_steps", []):
+        if step.get("step_id") == body.step_id:
+            for v in step.get("entity_variants", []):
+                if v.get("entity_id") == body.entity_id:
+                    variant = v
+                    break
+            break
+
+    if variant is None:
+        raise HTTPException(404, f"Variant not found: step={body.step_id}, entity={body.entity_id}")
+
+    result = validate_review_status(variant, body.new_status)
+    # Normalize response format
+    reasons = [result["reason"]] if result["reason"] else []
+    missing = []
+    if not result["valid"] and "missing" in result.get("reason", "").lower():
+        # Extract missing fields from reason text
+        reason_text = result.get("reason", "")
+        if "missing" in reason_text.lower():
+            after_missing = reason_text.split("missing ", 1)[-1] if "missing " in reason_text else ""
+            missing = [f.strip() for f in after_missing.split(",") if f.strip()]
+
+    return {
+        "allowed": result["valid"],
+        "reasons": reasons,
+        "missing_prerequisites": missing,
+        "current_status": result["current_status"],
+    }
+
+
 @app.get("/api/process-analysis-guide/{step_id}")
 def get_guide_questions(step_id: str):
     """Return guided interview questions for a process phase."""

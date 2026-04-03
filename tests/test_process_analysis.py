@@ -697,6 +697,159 @@ class TestProcessAnalysisAPI:
         resp = client.get("/api/process-analysis-guide/nonexistent")
         assert resp.status_code == 404
 
+    # ─── Enriched deltas endpoint ───────────────────────────────────────────
+
+    def test_deltas_have_enriched_fields(self, client):
+        resp = client.get("/api/process-analysis/request_incident_mgmt/deltas")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert len(data) > 0
+        for d in data:
+            assert "delta_dimension" in d, f"Missing delta_dimension in delta: {d['delta_type']}"
+            assert "delta_nature" in d
+            assert "constraint_type" in d
+            assert "constraint_evidence" in d
+            assert "needs_management_decision" in d
+            assert isinstance(d["needs_management_decision"], bool)
+
+    def test_deltas_contain_control_gaps(self, client):
+        resp = client.get("/api/process-analysis/request_incident_mgmt/deltas")
+        data = resp.json()
+        gaps = [d for d in data if d["delta_type"] == "control_gap"]
+        assert len(gaps) >= 1, "Seed data should have control gaps in escalation/reporting"
+        for g in gaps:
+            assert g["delta_nature"] == "control_relevant"
+            assert g["needs_management_decision"] is True
+
+    # ─── Enriched summary endpoint ───────────────────────────────────────
+
+    def test_summary_has_decision_support_fields(self, client):
+        resp = client.get("/api/process-analysis/request_incident_mgmt/summary")
+        assert resp.status_code == 200
+        data = resp.json()
+        # New decision support counters
+        assert isinstance(data["standardization_candidates_count"], int)
+        assert isinstance(data["likely_keep_local_count"], int)
+        assert isinstance(data["control_gaps_count"], int)
+        assert data["control_gaps_count"] >= 1
+        assert isinstance(data["evidence_gaps_count"], int)
+        assert data["evidence_gaps_count"] >= 1  # AT has evidence gaps
+        assert isinstance(data["weak_why_count"], int)
+        assert data["weak_why_count"] >= 1  # AT has weak WHYs
+        assert isinstance(data["management_decisions_needed_count"], int)
+        # Review status counts
+        assert isinstance(data["review_status_counts"], dict)
+        assert "draft" in data["review_status_counts"]
+        assert "approved" in data["review_status_counts"]
+        # Tendency
+        assert data["tendency"] in ("harmonizable", "partially_harmonizable",
+                                     "strongly_local", "insufficiently_captured")
+        # Top differences and open gaps
+        assert isinstance(data["top_differences"], list)
+        assert isinstance(data["open_gaps"], list)
+        assert len(data["open_gaps"]) >= 1
+        # Recommendations embedded
+        assert isinstance(data["recommendations"], list)
+        assert len(data["recommendations"]) >= 1
+
+    # ─── Recommendations endpoint ────────────────────────────────────────
+
+    def test_recommendations_endpoint(self, client):
+        resp = client.get("/api/process-analysis/request_incident_mgmt/recommendations")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert isinstance(data, list)
+        assert len(data) >= 1
+
+    def test_recommendations_have_required_fields(self, client):
+        resp = client.get("/api/process-analysis/request_incident_mgmt/recommendations")
+        data = resp.json()
+        valid_types = {"keep_local", "harmonize", "centralize",
+                       "investigate_further", "remediate_control_gap"}
+        for r in data:
+            assert "id" in r
+            assert "title" in r
+            assert r["recommendation_type"] in valid_types
+            assert "rationale" in r
+            assert isinstance(r["based_on_step_ids"], list)
+            assert isinstance(r["based_on_delta_ids"], list)
+            assert r["priority"] in ("high", "medium", "low")
+            assert isinstance(r["assumptions"], list)
+            assert isinstance(r["blockers"], list)
+            assert "expected_benefit" in r
+            assert r["implementation_complexity"] in ("low", "medium", "high")
+
+    def test_recommendations_contain_expected_types(self, client):
+        resp = client.get("/api/process-analysis/request_incident_mgmt/recommendations")
+        data = resp.json()
+        types = {r["recommendation_type"] for r in data}
+        # Seed data should produce at least these types
+        assert "remediate_control_gap" in types, "Seed should have control gap remediation"
+        assert "keep_local" in types, "Seed should have keep_local (regulatory constraints)"
+
+    def test_recommendations_not_found(self, client):
+        resp = client.get("/api/process-analysis/nonexistent/recommendations")
+        assert resp.status_code == 404
+
+    # ─── Review status validation endpoint ───────────────────────────────
+
+    def test_validate_review_approved_missing_evidence(self, client):
+        """AT triage has no evidence — approval should be blocked."""
+        resp = client.post(
+            "/api/process-analysis/request_incident_mgmt/validate-review-status",
+            json={"step_id": "triage", "entity_id": "AT", "new_status": "approved"},
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["allowed"] is False
+        assert len(data["reasons"]) >= 1
+        assert len(data["missing_prerequisites"]) >= 1
+
+    def test_validate_review_approved_complete_variant(self, client):
+        """DE escalation has everything — approval should be allowed."""
+        resp = client.post(
+            "/api/process-analysis/request_incident_mgmt/validate-review-status",
+            json={"step_id": "escalation", "entity_id": "DE", "new_status": "approved"},
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["allowed"] is True
+        assert data["reasons"] == []
+        assert data["missing_prerequisites"] == []
+
+    def test_validate_review_challenged_always_allowed(self, client):
+        resp = client.post(
+            "/api/process-analysis/request_incident_mgmt/validate-review-status",
+            json={"step_id": "intake", "entity_id": "DE", "new_status": "challenged"},
+        )
+        assert resp.status_code == 200
+        assert resp.json()["allowed"] is True
+
+    def test_validate_review_invalid_status(self, client):
+        resp = client.post(
+            "/api/process-analysis/request_incident_mgmt/validate-review-status",
+            json={"step_id": "intake", "entity_id": "DE", "new_status": "bogus"},
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["allowed"] is False
+
+    def test_validate_review_variant_not_found(self, client):
+        resp = client.post(
+            "/api/process-analysis/request_incident_mgmt/validate-review-status",
+            json={"step_id": "intake", "entity_id": "NONEXISTENT", "new_status": "captured"},
+        )
+        assert resp.status_code == 404
+
+    def test_validate_review_analysis_not_found(self, client):
+        resp = client.post(
+            "/api/process-analysis/nonexistent/validate-review-status",
+            json={"step_id": "intake", "entity_id": "DE", "new_status": "captured"},
+        )
+        assert resp.status_code == 404
+
+    # ─── Delete (moved to end to avoid interfering with other tests) ─────
+
     def test_delete_analysis(self, client):
         resp = client.delete("/api/process-analysis/request_incident_mgmt")
         assert resp.status_code == 200
