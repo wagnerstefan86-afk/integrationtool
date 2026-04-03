@@ -23,12 +23,25 @@ PORT = int(os.environ.get("FRONTEND_PORT", "3001"))
 
 STATIC_DIR = Path(__file__).parent / "static"
 
+# Ensure correct MIME types — Python's mimetypes module may return wrong
+# values on some platforms (e.g. text/plain for .js on Alpine/Debian-slim).
+MIME_OVERRIDES = {
+    ".js": "application/javascript",
+    ".mjs": "application/javascript",
+    ".css": "text/css",
+    ".html": "text/html",
+    ".json": "application/json",
+    ".svg": "image/svg+xml",
+    ".woff2": "font/woff2",
+}
+
 
 class SPAHandler(BaseHTTPRequestHandler):
     def do_GET(self) -> None:
         path = unquote(self.path.split("?")[0])
         if path.startswith("/static/"):
-            self._serve_static(path[1:])
+            # Strip leading "/static/" — STATIC_DIR already points to the static/ folder
+            self._serve_static(path[len("/static/"):])
         elif path.startswith("/api/") or path == "/health":
             self._proxy("GET")
         else:
@@ -67,7 +80,12 @@ class SPAHandler(BaseHTTPRequestHandler):
             return
 
         if not file_path.exists() or not file_path.is_file():
-            # SPA fallback for deep routes
+            # Only fall back to index.html for SPA navigation routes
+            # (paths without a file extension). Never serve HTML for
+            # actual asset requests (.js, .css, .png, etc.) — return 404.
+            if "." in Path(rel_path).name:
+                self._send(404, "text/plain", f"Not found: {rel_path}")
+                return
             index = STATIC_DIR / "index.html"
             if index.exists():
                 self._send_file(index)
@@ -78,8 +96,11 @@ class SPAHandler(BaseHTTPRequestHandler):
         self._send_file(file_path)
 
     def _send_file(self, path: Path) -> None:
-        mime_type, _ = mimetypes.guess_type(str(path))
-        mime_type = mime_type or "application/octet-stream"
+        suffix = path.suffix.lower()
+        mime_type = MIME_OVERRIDES.get(suffix)
+        if not mime_type:
+            mime_type, _ = mimetypes.guess_type(str(path))
+            mime_type = mime_type or "application/octet-stream"
         data = path.read_bytes()
         self.send_response(200)
         self.send_header("Content-Type", mime_type)
