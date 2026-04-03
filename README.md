@@ -1,13 +1,26 @@
 # Harmonizer — InfoSec Process Harmonization Analysis Tool
 
-Internal CLI tool for analyzing and documenting the harmonization potential of information security processes across DE/AT organizational units.
+Internal CLI + API tool for analyzing and documenting the harmonization potential of information security processes across DE/AT organizational units.
 
 ## Quick Start
+
+### CLI
 
 ```bash
 pip install -e ".[dev]"
 harmonizer analyze --data-dir data/examples -o report.md
 pytest
+```
+
+### Docker (Production)
+
+```bash
+cp .env.example .env
+# Copy your YAML data into deploy/data/examples/
+cp data/examples/*.yaml deploy/data/examples/
+docker-compose up -d
+# API at http://localhost:8001
+# Report Viewer at http://localhost:3001
 ```
 
 ## Project Structure
@@ -19,11 +32,15 @@ src/harmonizer/
 │   └── assessment.py     # Assessment, scoring models, completeness, confidence
 ├── scoring/
 │   ├── engine.py         # Stream-type-aware scoring, aggregation, completeness
+│   ├── decision_engine.py # Decision engine, interface complexity, H/S/C, operating model
+│   ├── calibration_engine.py # Calibration, trust score, protected rules
 │   ├── questions.py      # Stream-type-specific supplementary question catalog
 │   └── loader.py         # YAML data loader
 ├── reporting/
-│   └── markdown.py       # Markdown + Mermaid report with gaps & management view
-└── cli.py                # Click-based CLI entry point (v0.3.0)
+│   └── markdown.py       # Markdown + Mermaid report with full decision context
+├── pipeline.py           # Reusable analysis pipeline (used by CLI + API)
+├── api.py                # FastAPI REST backend
+└── cli.py                # Click-based CLI entry point (v0.7.0)
 
 data/examples/
 ├── processes.yaml        # 4 areas, 15 streams, 42 subprocesses, 16 interfaces
@@ -173,6 +190,131 @@ The `analyze` command runs a 3-phase pipeline:
 6. Prioritization factors are scored independently of alignment dimensions.
 7. Assessment is per-object (one assessment per stream or subprocess).
 8. Completeness scoring prevents false precision on thin assessment data.
+
+## Deployment (Docker)
+
+### Prerequisites
+
+- Docker >= 20.10
+- Docker Compose >= 2.0
+
+### Directory Structure
+
+```
+deploy/
+├── data/
+│   ├── examples/    # Example/demo data (shipped with the tool)
+│   ├── pilot/       # Pilot assessment data
+│   ├── outcomes/    # Decision outcome YAML files for calibration
+│   └── archive/     # Archived assessment cycles
+├── reports/
+│   ├── generated/   # Auto-generated analysis reports
+│   └── reviewed/    # Reviewed/approved reports
+└── logs/            # Application logs
+```
+
+Data and code are strictly separated. All persistent data lives under `deploy/` on the host.
+
+### Configuration
+
+Copy `.env.example` to `.env` and adjust:
+
+```bash
+cp .env.example .env
+```
+
+| Variable | Default | Description |
+|---|---|---|
+| `APP_ENV` | production | Environment identifier |
+| `BACKEND_PORT` | 8001 | API port |
+| `FRONTEND_PORT` | 3001 | Report viewer port |
+| `DATA_PATH` | ./deploy/data | Host path for YAML data |
+| `REPORT_PATH` | ./deploy/reports | Host path for generated reports |
+| `LOG_PATH` | ./deploy/logs | Host path for logs |
+
+### Start
+
+```bash
+# Copy example data for initial setup
+cp data/examples/*.yaml deploy/data/examples/
+
+# Build and start
+docker-compose up -d
+
+# Verify
+curl http://localhost:8001/health
+```
+
+### Stop
+
+```bash
+docker-compose down
+```
+
+### Logs
+
+```bash
+# All services
+docker-compose logs -f
+
+# Backend only
+docker-compose logs -f backend
+
+# Persistent log file
+tail -f deploy/logs/harmonizer.log
+```
+
+### API Endpoints
+
+| Method | Endpoint | Description |
+|---|---|---|
+| `GET` | `/health` | Health check |
+| `POST` | `/analyze` | Run analysis (`{"data_dir": "examples"}`) |
+| `GET` | `/reports` | List generated reports |
+| `GET` | `/reports/{name}` | Retrieve a report |
+| `POST` | `/calibrate` | Run calibration (`{"data_dir": "examples"}`) |
+
+### Example: Run Analysis via API
+
+```bash
+curl -X POST http://localhost:8001/analyze \
+  -H "Content-Type: application/json" \
+  -d '{"data_dir": "examples"}'
+```
+
+### Example: Pilot Deployment
+
+1. Place your YAML files in `deploy/data/pilot/`
+2. Run analysis:
+   ```bash
+   curl -X POST http://localhost:8001/analyze \
+     -H "Content-Type: application/json" \
+     -d '{"data_dir": "pilot"}'
+   ```
+3. View report at http://localhost:3001
+4. After implementation, record outcomes in `deploy/data/pilot/outcomes.yaml`
+5. Run calibration:
+   ```bash
+   curl -X POST http://localhost:8001/calibrate \
+     -H "Content-Type: application/json" \
+     -d '{"data_dir": "pilot"}'
+   ```
+
+### Report Traceability
+
+Every generated report contains:
+- **Timestamp** (ISO 8601)
+- **App Version** (e.g. 0.7.0)
+- **Git Commit** (short hash, if available)
+- **Data Source** (which directory was analyzed)
+
+### CLI Still Available
+
+The CLI remains fully functional inside the container:
+
+```bash
+docker-compose exec backend harmonizer analyze --data-dir /data/examples -o /reports/generated/manual.md
+```
 
 ## Future Extensions
 

@@ -7,8 +7,6 @@ prioritization, and completeness/confidence data.
 Includes: Mermaid diagrams, management view, assessment gaps analysis.
 """
 
-from datetime import date
-
 from harmonizer.models.process import Area, Stream, StreamType, SubProcess, ProcessInterface
 from typing import Optional
 
@@ -180,6 +178,8 @@ def generate_report(
     interfaces: list[ProcessInterface],
     assessments: list[Assessment],
     calibration: Optional[CalibrationResult] = None,
+    data_source: str = "",
+    git_commit: str = "",
 ) -> str:
     area_index, stream_index, sp_index, streams_by_area, sps_by_stream = _build_indices(
         areas, streams, subprocesses
@@ -190,7 +190,13 @@ def generate_report(
 
     # --- Header ---
     s.append("# InfoSec Process Harmonization Report")
-    s.append(f"**Generated:** {date.today().isoformat()}")
+    from datetime import datetime
+    s.append(f"**Generated:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    s.append("**App Version:** 0.7.0")
+    if git_commit:
+        s.append(f"**Git Commit:** `{git_commit}`")
+    if data_source:
+        s.append(f"**Data Source:** {data_source}")
     s.append("")
 
     # --- Executive Summary ---
