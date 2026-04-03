@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Harmonizer — InfoSec Process Harmonization</title>
+<link rel="stylesheet" href="/static/css/app.css">
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+</head>
+<body>
+<nav id="sidebar">
+  <div class="sidebar-header">
+    <h2>Harmonizer</h2>
+    <span class="version">v0.8.0</span>
+  </div>
+  <ul class="nav-list">
+    <li><a href="#/" class="nav-link active" data-page="dashboard">
+      <span class="nav-icon">&#9632;</span> Dashboard</a></li>
+    <li><a href="#/areas" class="nav-link" data-page="areas">
+      <span class="nav-icon">&#9670;</span> Areas</a></li>
+    <li><a href="#/streams" class="nav-link" data-page="streams">
+      <span class="nav-icon">&#9654;</span> Streams</a></li>
+    <li><a href="#/subprocesses" class="nav-link" data-page="subprocesses">
+      <span class="nav-icon">&#9656;</span> Subprocesses</a></li>
+    <li><a href="#/interfaces" class="nav-link" data-page="interfaces">
+      <span class="nav-icon">&#8644;</span> Interfaces</a></li>
+    <li><a href="#/assessments" class="nav-link" data-page="assessments">
+      <span class="nav-icon">&#9733;</span> Assessments</a></li>
+    <li><a href="#/decisions" class="nav-link" data-page="decisions">
+      <span class="nav-icon">&#10003;</span> Decisions</a></li>
+    <li><a href="#/outcomes" class="nav-link" data-page="outcomes">
+      <span class="nav-icon">&#8635;</span> Outcomes</a></li>
+    <li><a href="#/reports" class="nav-link" data-page="reports">
+      <span class="nav-icon">&#128196;</span> Reports</a></li>
+  </ul>
+  <div class="sidebar-footer">
+    <label for="dataset-select">Dataset:</label>
+    <select id="dataset-select"></select>
+  </div>
+</nav>
+
+<main id="content">
+  <div id="page-loading" class="loading">Loading...</div>
+  <div id="page-content"></div>
+</main>
+
+<!-- Modal for forms -->
+<div id="modal-overlay" class="modal-overlay hidden">
+  <div id="modal" class="modal">
+    <div class="modal-header">
+      <h3 id="modal-title">Edit</h3>
+      <button id="modal-close" class="btn btn-sm">&times;</button>
+    </div>
+    <div id="modal-body" class="modal-body"></div>
+    <div class="modal-footer">
+      <button id="modal-cancel" class="btn">Cancel</button>
+      <button id="modal-save" class="btn btn-primary">Save</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast" class="toast hidden"></div>
+
+<script type="module" src="/static/js/app.js"></script>
+</body>
+</html>

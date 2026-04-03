@@ -1,177 +1,138 @@
-"""Minimal report viewer serving generated Markdown reports as HTML.
+"""Frontend server for the Harmonizer SPA.
 
-Provides:
-- GET /           — list of all reports with links
-- GET /view/{name} — render a single Markdown report as simple HTML
-- GET /raw/{name}  — raw Markdown text
+Serves the static SPA from the static/ directory and proxies
+all /api/* and /health requests to the backend (BACKEND_URL).
 
-This is a lightweight placeholder for a future proper frontend.
-No external dependencies required.
+Routes:
+  GET /static/*        — static assets (CSS, JS, images)
+  GET|POST|PUT|DELETE /api/* — proxied to backend
+  GET /health          — proxied to backend
+  GET /*               — serve index.html (SPA catch-all)
 """
 
-import html
+import mimetypes
 import os
-import re
-from http.server import HTTPServer, BaseHTTPRequestHandler
+import urllib.error
+import urllib.request
+from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 from urllib.parse import unquote
 
-REPORT_PATH = Path(os.environ.get("REPORT_PATH", "/reports"))
-BACKEND_URL = os.environ.get("BACKEND_URL", "http://backend:8001")
+BACKEND_URL = os.environ.get("BACKEND_URL", "http://localhost:8001")
 PORT = int(os.environ.get("FRONTEND_PORT", "3001"))
 
-
-def _md_to_html(md: str) -> str:
-    """Very basic Markdown to HTML conversion (no external deps)."""
-    lines = md.split("\n")
-    out: list[str] = []
-    in_table = False
-    in_code = False
-
-    for line in lines:
-        # Code blocks
-        if line.startswith("```"):
-            if in_code:
-                out.append("</pre>")
-                in_code = False
-            else:
-                out.append("<pre>")
-                in_code = True
-            continue
-        if in_code:
-            out.append(html.escape(line))
-            continue
-
-        # Tables
-        if "|" in line and line.strip().startswith("|"):
-            cells = [c.strip() for c in line.strip().strip("|").split("|")]
-            if all(set(c) <= {"-", " "} for c in cells):
-                continue  # separator row
-            if not in_table:
-                out.append("<table border='1' cellpadding='4' cellspacing='0'>")
-                in_table = True
-            out.append("<tr>" + "".join(f"<td>{html.escape(c)}</td>" for c in cells) + "</tr>")
-            continue
-        elif in_table:
-            out.append("</table>")
-            in_table = False
-
-        # Headers
-        if line.startswith("####"):
-            out.append(f"<h4>{html.escape(line[4:].strip())}</h4>")
-        elif line.startswith("###"):
-            out.append(f"<h3>{html.escape(line[3:].strip())}</h3>")
-        elif line.startswith("##"):
-            out.append(f"<h2>{html.escape(line[2:].strip())}</h2>")
-        elif line.startswith("# "):
-            out.append(f"<h1>{html.escape(line[2:].strip())}</h1>")
-        elif line.startswith("- "):
-            out.append(f"<li>{html.escape(line[2:])}</li>")
-        elif line.startswith("**") and line.endswith("**"):
-            out.append(f"<p><strong>{html.escape(line[2:-2])}</strong></p>")
-        elif line.strip() == "---":
-            out.append("<hr>")
-        elif line.strip() == "":
-            out.append("<br>")
-        else:
-            # Bold inline
-            processed = html.escape(line)
-            processed = re.sub(r'\*\*(.+?)\*\*', r'<strong>\1</strong>', processed)
-            out.append(f"<p>{processed}</p>")
-
-    if in_table:
-        out.append("</table>")
-    if in_code:
-        out.append("</pre>")
-
-    return "\n".join(out)
+STATIC_DIR = Path(__file__).parent / "static"
 
 
-class ReportHandler(BaseHTTPRequestHandler):
+class SPAHandler(BaseHTTPRequestHandler):
     def do_GET(self) -> None:
-        path = unquote(self.path)
-
-        if path == "/" or path == "":
-            self._serve_index()
-        elif path.startswith("/view/"):
-            name = path[6:]
-            self._serve_report_html(name)
-        elif path.startswith("/raw/"):
-            name = path[5:]
-            self._serve_report_raw(name)
+        path = unquote(self.path.split("?")[0])
+        if path.startswith("/static/"):
+            self._serve_static(path[1:])
+        elif path.startswith("/api/") or path == "/health":
+            self._proxy("GET")
         else:
-            self._send(404, "text/plain", "Not found")
+            self._serve_static("index.html")
 
-    def _serve_index(self) -> None:
-        reports = []
-        for subdir in ["generated", "reviewed"]:
-            d = REPORT_PATH / subdir
-            if d.exists():
-                for f in sorted(d.glob("*.md"), key=lambda p: p.stat().st_mtime, reverse=True):
-                    reports.append((subdir, f.name))
-
-        body = "<html><head><title>Harmonizer Reports</title>"
-        body += "<style>body{font-family:sans-serif;margin:40px;} a{color:#0366d6;}</style>"
-        body += "</head><body>"
-        body += "<h1>Harmonizer — Report Viewer</h1>"
-        body += f"<p>Backend: <a href='{BACKEND_URL}/health'>{BACKEND_URL}</a></p>"
-        if reports:
-            body += "<table border='1' cellpadding='8' cellspacing='0'>"
-            body += "<tr><th>Report</th><th>Category</th><th>Actions</th></tr>"
-            for subdir, name in reports:
-                body += f"<tr><td>{html.escape(name)}</td><td>{subdir}</td>"
-                body += f"<td><a href='/view/{name}'>View</a> | <a href='/raw/{name}'>Raw</a></td></tr>"
-            body += "</table>"
+    def do_POST(self) -> None:
+        path = unquote(self.path.split("?")[0])
+        if path.startswith("/api/"):
+            self._proxy("POST")
         else:
-            body += "<p>No reports found. Run an analysis first via the API.</p>"
-        body += "</body></html>"
-        self._send(200, "text/html", body)
+            self._send(405, "text/plain", "Method Not Allowed")
 
-    def _serve_report_html(self, name: str) -> None:
-        content = self._read_report(name)
-        if content is None:
-            self._send(404, "text/plain", f"Report not found: {name}")
+    def do_PUT(self) -> None:
+        path = unquote(self.path.split("?")[0])
+        if path.startswith("/api/"):
+            self._proxy("PUT")
+        else:
+            self._send(405, "text/plain", "Method Not Allowed")
+
+    def do_DELETE(self) -> None:
+        path = unquote(self.path.split("?")[0])
+        if path.startswith("/api/"):
+            self._proxy("DELETE")
+        else:
+            self._send(405, "text/plain", "Method Not Allowed")
+
+    # --- Static file serving ---
+
+    def _serve_static(self, rel_path: str) -> None:
+        file_path = (STATIC_DIR / rel_path).resolve()
+        # Safety: ensure we stay inside STATIC_DIR
+        try:
+            file_path.relative_to(STATIC_DIR.resolve())
+        except ValueError:
+            self._send(403, "text/plain", "Forbidden")
             return
-        html_body = _md_to_html(content)
-        page = f"""<html><head><title>{html.escape(name)}</title>
-<style>body{{font-family:sans-serif;margin:40px;max-width:1200px;}}
-table{{border-collapse:collapse;}} td,th{{padding:6px 10px;}}
-pre{{background:#f6f8fa;padding:16px;overflow-x:auto;}}
-h1{{color:#24292e;}} h2{{color:#0366d6;border-bottom:1px solid #e1e4e8;padding-bottom:8px;}}
-</style></head><body>
-<p><a href="/">&larr; Back to report list</a></p>
-{html_body}
-</body></html>"""
-        self._send(200, "text/html", page)
 
-    def _serve_report_raw(self, name: str) -> None:
-        content = self._read_report(name)
-        if content is None:
-            self._send(404, "text/plain", f"Report not found: {name}")
+        if not file_path.exists() or not file_path.is_file():
+            # SPA fallback for deep routes
+            index = STATIC_DIR / "index.html"
+            if index.exists():
+                self._send_file(index)
+            else:
+                self._send(404, "text/plain", "Not found")
             return
-        self._send(200, "text/plain; charset=utf-8", content)
 
-    def _read_report(self, name: str) -> str | None:
-        for subdir in ["generated", "reviewed"]:
-            f = REPORT_PATH / subdir / name
-            if f.exists():
-                return f.read_text(encoding="utf-8")
-        return None
+        self._send_file(file_path)
+
+    def _send_file(self, path: Path) -> None:
+        mime_type, _ = mimetypes.guess_type(str(path))
+        mime_type = mime_type or "application/octet-stream"
+        data = path.read_bytes()
+        self.send_response(200)
+        self.send_header("Content-Type", mime_type)
+        self.send_header("Content-Length", str(len(data)))
+        self.end_headers()
+        self.wfile.write(data)
+
+    # --- API proxy ---
+
+    def _proxy(self, method: str) -> None:
+        content_length = int(self.headers.get("Content-Length", 0))
+        body = self.rfile.read(content_length) if content_length > 0 else None
+
+        target = BACKEND_URL + self.path
+        req = urllib.request.Request(target, data=body, method=method)
+        if body:
+            ct = self.headers.get("Content-Type", "application/json")
+            req.add_header("Content-Type", ct)
+
+        try:
+            with urllib.request.urlopen(req, timeout=30) as resp:
+                status = resp.status
+                content_type = resp.headers.get("Content-Type", "application/json")
+                data = resp.read()
+        except urllib.error.HTTPError as e:
+            status = e.code
+            content_type = e.headers.get("Content-Type", "application/json")
+            data = e.read()
+        except Exception as e:
+            self._send(502, "text/plain", f"Backend unavailable: {e}")
+            return
+
+        self.send_response(status)
+        self.send_header("Content-Type", content_type)
+        self.send_header("Content-Length", str(len(data)))
+        self.end_headers()
+        self.wfile.write(data)
 
     def _send(self, code: int, content_type: str, body: str) -> None:
+        encoded = body.encode("utf-8")
         self.send_response(code)
         self.send_header("Content-Type", content_type)
-        encoded = body.encode("utf-8")
         self.send_header("Content-Length", str(len(encoded)))
         self.end_headers()
         self.wfile.write(encoded)
 
-    def log_message(self, format, *args) -> None:
-        print(f"[frontend] {args[0]}")
+    def log_message(self, format: str, *args: object) -> None:
+        print(f"[frontend] {self.address_string()} {args[0]}")
 
 
 if __name__ == "__main__":
-    print(f"Starting report viewer on port {PORT}")
-    print(f"Reports path: {REPORT_PATH}")
-    server = HTTPServer(("0.0.0.0", PORT), ReportHandler)
+    print(f"Harmonizer frontend on :{PORT}")
+    print(f"Static dir: {STATIC_DIR}")
+    print(f"Backend: {BACKEND_URL}")
+    server = HTTPServer(("0.0.0.0", PORT), SPAHandler)
     server.serve_forever()

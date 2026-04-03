@@ -1,16 +1,15 @@
 FROM python:3.11-slim
 
 LABEL maintainer="InfoSec DE/AT" \
-      description="Harmonizer Report Viewer (minimal)"
+      description="Harmonizer Enterprise SPA Frontend"
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1
 
 WORKDIR /app
 
-# Simple static file server for viewing Markdown reports
-# Uses Python's built-in http.server with a minimal wrapper
 COPY server.py /app/server.py
+COPY static/ /app/static/
 
 EXPOSE 3001
 
