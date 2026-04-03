@@ -128,6 +128,161 @@ def dashboard(dataset: str = "examples"):
     ]
     return stats
 
+# ===================== Director Overview =====================
+
+@app.get("/api/director/overview")
+def director_overview(dataset: str = "examples"):
+    """Aggregated management view across all streams.
+
+    Computes per-stream status for: AS-IS, delta, option assessments,
+    recommendation, review, and flags streams needing management action.
+    """
+    from harmonizer.scoring.delta import compute_delta
+    from harmonizer.scoring.option_decision import compare_options
+
+    store = _get_store(dataset)
+    streams = store.list_streams()
+    assessments = store.list_assessments()
+    reviews = store.list_reviews()
+
+    review_map = {r["stream_id"]: r for r in reviews}
+
+    # Pre-index assessments by stream
+    stream_assessments: dict[str, list[dict]] = {}
+    for a in assessments:
+        if a.get("assessed_object_type") == "stream":
+            stream_assessments.setdefault(a["assessed_object_id"], []).append(a)
+
+    stream_rows = []
+    rec_dist = {"de_standard": 0, "at_standard": 0, "central": 0, "none": 0}
+    summary = {
+        "total_streams": len(streams),
+        "as_is_complete": 0,
+        "delta_ready": 0,
+        "options_complete": 0,
+        "recommendations_ready": 0,
+        "reviewed": 0,
+        "blocked": 0,
+    }
+
+    for s in streams:
+        sid = s["id"]
+        as_is = s.get("as_is", {})
+        de = as_is.get("de", {})
+        at = as_is.get("at", {})
+        de_ok = is_as_is_complete(de)
+        at_ok = is_as_is_complete(at)
+        asis_complete = de_ok and at_ok
+
+        # Delta
+        has_de = bool(de.get("description", "").strip())
+        has_at = bool(at.get("description", "").strip())
+        delta_result = None
+        delta_summary = {"high": 0, "medium": 0, "low": 0}
+        if has_de and has_at:
+            delta_result = compute_delta(de, at)
+            ds = delta_result.get("summary", {})
+            delta_summary = {
+                "high": ds.get("high_impact", 0),
+                "medium": ds.get("medium_impact", 0),
+                "low": ds.get("low_impact", 0),
+            }
+        delta_ready = delta_result is not None
+
+        # Option assessments
+        opt_assessments = stream_assessments.get(sid, [])
+        option_set = {a.get("target_option") for a in opt_assessments if a.get("target_option")}
+        options_complete = {"de_standard", "at_standard", "central"} <= option_set
+
+        # Recommendation
+        recommended_option = None
+        has_recommendation = False
+        if opt_assessments:
+            try:
+                cmp = compare_options(s, opt_assessments)
+                recommended_option = cmp.get("recommended_option")
+                has_recommendation = recommended_option is not None
+            except Exception:
+                pass
+
+        # Review
+        review = review_map.get(sid)
+        review_status = review.get("review_status", "not_started") if review else "not_started"
+        reviewed_decision = review.get("reviewed_decision") if review else None
+        override_applied = review.get("override_applied", False) if review else False
+
+        # Hard constraints
+        hc_active = any(
+            bool(a.get("hard_constraints"))
+            for a in opt_assessments
+        )
+
+        # Action reasons
+        action_reasons = []
+        if not asis_complete:
+            action_reasons.append("AS-IS incomplete")
+        if not delta_ready and (has_de or has_at):
+            action_reasons.append("Delta not computable (asymmetric AS-IS)")
+        if not delta_ready and not has_de and not has_at:
+            action_reasons.append("No AS-IS documentation")
+        if len(option_set) < 3 and len(option_set) > 0:
+            action_reasons.append(f"Only {len(option_set)}/3 option assessments")
+        if len(option_set) == 0:
+            action_reasons.append("No option assessments")
+        if not has_recommendation and len(option_set) > 0:
+            action_reasons.append("No recommendation possible")
+        if delta_summary["high"] >= 3:
+            action_reasons.append(f"{delta_summary['high']} high-impact differences")
+        if hc_active:
+            action_reasons.append("Hard constraints active")
+        if override_applied and reviewed_decision and reviewed_decision != recommended_option:
+            action_reasons.append("Reviewed decision differs from recommendation")
+        if options_complete and review_status == "not_started":
+            action_reasons.append("Assessments complete but no review started")
+
+        needs_action = len(action_reasons) > 0
+
+        # Update summary
+        if asis_complete:
+            summary["as_is_complete"] += 1
+        if delta_ready:
+            summary["delta_ready"] += 1
+        if options_complete:
+            summary["options_complete"] += 1
+        if has_recommendation:
+            summary["recommendations_ready"] += 1
+        if review_status == "reviewed":
+            summary["reviewed"] += 1
+        if needs_action:
+            summary["blocked"] += 1
+
+        # Recommendation distribution — use reviewed decision if available, else computed
+        effective = reviewed_decision if reviewed_decision else recommended_option
+        rec_dist[effective if effective in rec_dist else "none"] += 1
+
+        stream_rows.append({
+            "stream_id": sid,
+            "stream_name": s.get("name", sid),
+            "area_id": s.get("area_id", ""),
+            "stream_type": s.get("stream_type", ""),
+            "as_is_complete": asis_complete,
+            "delta_summary": delta_summary,
+            "option_count": len(option_set),
+            "recommended_option": recommended_option,
+            "reviewed_decision": reviewed_decision,
+            "review_status": review_status,
+            "high_impact_differences": delta_summary["high"],
+            "hard_constraints_active": hc_active,
+            "needs_action": needs_action,
+            "action_reasons": action_reasons,
+        })
+
+    return {
+        "summary": summary,
+        "recommendation_distribution": rec_dist,
+        "streams": stream_rows,
+    }
+
 # ===================== Areas CRUD =====================
 
 @app.get("/api/areas")

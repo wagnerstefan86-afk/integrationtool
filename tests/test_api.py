@@ -624,6 +624,117 @@ class TestComputedDeltaEndpoint:
         assert "summary" in data["computed_delta"]
 
 
+class TestDirectorOverview:
+    """Tests for the director dashboard aggregation endpoint."""
+
+    def test_overview_returns_structure(self, client) -> None:
+        resp = client.get("/api/director/overview")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "summary" in data
+        assert "recommendation_distribution" in data
+        assert "streams" in data
+        s = data["summary"]
+        assert "total_streams" in s
+        assert "as_is_complete" in s
+        assert "delta_ready" in s
+        assert "options_complete" in s
+        assert "recommendations_ready" in s
+        assert "reviewed" in s
+        assert "blocked" in s
+
+    def test_overview_counts_match_streams(self, client) -> None:
+        resp = client.get("/api/director/overview")
+        data = resp.json()
+        assert data["summary"]["total_streams"] == len(data["streams"])
+
+    def test_stream_rows_have_required_fields(self, client) -> None:
+        resp = client.get("/api/director/overview")
+        data = resp.json()
+        for row in data["streams"]:
+            assert "stream_id" in row
+            assert "stream_name" in row
+            assert "as_is_complete" in row
+            assert "delta_summary" in row
+            assert "recommended_option" in row
+            assert "review_status" in row
+            assert "needs_action" in row
+            assert "action_reasons" in row
+            assert isinstance(row["action_reasons"], list)
+
+    def test_all_streams_need_action_initially(self, client) -> None:
+        """Without AS-IS, all streams should need action."""
+        resp = client.get("/api/director/overview")
+        data = resp.json()
+        for row in data["streams"]:
+            assert row["needs_action"] is True
+
+    def test_distribution_sums_to_total(self, client) -> None:
+        resp = client.get("/api/director/overview")
+        data = resp.json()
+        dist = data["recommendation_distribution"]
+        total = dist["de_standard"] + dist["at_standard"] + dist["central"] + dist["none"]
+        assert total == data["summary"]["total_streams"]
+
+    def test_overview_with_complete_data(self, client) -> None:
+        """After setting up AS-IS + assessments, counts should update."""
+        _setup_complete_as_is(client)
+        resp = client.get("/api/director/overview")
+        data = resp.json()
+        # At least one stream should be AS-IS complete
+        assert data["summary"]["as_is_complete"] >= 1
+        # Find the stream we set up
+        pp = next((r for r in data["streams"] if r["stream_id"] == "policies_processes"), None)
+        assert pp is not None
+        assert pp["as_is_complete"] is True
+        assert pp["delta_summary"]["high"] + pp["delta_summary"]["medium"] + pp["delta_summary"]["low"] >= 0
+
+    def test_overview_reflects_recommendation(self, client) -> None:
+        """After AS-IS + option assessment, recommendation should appear."""
+        _setup_complete_as_is(client)
+        client.put("/api/assessments", json={
+            "assessed_object_id": "policies_processes",
+            "assessed_object_type": "stream",
+            "target_option": "de_standard",
+            "answers": [{"dimension": d, "score": 4, "rationale": "ok"} for d in (
+                "regulatory_alignment", "operational_alignment",
+                "tooling_alignment", "governance_alignment",
+                "maturity", "local_necessity",
+            )],
+            "status": "draft",
+        })
+        resp = client.get("/api/director/overview")
+        data = resp.json()
+        pp = next((r for r in data["streams"] if r["stream_id"] == "policies_processes"), None)
+        assert pp is not None
+        assert pp["recommended_option"] is not None
+        assert data["summary"]["recommendations_ready"] >= 1
+
+    def test_overview_reflects_review(self, client) -> None:
+        """After review, reviewed count should increase."""
+        # The review endpoint requires a legacy (non-option) completed assessment
+        resp = client.put("/api/assessments", json={
+            "assessed_object_id": "policies_processes",
+            "assessed_object_type": "stream",
+            "answers": [{"dimension": d, "score": 4, "rationale": "ok"} for d in (
+                "regulatory_alignment", "operational_alignment",
+                "tooling_alignment", "governance_alignment",
+                "maturity", "local_necessity",
+            )],
+            "status": "completed",
+        })
+        assert resp.status_code == 200
+        resp = client.put("/api/reviews", json={
+            "stream_id": "policies_processes",
+            "review_status": "reviewed",
+            "reviewer_name": "Director Test",
+        })
+        assert resp.status_code == 200
+        resp = client.get("/api/director/overview")
+        data = resp.json()
+        assert data["summary"]["reviewed"] >= 1
+
+
 class TestAsIsHardGates:
     """Tests that incomplete AS-IS blocks downstream operations."""
 

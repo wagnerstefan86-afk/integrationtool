@@ -17,6 +17,7 @@ import { render as renderInterfaces } from './pages/interfaces.js';
 import { render as renderReports } from './pages/reports.js';
 import { render as renderAssessments } from './pages/assessments.js';
 import { render as renderDecisions } from './pages/decisions.js';
+import { render as renderDirector } from './pages/director.js';
 
 // ─── Route registration ───────────────────────────────────────────────────────
 
@@ -27,6 +28,7 @@ register('subprocesses', (_id) => renderSubprocesses());
 register('interfaces',   (_id) => renderInterfaces());
 register('assessments',  (id)  => renderAssessments(id));
 register('decisions',    (id)  => renderDecisions(id));
+register('director',     (_id) => renderDirector());
 register('reports',      (id)  => renderReports(id));
 
 // Stub handlers for future phases
