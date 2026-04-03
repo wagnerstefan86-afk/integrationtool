@@ -2,13 +2,73 @@
  * Process Analysis page — structured DE vs AT process capture per stream.
  *
  * Shows 6 default process phases, each with entity variants side-by-side.
- * Highlights differences, missing WHYs, and completeness gaps.
+ * Displays WHY quality, evidence strength, review status, enriched deltas,
+ * recommendations, and management decision support.
  */
 
 import { API } from '../api.js';
 import { setContent, esc, badge, toast } from '../utils.js';
 import { openModal, closeModal } from '../components/modal.js';
 import { textField, textArea, selectField, formRow, val } from '../components/forms.js';
+
+// ─── Constants ──────────────────────────────────────────────────────────────
+
+const WHY_CATEGORIES = [
+  'regulatory_requirement', 'legal_constraint', 'customer_specific_requirement',
+  'technical_constraint', 'tooling_or_license_limitation', 'capacity_or_staffing',
+  'temporary_transition_state', 'historical_growth', 'deliberate_local_optimization',
+  'unknown_or_unclear',
+];
+
+const REVIEW_STATUSES = ['draft', 'captured', 'challenged', 'reviewed', 'approved'];
+
+// ─── Badge helpers ──────────────────────────────────────────────────────────
+
+function _whyQualityBadge(q) {
+  const cls = { strong: 'badge-success', medium: 'badge-warning', weak: 'badge-danger' };
+  return q ? badge(cls[q] || 'badge-muted', 'WHY: ' + q) : '';
+}
+
+function _evidenceBadge(strength, count) {
+  if (!count && count !== 0) return '';
+  if (count === 0) return badge('badge-danger', 'No evidence');
+  const cls = { high: 'badge-success', medium: 'badge-warning', low: 'badge-danger' };
+  return badge(cls[strength] || 'badge-muted', count + ' evidence (' + (strength || '?') + ')');
+}
+
+function _reviewBadge(status) {
+  const cls = {
+    draft: 'badge-muted', captured: 'badge-info', challenged: 'badge-warning',
+    reviewed: 'badge-primary', approved: 'badge-success',
+  };
+  return status ? badge(cls[status] || 'badge-muted', status) : '';
+}
+
+function _recTypeBadge(type) {
+  const cls = {
+    harmonize: 'badge-primary', keep_local: 'badge-success', centralize: 'badge-info',
+    investigate_further: 'badge-warning', remediate_control_gap: 'badge-danger',
+  };
+  return badge(cls[type] || 'badge-muted', (type || '').replace(/_/g, ' '));
+}
+
+function _priorityBadge(p) {
+  const cls = { high: 'badge-danger', medium: 'badge-warning', low: 'badge-muted' };
+  return badge(cls[p] || 'badge-muted', p);
+}
+
+function _complexityBadge(c) {
+  const cls = { high: 'badge-danger', medium: 'badge-warning', low: 'badge-success' };
+  return badge(cls[c] || 'badge-muted', c);
+}
+
+function _mgmtDecisionBadge(needs) {
+  return needs ? `<span style="display:inline-block;font-size:10px;padding:1px 6px;border-radius:3px;background:#fbbf24;color:#78350f;font-weight:600">MGMT DECISION</span>` : '';
+}
+
+function _controlGapBadge() {
+  return `<span style="display:inline-block;font-size:10px;padding:1px 6px;border-radius:3px;background:#dc2626;color:#fff;font-weight:600">CONTROL GAP</span>`;
+}
 
 // ─── Entry point ─────────────────────────────────────────────────────────────
 
@@ -82,31 +142,36 @@ async function renderAnalysis(streamId) {
     return;
   }
 
-  // Load completeness + deltas
-  let completeness = {}, deltas = [];
+  // Load completeness, deltas, summary (includes recommendations)
+  let completeness = {}, deltas = [], summary = {};
   try {
-    [completeness, deltas] = await Promise.all([
+    [completeness, deltas, summary] = await Promise.all([
       API.get(`process-analysis/${encodeURIComponent(streamId)}/completeness`),
       API.get(`process-analysis/${encodeURIComponent(streamId)}/deltas`),
+      API.get(`process-analysis/${encodeURIComponent(streamId)}/summary`),
     ]);
   } catch { /* non-critical */ }
 
   const entities = analysis.entities || ['DE', 'AT'];
   const steps = analysis.process_steps || [];
   const stepScores = completeness.step_scores || {};
+  const recs = summary.recommendations || [];
 
-  // Build sections
+  // Build step sections
   const sections = steps.map(step => {
     const sid = step.step_id;
     const sc = stepScores[sid] || {};
     const stepDeltas = deltas.filter(d => d.step_id === sid);
-    return _renderStep(streamId, step, entities, sc, stepDeltas);
+    const stepRecs = recs.filter(r => (r.based_on_step_ids || []).includes(sid));
+    return _renderStep(streamId, step, entities, sc, stepDeltas, stepRecs);
   }).join('');
 
-  // Summary bar
+  // Header badges
   const totalScore = completeness.score || 0;
   const missingWhys = completeness.missing_whys || 0;
   const highDeltas = deltas.filter(d => d.impact === 'high').length;
+  const controlGaps = summary.control_gaps_count || 0;
+  const weakWhys = summary.weak_why_count || 0;
 
   setContent(`
     <div class="page-header">
@@ -116,7 +181,9 @@ async function renderAnalysis(streamId) {
           ${badge('badge-info', stream.stream_type || '---')}
           ${_completeBadge(totalScore)}
           ${missingWhys ? badge('badge-danger', missingWhys + ' missing WHY') : ''}
+          ${weakWhys ? badge('badge-warning', weakWhys + ' weak WHY') : ''}
           ${highDeltas ? badge('badge-danger', highDeltas + ' high-impact deltas') : ''}
+          ${controlGaps ? _controlGapBadge() : ''}
         </div>
       </div>
       <div class="actions">
@@ -125,7 +192,8 @@ async function renderAnalysis(streamId) {
       </div>
     </div>
 
-    ${_renderSummaryCards(completeness, deltas, entities)}
+    ${_renderSummaryCards(summary, deltas, entities)}
+    ${_renderRecommendationsPanel(recs)}
     ${sections}
   `);
 
@@ -138,6 +206,14 @@ async function renderAnalysis(streamId) {
       openVariantEditor(streamId, step, entityId, variant);
     });
   });
+
+  // Wire review status selectors
+  document.querySelectorAll('[data-review-action]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const [stepId, entityId] = btn.dataset.reviewAction.split('::');
+      _openReviewStatusDialog(streamId, stepId, entityId);
+    });
+  });
 }
 
 function _completeBadge(score) {
@@ -148,41 +224,68 @@ function _completeBadge(score) {
 
 // ─── Summary cards ───────────────────────────────────────────────────────────
 
-function _renderSummaryCards(compl, deltas, entities) {
+function _renderSummaryCards(summary, deltas, entities) {
+  const s = summary;
   const high = deltas.filter(d => d.impact === 'high').length;
-  const med = deltas.filter(d => d.impact === 'medium').length;
-  const missingRationale = deltas.filter(d => d.delta_type === 'missing_rationale').length;
+  const tendencyLabel = {
+    harmonizable: 'Harmonizable', partially_harmonizable: 'Partially harmonizable',
+    strongly_local: 'Strongly local', insufficiently_captured: 'Insufficiently captured',
+  };
+  const tendencyCls = {
+    harmonizable: 'badge-success', partially_harmonizable: 'badge-warning',
+    strongly_local: 'badge-info', insufficiently_captured: 'badge-danger',
+  };
 
-  return `<div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:20px">
-    <div class="stat-card">
-      <div class="stat-value">${compl.score || 0}%</div>
-      <div class="stat-label">Completeness</div>
+  const _stat = (value, label, danger) => `
+    <div class="stat-card" ${danger ? 'style="border-color:var(--danger)"' : ''}>
+      <div class="stat-value" ${danger ? 'style="color:var(--danger)"' : ''}>${value}</div>
+      <div class="stat-label">${label}</div>
+    </div>`;
+
+  return `
+    <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:12px">
+      ${_stat((s.completeness_score || 0) + '%', 'Completeness')}
+      ${_stat(entities.length, 'Entities')}
+      ${_stat(high, 'High-Impact Deltas', high > 0)}
+      ${_stat(s.standardization_candidates_count || 0, 'Harmonize Candidates')}
+      ${_stat(s.likely_keep_local_count || 0, 'Keep Local')}
     </div>
-    <div class="stat-card">
-      <div class="stat-value">${compl.missing_whys || 0}</div>
-      <div class="stat-label">Missing WHYs</div>
+    <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:20px">
+      ${_stat(s.control_gaps_count || 0, 'Control Gaps', (s.control_gaps_count || 0) > 0)}
+      ${_stat(s.evidence_gaps_count || 0, 'Evidence Gaps', (s.evidence_gaps_count || 0) > 0)}
+      ${_stat(s.weak_why_count || 0, 'Weak WHY', (s.weak_why_count || 0) > 0)}
+      ${_stat(s.management_decisions_needed_count || 0, 'Mgmt Decisions Needed', (s.management_decisions_needed_count || 0) > 0)}
+      <div class="stat-card">
+        <div class="stat-value" style="font-size:14px">${badge(tendencyCls[s.tendency] || 'badge-muted', tendencyLabel[s.tendency] || s.tendency || '---')}</div>
+        <div class="stat-label">Overall Tendency</div>
+      </div>
     </div>
-    <div class="stat-card" ${high ? 'style="border-color:var(--danger)"' : ''}>
-      <div class="stat-value" ${high ? 'style="color:var(--danger)"' : ''}>${high}</div>
-      <div class="stat-label">High-Impact Deltas</div>
+    ${_renderOpenGaps(s.open_gaps || [])}`;
+}
+
+function _renderOpenGaps(gaps) {
+  if (!gaps.length) return '';
+  return `<div class="card" style="margin-bottom:16px;border-color:var(--warning)">
+    <div class="card-header" style="background:#fffbeb;font-size:12px;font-weight:600;color:#92400e">
+      Open Evidence &amp; Review Gaps (Top 5)
     </div>
-    <div class="stat-card">
-      <div class="stat-value">${med}</div>
-      <div class="stat-label">Medium Deltas</div>
-    </div>
-    <div class="stat-card">
-      <div class="stat-value">${entities.length}</div>
-      <div class="stat-label">Entities</div>
+    <div class="card-body" style="padding:8px 12px">
+      ${gaps.map(g => `<div style="font-size:12px;padding:3px 0;border-bottom:1px solid var(--border)">
+        <strong>${esc(g.step_name)}</strong> / ${esc(g.entity_id)}:
+        ${g.issues.map(i => badge('badge-warning', i)).join(' ')}
+      </div>`).join('')}
     </div>
   </div>`;
 }
 
 // ─── Single process step ─────────────────────────────────────────────────────
 
-function _renderStep(streamId, step, entities, scores, stepDeltas) {
+function _renderStep(streamId, step, entities, scores, stepDeltas, stepRecs) {
   const sid = step.step_id;
   const variants = step.entity_variants || [];
   const avgScore = scores.score || 0;
+  const hasControlGap = stepDeltas.some(d => d.delta_type === 'control_gap');
+  const hasMgmtDecision = stepDeltas.some(d => d.needs_management_decision);
 
   // Entity columns side by side
   const cols = entities.map(eid => {
@@ -191,22 +294,51 @@ function _renderStep(streamId, step, entities, scores, stepDeltas) {
     return _renderVariantCol(streamId, sid, eid, v, es);
   }).join('');
 
-  // Deltas for this step
+  // Enriched deltas
   const deltaRows = stepDeltas.length ? `
     <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border)">
       <strong style="font-size:11px;color:var(--text-muted);text-transform:uppercase">Detected Differences</strong>
-      ${stepDeltas.map(d => `
-        <div style="display:flex;gap:8px;align-items:center;margin-top:4px;font-size:12px">
-          ${_impactBadge(d.impact)}
-          ${_deltaTypeBadge(d.delta_type)}
-          <span>${esc(d.description)}</span>
-        </div>
-      `).join('')}
+      <table style="width:100%;border-collapse:collapse;margin-top:6px;font-size:12px">
+        <thead><tr style="text-align:left;border-bottom:1px solid var(--border)">
+          <th style="padding:3px 6px;font-size:10px;color:var(--text-muted)">Impact</th>
+          <th style="padding:3px 6px;font-size:10px;color:var(--text-muted)">Type</th>
+          <th style="padding:3px 6px;font-size:10px;color:var(--text-muted)">Dimension</th>
+          <th style="padding:3px 6px;font-size:10px;color:var(--text-muted)">Nature</th>
+          <th style="padding:3px 6px;font-size:10px;color:var(--text-muted)">Description</th>
+          <th style="padding:3px 6px;font-size:10px;color:var(--text-muted)">Flags</th>
+        </tr></thead>
+        <tbody>${stepDeltas.map(d => `<tr style="border-bottom:1px solid #f3f4f6${d.delta_type === 'control_gap' ? ';background:#fef2f2' : ''}">
+          <td style="padding:3px 6px">${_impactBadge(d.impact)}</td>
+          <td style="padding:3px 6px">${_deltaTypeBadge(d.delta_type)}</td>
+          <td style="padding:3px 6px">${_dimBadge(d.delta_dimension)}</td>
+          <td style="padding:3px 6px">${_natureBadge(d.delta_nature)}</td>
+          <td style="padding:3px 6px">${esc(d.description)}</td>
+          <td style="padding:3px 6px;white-space:nowrap">
+            ${d.delta_type === 'control_gap' ? _controlGapBadge() : ''}
+            ${d.needs_management_decision ? _mgmtDecisionBadge(true) : ''}
+            ${d.constraint_type && d.constraint_type !== 'none' ? badge('badge-info', d.constraint_type) : ''}
+          </td>
+        </tr>`).join('')}</tbody>
+      </table>
     </div>` : '';
 
-  return `<div class="card" style="margin-bottom:16px">
+  // Per-step recommendations (compact)
+  const recRows = (stepRecs || []).length ? `
+    <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border)">
+      <strong style="font-size:11px;color:var(--text-muted);text-transform:uppercase">Recommendations for this step</strong>
+      ${stepRecs.map(r => `<div style="display:flex;gap:6px;align-items:center;margin-top:4px;font-size:12px">
+        ${_recTypeBadge(r.recommendation_type)} ${_priorityBadge(r.priority)}
+        <span>${esc(r.title)}</span>
+      </div>`).join('')}
+    </div>` : '';
+
+  return `<div class="card" style="margin-bottom:16px${hasControlGap ? ';border-left:3px solid var(--danger)' : ''}">
     <div class="card-header" style="display:flex;justify-content:space-between;align-items:center">
-      <span><strong>${esc(step.sort_order)}. ${esc(step.step_name)}</strong></span>
+      <span>
+        <strong>${esc(step.sort_order)}. ${esc(step.step_name)}</strong>
+        ${hasControlGap ? _controlGapBadge() : ''}
+        ${hasMgmtDecision ? _mgmtDecisionBadge(true) : ''}
+      </span>
       <span>${_completeBadge(avgScore)}</span>
     </div>
     <div class="card-body">
@@ -214,6 +346,7 @@ function _renderStep(streamId, step, entities, scores, stepDeltas) {
         ${cols}
       </div>
       ${deltaRows}
+      ${recRows}
     </div>
   </div>`;
 }
@@ -225,13 +358,33 @@ function _impactBadge(impact) {
 
 function _deltaTypeBadge(dtype) {
   const labels = {
-    system_difference: 'System',
-    channel_difference: 'Channel',
-    role_difference: 'Role',
-    variant_difference: 'Variant',
-    missing_rationale: 'Missing WHY',
+    system_difference: 'System', channel_difference: 'Channel',
+    role_difference: 'Role', variant_difference: 'Variant',
+    missing_rationale: 'Missing WHY', control_gap: 'Control Gap',
   };
-  return `<span style="font-size:10px;padding:1px 5px;border-radius:3px;background:#f3f4f6;color:var(--text-muted)">${labels[dtype] || dtype}</span>`;
+  const bg = dtype === 'control_gap' ? '#dc2626' : '#f3f4f6';
+  const fg = dtype === 'control_gap' ? '#fff' : 'var(--text-muted)';
+  return `<span style="font-size:10px;padding:1px 5px;border-radius:3px;background:${bg};color:${fg}">${labels[dtype] || dtype}</span>`;
+}
+
+function _dimBadge(dim) {
+  if (!dim) return '';
+  return `<span style="font-size:10px;padding:1px 5px;border-radius:3px;background:#e0e7ff;color:#3730a3">${esc(dim)}</span>`;
+}
+
+function _natureBadge(nature) {
+  if (!nature) return '';
+  const colors = {
+    cosmetic: '#d1fae5', procedural: '#dbeafe',
+    operationally_significant: '#fef3c7', control_relevant: '#fee2e2',
+    potentially_blocking: '#fce7f3',
+  };
+  const fg = {
+    cosmetic: '#065f46', procedural: '#1e40af',
+    operationally_significant: '#92400e', control_relevant: '#991b1b',
+    potentially_blocking: '#9d174d',
+  };
+  return `<span style="font-size:10px;padding:1px 5px;border-radius:3px;background:${colors[nature] || '#f3f4f6'};color:${fg[nature] || 'var(--text-muted)'}">${esc((nature || '').replace(/_/g, ' '))}</span>`;
 }
 
 // ─── Entity variant column ───────────────────────────────────────────────────
@@ -240,6 +393,10 @@ function _renderVariantCol(streamId, stepId, entityId, v, scores) {
   const score = scores.score || 0;
   const warnings = scores.warnings || [];
   const missingFields = scores.missing_fields || [];
+  const whyQuality = scores.why_quality || v.why_quality || '';
+  const evStrength = scores.evidence_strength || v.evidence_strength || 'none';
+  const evCount = scores.evidence_count != null ? scores.evidence_count : (v.evidence_references || []).length;
+  const reviewStatus = scores.review_status || v.review_status || 'draft';
 
   const list = (items, fallback) => {
     if (!items || !items.length) return `<span style="color:var(--text-muted)">${fallback || '---'}</span>`;
@@ -251,15 +408,38 @@ function _renderVariantCol(streamId, stepId, entityId, v, scores) {
 
   const whyItems = v.why_is_it_done_this_way || [];
   const hasWhy = Array.isArray(whyItems) ? whyItems.some(w => String(w).trim()) : Boolean(whyItems);
-  const whyClass = hasWhy ? '' : 'style="background:#fef2f2;border:1px solid var(--danger);border-radius:4px;padding:4px 8px"';
+  const whyCats = (v.why_categories || []);
 
-  return `<div style="flex:1;min-width:250px;border:1px solid var(--border);border-radius:6px;padding:10px">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+  // WHY section background based on quality
+  const whyBg = !hasWhy ? '#fef2f2' : whyQuality === 'weak' ? '#fefce8' : '';
+  const whyBorder = !hasWhy ? 'var(--danger)' : whyQuality === 'weak' ? '#facc15' : 'transparent';
+
+  // Evidence references (structured)
+  const evRefs = v.evidence_references || [];
+  const legacyEv = v.evidence_or_examples || [];
+
+  // Review metadata
+  const reviewComment = v.review_comment || '';
+  const reviewedBy = v.reviewed_by || '';
+  const reviewedAt = v.reviewed_at || '';
+
+  return `<div style="flex:1;min-width:280px;border:1px solid var(--border);border-radius:6px;padding:10px">
+    <!-- Header: entity + score + actions -->
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
       <strong>${esc(entityId)}</strong>
-      <div>
+      <div style="display:flex;gap:4px;align-items:center">
         ${_completeBadge(score)}
-        <button class="btn btn-sm" data-edit-variant="${esc(stepId)}::${esc(entityId)}" style="margin-left:4px">Edit</button>
+        <button class="btn btn-sm" data-edit-variant="${esc(stepId)}::${esc(entityId)}">Edit</button>
       </div>
+    </div>
+
+    <!-- Status badges row -->
+    <div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:6px">
+      ${_reviewBadge(reviewStatus)}
+      ${_whyQualityBadge(whyQuality)}
+      ${_evidenceBadge(evStrength, evCount)}
+      ${whyQuality === 'weak' ? badge('badge-danger', 'Weak WHY') : ''}
+      ${evCount === 0 && !legacyEv.length ? badge('badge-danger', 'No evidence') : ''}
     </div>
 
     ${v.description ? `<p style="font-size:13px;margin:0 0 8px">${esc(v.description)}</p>` : '<p style="color:var(--danger);font-size:12px">No description</p>'}
@@ -274,18 +454,138 @@ function _renderVariantCol(streamId, stepId, entityId, v, scores) {
       ${v.approx_volume ? `<div><strong>Volume:</strong> ${esc(v.approx_volume)}</div>` : ''}
     </div>
 
-    <div ${whyClass} style="margin-top:8px;font-size:12px">
+    <!-- WHY section -->
+    <div style="margin-top:8px;font-size:12px;padding:4px 8px;border-radius:4px;${whyBg ? 'background:' + whyBg + ';' : ''}${whyBorder !== 'transparent' ? 'border:1px solid ' + whyBorder : ''}">
       <strong style="color:${hasWhy ? 'inherit' : 'var(--danger)'}">WHY:</strong>
       ${hasWhy
         ? `<span>${list(whyItems)}</span>`
-        : '<span style="color:var(--danger)"> Not documented — required for standardization decisions</span>'}
+        : '<span style="color:var(--danger)"> Not documented</span>'}
+      ${whyCats.length ? `<div style="margin-top:3px">${whyCats.map(c => `<span style="font-size:10px;padding:1px 5px;border-radius:3px;background:#e8e8e8;margin-right:3px">${esc(c.replace(/_/g, ' '))}</span>`).join('')}</div>` : ''}
+      ${v.why_review_note ? `<div style="font-size:11px;color:var(--text-muted);margin-top:2px;font-style:italic">${esc(v.why_review_note)}</div>` : ''}
     </div>
 
-    ${(v.pain_points||[]).length ? `<div style="margin-top:6px;font-size:11px"><strong>Pain Points:</strong> ${list(v.pain_points)}</div>` : ''}
-    ${(v.evidence_or_examples||[]).length ? `<div style="margin-top:4px;font-size:11px"><strong>Evidence:</strong> ${list(v.evidence_or_examples)}</div>` : ''}
+    <!-- Evidence section -->
+    <div style="margin-top:6px;font-size:11px">
+      <strong>Evidence:</strong>
+      ${evRefs.length ? evRefs.map(e =>
+        `<div style="padding:2px 0"><span style="font-size:10px;padding:1px 4px;border-radius:3px;background:#dbeafe;color:#1e40af;margin-right:4px">${esc(e.type || 'other')}</span>${esc(e.title || '')}${e.confidence ? ' <span style="color:var(--text-muted)">(' + esc(e.confidence) + ')</span>' : ''}</div>`
+      ).join('') : legacyEv.length ? list(legacyEv) : '<span style="color:var(--danger)">none</span>'}
+    </div>
 
-    ${warnings.length ? `<div style="margin-top:6px">${warnings.map(w => `<div style="font-size:11px;color:var(--warning)">&#9888; ${esc(w)}</div>`).join('')}</div>` : ''}
+    ${(v.pain_points||[]).length ? `<div style="margin-top:4px;font-size:11px"><strong>Pain Points:</strong> ${list(v.pain_points)}</div>` : ''}
+
+    <!-- Review metadata -->
+    ${reviewComment || reviewedBy ? `<div style="margin-top:6px;font-size:11px;padding:4px 8px;background:#f8fafc;border-radius:4px;border:1px solid var(--border)">
+      ${reviewComment ? `<div><strong>Review:</strong> ${esc(reviewComment)}</div>` : ''}
+      ${reviewedBy ? `<div style="color:var(--text-muted)">by ${esc(reviewedBy)}${reviewedAt ? ' on ' + esc(reviewedAt) : ''}</div>` : ''}
+    </div>` : ''}
+
+    <!-- Review action -->
+    <div style="margin-top:6px;text-align:right">
+      <button class="btn btn-sm" data-review-action="${esc(stepId)}::${esc(entityId)}" style="font-size:11px">Review Status</button>
+    </div>
+
+    ${warnings.length ? `<div style="margin-top:4px">${warnings.map(w => `<div style="font-size:11px;color:var(--warning)">&#9888; ${esc(w)}</div>`).join('')}</div>` : ''}
   </div>`;
+}
+
+// ─── Recommendations panel ──────────────────────────────────────────────────
+
+function _renderRecommendationsPanel(recs) {
+  if (!recs || !recs.length) return '';
+
+  // Group by type for visual clarity
+  const byPriority = { high: [], medium: [], low: [] };
+  recs.forEach(r => (byPriority[r.priority] || byPriority.medium).push(r));
+  const ordered = [...byPriority.high, ...byPriority.medium, ...byPriority.low];
+
+  return `<div class="card" style="margin-bottom:20px">
+    <div class="card-header" style="display:flex;justify-content:space-between;align-items:center">
+      <strong>Recommendations (${recs.length})</strong>
+      <div style="display:flex;gap:6px">
+        ${badge('badge-danger', byPriority.high.length + ' high')}
+        ${badge('badge-warning', byPriority.medium.length + ' medium')}
+        ${badge('badge-muted', byPriority.low.length + ' low')}
+      </div>
+    </div>
+    <div class="card-body" style="padding:0">
+      <table style="width:100%;border-collapse:collapse;font-size:12px">
+        <thead><tr style="background:#f8fafc;border-bottom:1px solid var(--border)">
+          <th style="padding:6px 10px;text-align:left;font-size:10px;color:var(--text-muted)">Priority</th>
+          <th style="padding:6px 10px;text-align:left;font-size:10px;color:var(--text-muted)">Type</th>
+          <th style="padding:6px 10px;text-align:left;font-size:10px;color:var(--text-muted)">Title</th>
+          <th style="padding:6px 10px;text-align:left;font-size:10px;color:var(--text-muted)">Steps</th>
+          <th style="padding:6px 10px;text-align:left;font-size:10px;color:var(--text-muted)">Complexity</th>
+        </tr></thead>
+        <tbody>
+          ${ordered.map(r => `<tr style="border-bottom:1px solid #f3f4f6;cursor:pointer" onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display==='none'?'':'none'">
+            <td style="padding:6px 10px">${_priorityBadge(r.priority)}</td>
+            <td style="padding:6px 10px">${_recTypeBadge(r.recommendation_type)}</td>
+            <td style="padding:6px 10px"><strong>${esc(r.title)}</strong></td>
+            <td style="padding:6px 10px">${(r.based_on_step_ids||[]).map(s => badge('badge-muted', s)).join(' ')}</td>
+            <td style="padding:6px 10px">${_complexityBadge(r.implementation_complexity)}</td>
+          </tr>
+          <tr style="display:none;background:#f8fafc">
+            <td colspan="5" style="padding:8px 10px 8px 24px;font-size:11px">
+              <div><strong>Rationale:</strong> ${esc(r.rationale)}</div>
+              <div><strong>Expected benefit:</strong> ${esc(r.expected_benefit)}</div>
+              ${(r.assumptions||[]).length ? `<div><strong>Assumptions:</strong> ${r.assumptions.map(a => esc(a)).join('; ')}</div>` : ''}
+              ${(r.blockers||[]).length ? `<div style="color:var(--danger)"><strong>Blockers:</strong> ${r.blockers.map(b => esc(b)).join('; ')}</div>` : ''}
+            </td>
+          </tr>`).join('')}
+        </tbody>
+      </table>
+    </div>
+  </div>`;
+}
+
+// ─── Review status dialog ───────────────────────────────────────────────────
+
+async function _openReviewStatusDialog(streamId, stepId, entityId) {
+  const statusOptions = REVIEW_STATUSES.map(s =>
+    `<option value="${s}">${s}</option>`
+  ).join('');
+
+  openModal(`Review Status: ${esc(stepId)} / ${esc(entityId)}`, `
+    <div style="margin-bottom:12px">
+      <label style="font-weight:600;font-size:13px">Target Review Status</label>
+      <select class="form-control" id="f-review-status" style="margin-top:4px">
+        ${statusOptions}
+      </select>
+    </div>
+    <button class="btn btn-primary" id="btn-validate-review" style="margin-bottom:12px">Validate</button>
+    <div id="review-validation-result"></div>
+  `, null); // no auto-save button
+
+  document.getElementById('btn-validate-review')?.addEventListener('click', async () => {
+    const newStatus = document.getElementById('f-review-status')?.value;
+    const resultDiv = document.getElementById('review-validation-result');
+    if (!resultDiv) return;
+    resultDiv.innerHTML = '<span style="color:var(--text-muted)">Validating...</span>';
+
+    try {
+      const result = await API.post(
+        `process-analysis/${encodeURIComponent(streamId)}/validate-review-status`,
+        { step_id: stepId, entity_id: entityId, new_status: newStatus }
+      );
+
+      if (result.allowed) {
+        resultDiv.innerHTML = `
+          <div style="background:#f0fdf4;border:1px solid #86efac;border-radius:6px;padding:10px;font-size:13px">
+            <strong style="color:#166534">Allowed.</strong> Transition to <strong>${esc(newStatus)}</strong> is valid.
+          </div>`;
+      } else {
+        resultDiv.innerHTML = `
+          <div style="background:#fef2f2;border:1px solid #fca5a5;border-radius:6px;padding:10px;font-size:13px">
+            <strong style="color:#991b1b">Blocked.</strong>
+            ${(result.reasons||[]).map(r => `<div style="margin-top:4px">${esc(r)}</div>`).join('')}
+            ${(result.missing_prerequisites||[]).length ? `<div style="margin-top:6px"><strong>Missing:</strong><ul style="margin:4px 0 0 16px">${result.missing_prerequisites.map(m => `<li>${esc(m)}</li>`).join('')}</ul></div>` : ''}
+          </div>`;
+      }
+    } catch (e) {
+      resultDiv.innerHTML = `<div style="color:var(--danger)">Error: ${esc(e.message)}</div>`;
+    }
+  });
 }
 
 // ─── Variant editor modal ────────────────────────────────────────────────────
@@ -309,6 +609,19 @@ async function openVariantEditor(streamId, step, entityId, variant) {
   const j = (arr) => (arr || []).join('\n');
   const jr = (roles) => (roles || []).map(r => typeof r === 'object' ? `${r.role}: ${r.responsibility || ''}` : String(r)).join('\n');
 
+  // WHY categories checkboxes
+  const whyCatChecks = WHY_CATEGORIES.map(c => {
+    const checked = (v.why_categories || []).includes(c) ? 'checked' : '';
+    return `<label style="display:inline-flex;align-items:center;gap:4px;margin:2px 8px 2px 0;font-size:12px">
+      <input type="checkbox" class="f-pa-whycat" value="${c}" ${checked}> ${c.replace(/_/g, ' ')}
+    </label>`;
+  }).join('');
+
+  // Evidence references as JSON lines for editing
+  const evRefsText = (v.evidence_references || []).map(e =>
+    `${e.type || 'other'} | ${e.title || ''} | ${e.source || ''} | ${e.confidence || 'medium'}`
+  ).join('\n');
+
   openModal(`${esc(step.step_name)} — ${esc(entityId)}`, `
     ${guideHtml}
 
@@ -330,10 +643,27 @@ async function openVariantEditor(streamId, step, entityId, variant) {
       <label for="f-pa-why" style="font-weight:700;color:var(--danger)">WHY is it done this way? * (mandatory)</label>
       <textarea class="form-control" id="f-pa-why" rows="3" style="margin-top:4px;border-color:var(--danger)">${esc(j(v.why_is_it_done_this_way))}</textarea>
       <p style="font-size:11px;color:var(--danger);margin:4px 0 0">Without WHY, no standardization decision can be made.</p>
+
+      <div style="margin-top:8px">
+        <label style="font-weight:600;font-size:12px;color:#991b1b">WHY Categories (select all that apply)</label>
+        <div style="margin-top:4px">${whyCatChecks}</div>
+      </div>
+
+      ${formRow(
+        selectField('f-pa-whyquality', 'WHY Quality', ['', 'strong', 'medium', 'weak'], v.why_quality || ''),
+        textField('f-pa-whynote', 'WHY Review Note', v.why_review_note || '')
+      )}
     </div>
 
     ${textArea('f-pa-painpoints', 'Pain Points (one per line)', j(v.pain_points), { rows: 2 })}
-    ${textArea('f-pa-evidence', 'Evidence / Examples (one per line)', j(v.evidence_or_examples), { rows: 2 })}
+
+    <div style="background:#f0f9ff;border:1px solid #bae6fd;border-radius:6px;padding:10px 14px;margin:12px 0">
+      <label style="font-weight:600;font-size:13px;color:#0369a1">Evidence References</label>
+      <p style="font-size:11px;color:#0369a1;margin:2px 0 6px">Format: type | title | source | confidence (one per line)</p>
+      <textarea class="form-control" id="f-pa-evrefs" rows="3">${esc(evRefsText)}</textarea>
+      ${textArea('f-pa-evidence', 'Legacy Evidence / Examples (one per line)', j(v.evidence_or_examples), { rows: 2 })}
+    </div>
+
     ${formRow(
       selectField('f-pa-performed', 'Performed In', [entityId, 'central', 'local', 'shared', 'unknown'], v.performed_in || entityId),
       textArea('f-pa-maturity', 'Maturity Notes', v.maturity_notes || '', { rows: 2 })
@@ -349,6 +679,22 @@ async function openVariantEditor(streamId, step, entityId, variant) {
       });
     };
 
+    // Parse WHY categories from checkboxes
+    const whyCats = [...document.querySelectorAll('.f-pa-whycat:checked')].map(cb => cb.value);
+
+    // Parse evidence references
+    const evRefLines = toList('f-pa-evrefs');
+    const evRefs = evRefLines.map((line, i) => {
+      const parts = line.split('|').map(p => p.trim());
+      return {
+        id: `ev_${stepId}_${entityId}_${i + 1}`,
+        type: parts[0] || 'other',
+        title: parts[1] || '',
+        source: parts[2] || '',
+        confidence: parts[3] || 'medium',
+      };
+    });
+
     const payload = {
       entity_id: entityId,
       entity_name: entityId,
@@ -363,7 +709,11 @@ async function openVariantEditor(streamId, step, entityId, variant) {
       variants: toList('f-pa-variants'),
       pain_points: toList('f-pa-painpoints'),
       why_is_it_done_this_way: toList('f-pa-why'),
+      why_categories: whyCats,
+      why_quality: val('f-pa-whyquality'),
+      why_review_note: val('f-pa-whynote'),
       evidence_or_examples: toList('f-pa-evidence'),
+      evidence_references: evRefs,
       performed_in: val('f-pa-performed'),
       maturity_notes: val('f-pa-maturity'),
     };
