@@ -25,14 +25,17 @@ from harmonizer.models.assessment import (
     Decision,
     DecisionOutcome,
     DeviationLevel,
+    DeviationReason,
     DurationCategory,
     HarmonizationDegree,
     HarmonizationPriority,
     InterfaceComplexityResult,
+    LearningRelevance,
     ModelMaturityLevel,
     OutcomeStatus,
     PrioritizationInput,
     TargetOperatingModel,
+    TrustScoreResult,
     TypeSpecificAnswer,
     ValueIndicators,
     ValueLevel,
@@ -320,5 +323,54 @@ class TestCalibrationResult:
                 accuracy_rate=0.5,
                 model_maturity=ModelMaturityLevel.LEARNING,
                 confidence_adjustment=0.6,  # exceeds 0.5
+                rationale="bad",
+            )
+
+
+class TestDeviationReason:
+    def test_all_reasons(self) -> None:
+        expected = {
+            "model_error", "incomplete_data", "changed_context",
+            "political_decision", "resource_constraint", "strategic_override",
+        }
+        assert {r.value for r in DeviationReason} == expected
+
+
+class TestLearningRelevance:
+    def test_all_levels(self) -> None:
+        assert {l.value for l in LearningRelevance} == {"high", "medium", "low", "none"}
+
+
+class TestDecisionOutcomeWithReason:
+    def test_with_deviation_reason(self) -> None:
+        o = DecisionOutcome(
+            assessed_object_id="s1",
+            outcome_status=OutcomeStatus.REJECTED,
+            deviation=DeviationLevel.COMPLETE_OVERRIDE,
+            deviation_reason=DeviationReason.POLITICAL_DECISION,
+            learning_relevance=LearningRelevance.NONE,
+        )
+        assert o.deviation_reason == DeviationReason.POLITICAL_DECISION
+        assert o.learning_relevance == LearningRelevance.NONE
+
+
+class TestTrustScoreResult:
+    def test_valid(self) -> None:
+        ts = TrustScoreResult(
+            trust_score=0.85,
+            validated_outcomes=10,
+            high_relevance_correct=8,
+            high_relevance_total=10,
+            rationale="Good.",
+        )
+        assert ts.trust_score == 0.85
+
+    def test_score_range(self) -> None:
+        with pytest.raises(ValidationError):
+            TrustScoreResult(
+                trust_score=1.5,
+                validated_outcomes=0,
+                high_relevance_correct=0,
+                high_relevance_total=0,
                 rationale="bad",
             )

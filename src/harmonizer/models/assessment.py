@@ -301,6 +301,38 @@ class DeviationLevel(str, Enum):
     COMPLETE_OVERRIDE = "complete_override"
 
 
+class DeviationReason(str, Enum):
+    """Root cause of why the actual outcome deviated from the recommendation.
+
+    Critical distinction: not every deviation is a model error.
+    Political decisions and strategic overrides are legitimate governance
+    actions that must NOT pollute model calibration.
+    """
+    MODEL_ERROR = "model_error"
+    INCOMPLETE_DATA = "incomplete_data"
+    CHANGED_CONTEXT = "changed_context"
+    POLITICAL_DECISION = "political_decision"
+    RESOURCE_CONSTRAINT = "resource_constraint"
+    STRATEGIC_OVERRIDE = "strategic_override"
+
+
+class LearningRelevance(str, Enum):
+    """How relevant an outcome is for model calibration.
+
+    Maps from DeviationReason:
+    - model_error → high (the model was genuinely wrong)
+    - incomplete_data → medium (data gap, partially the model's fault)
+    - changed_context → medium (environment shifted after prediction)
+    - political_decision → none (not a model issue)
+    - strategic_override → none (not a model issue)
+    - resource_constraint → low (external limitation, not model quality)
+    """
+    HIGH = "high"
+    MEDIUM = "medium"
+    LOW = "low"
+    NONE = "none"
+
+
 class ModelMaturityLevel(str, Enum):
     """Maturity of the decision model based on calibration data.
 
@@ -334,12 +366,19 @@ class DecisionOutcome(BaseModel):
 
     Populated after a decision has been executed (or rejected).
     Links back to the stream via assessed_object_id.
+
+    deviation_reason and learning_relevance control whether this
+    outcome influences model calibration. Political decisions and
+    strategic overrides (learning_relevance=none) are excluded
+    from bias detection to prevent false learning.
     """
     assessed_object_id: str
     outcome_status: OutcomeStatus
     actual_implementation: Optional[ActualImplementation] = None
     actual_impact: Optional[ActualImpact] = None
     deviation: DeviationLevel
+    deviation_reason: Optional[DeviationReason] = None
+    learning_relevance: Optional[LearningRelevance] = None
     deviation_rationale: str = ""
     lessons_learned: list[str] = Field(default_factory=list)
 
@@ -360,6 +399,42 @@ class CalibrationSuggestion(BaseModel):
     priority: ValueLevel
 
 
+class TrustScoreResult(BaseModel):
+    """Model trust score based on validated high-relevance outcomes.
+
+    Score 0.0-1.0 reflecting how much the model's predictions can be trusted.
+    Only computed from outcomes with learning_relevance high or medium.
+    """
+    trust_score: float = Field(ge=0.0, le=1.0)
+    validated_outcomes: int
+    high_relevance_correct: int
+    high_relevance_total: int
+    rationale: str
+
+
+class ProtectedRule(BaseModel):
+    """A decision engine rule that must not be weakened by calibration.
+
+    Certain rules (regulatory constraints, hard constraint handling,
+    minimum confidence logic) are governance-mandated and must remain
+    stable regardless of outcome data.
+    """
+    rule_id: str
+    description: str
+    reason: str  # why this rule is protected
+
+
+class FilteredCalibrationStats(BaseModel):
+    """Comparison of filtered vs unfiltered calibration results."""
+    total_outcomes: int
+    learning_relevant_outcomes: int
+    excluded_outcomes: int
+    excluded_reasons: list[str] = Field(default_factory=list)
+    unfiltered_accuracy: float = Field(ge=0.0, le=1.0)
+    filtered_accuracy: float = Field(ge=0.0, le=1.0)
+    rationale: str
+
+
 class CalibrationResult(BaseModel):
     """Result of comparing predictions against actual outcomes."""
     outcomes_analyzed: int
@@ -370,6 +445,11 @@ class CalibrationResult(BaseModel):
     model_maturity: ModelMaturityLevel
     confidence_adjustment: float = Field(ge=-0.5, le=0.5)
     rationale: str
+    # Phase 7: Controlled learning
+    trust_score: Optional[TrustScoreResult] = None
+    protected_rules: list[ProtectedRule] = Field(default_factory=list)
+    filtered_stats: Optional[FilteredCalibrationStats] = None
+    deviation_reasons_summary: list[str] = Field(default_factory=list)
 
 
 class Assessment(BaseModel):

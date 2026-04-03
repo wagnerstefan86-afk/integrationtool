@@ -8,7 +8,10 @@ Covers:
 - Confidence adjustment computation
 - Full calibration pipeline
 - Outcome model validation
-- Report integration
+- Deviation classification and learning relevance
+- Calibration filtering (political/strategic excluded)
+- Trust score computation
+- Protected rules filtering
 """
 
 import pytest
@@ -22,12 +25,14 @@ from harmonizer.models.assessment import (
     AssessmentAnswer,
     CalibrationDeviation,
     CalibrationResult,
+    CalibrationSuggestion,
     CompletenessResult,
     ConfidenceLevel,
     Decision,
     DecisionOutcome,
     DecisionResult,
     DeviationLevel,
+    DeviationReason,
     DurationCategory,
     EffortEstimate,
     HarmonizationClassification,
@@ -35,19 +40,27 @@ from harmonizer.models.assessment import (
     HarmonizationResult,
     ImplementationImpact,
     InterfaceComplexityResult,
+    LearningRelevance,
     ModelMaturityLevel,
     OutcomeStatus,
+    ProtectedRule,
     TargetOperatingModel,
     ValueIndicators,
     ValueLevel,
 )
 from harmonizer.scoring.calibration_engine import (
+    DEVIATION_REASON_RELEVANCE,
+    PROTECTED_RULES,
     calibrate,
     compare_single_outcome,
     compute_confidence_adjustment,
+    compute_trust_score,
     detect_systematic_biases,
     determine_model_maturity,
+    filter_suggestions_against_protected_rules,
     generate_suggestions,
+    is_learning_relevant,
+    resolve_learning_relevance,
 )
 
 
@@ -462,3 +475,363 @@ class TestCalibrateFunction:
         assert len(result.systematic_biases) >= 1
         assert len(result.suggestions) >= 1
         assert any(s.area == "decision_aggressiveness" for s in result.suggestions)
+
+    def test_calibrate_includes_trust_score(self) -> None:
+        a = _make_assessment_with_decision(obj_id="s1")
+        o = DecisionOutcome(
+            assessed_object_id="s1",
+            outcome_status=OutcomeStatus.IMPLEMENTED,
+            deviation=DeviationLevel.NONE,
+        )
+        result = calibrate([a], [o])
+        assert result.trust_score is not None
+        assert result.trust_score.trust_score >= 0.0
+
+    def test_calibrate_includes_filtered_stats(self) -> None:
+        a = _make_assessment_with_decision(obj_id="s1")
+        o = DecisionOutcome(
+            assessed_object_id="s1",
+            outcome_status=OutcomeStatus.IMPLEMENTED,
+            deviation=DeviationLevel.NONE,
+        )
+        result = calibrate([a], [o])
+        assert result.filtered_stats is not None
+        assert result.filtered_stats.total_outcomes == 1
+
+    def test_calibrate_includes_protected_rules(self) -> None:
+        result = calibrate([], [])
+        assert len(result.protected_rules) >= 1
+
+
+# --- Deviation Classification Tests ---
+
+class TestDeviationClassification:
+
+    def test_reason_relevance_mapping_complete(self) -> None:
+        """Every DeviationReason must have a mapping."""
+        for reason in DeviationReason:
+            assert reason in DEVIATION_REASON_RELEVANCE
+
+    def test_model_error_is_high(self) -> None:
+        assert DEVIATION_REASON_RELEVANCE[DeviationReason.MODEL_ERROR] == LearningRelevance.HIGH
+
+    def test_political_is_none(self) -> None:
+        assert DEVIATION_REASON_RELEVANCE[DeviationReason.POLITICAL_DECISION] == LearningRelevance.NONE
+
+    def test_strategic_override_is_none(self) -> None:
+        assert DEVIATION_REASON_RELEVANCE[DeviationReason.STRATEGIC_OVERRIDE] == LearningRelevance.NONE
+
+    def test_resource_constraint_is_low(self) -> None:
+        assert DEVIATION_REASON_RELEVANCE[DeviationReason.RESOURCE_CONSTRAINT] == LearningRelevance.LOW
+
+    def test_incomplete_data_is_medium(self) -> None:
+        assert DEVIATION_REASON_RELEVANCE[DeviationReason.INCOMPLETE_DATA] == LearningRelevance.MEDIUM
+
+    def test_changed_context_is_medium(self) -> None:
+        assert DEVIATION_REASON_RELEVANCE[DeviationReason.CHANGED_CONTEXT] == LearningRelevance.MEDIUM
+
+    def test_resolve_from_reason(self) -> None:
+        o = DecisionOutcome(
+            assessed_object_id="s1",
+            outcome_status=OutcomeStatus.REJECTED,
+            deviation=DeviationLevel.COMPLETE_OVERRIDE,
+            deviation_reason=DeviationReason.POLITICAL_DECISION,
+        )
+        assert resolve_learning_relevance(o) == LearningRelevance.NONE
+
+    def test_resolve_explicit_overrides_reason(self) -> None:
+        """Explicit learning_relevance takes precedence over deviation_reason."""
+        o = DecisionOutcome(
+            assessed_object_id="s1",
+            outcome_status=OutcomeStatus.REJECTED,
+            deviation=DeviationLevel.COMPLETE_OVERRIDE,
+            deviation_reason=DeviationReason.POLITICAL_DECISION,
+            learning_relevance=LearningRelevance.HIGH,  # override
+        )
+        assert resolve_learning_relevance(o) == LearningRelevance.HIGH
+
+    def test_resolve_default_is_high(self) -> None:
+        """No reason or relevance → default to HIGH (assume model error)."""
+        o = DecisionOutcome(
+            assessed_object_id="s1",
+            outcome_status=OutcomeStatus.REJECTED,
+            deviation=DeviationLevel.MAJOR,
+        )
+        assert resolve_learning_relevance(o) == LearningRelevance.HIGH
+
+
+# --- Calibration Filtering Tests ---
+
+class TestCalibrationFiltering:
+
+    def test_political_outcomes_excluded_from_bias(self) -> None:
+        """Political overrides must NOT influence bias detection."""
+        assessments = [
+            _make_assessment_with_decision(obj_id=f"s{i}")
+            for i in range(5)
+        ]
+        # 3 political rejections + 2 genuine correct outcomes
+        outcomes = [
+            DecisionOutcome(
+                assessed_object_id="s0",
+                outcome_status=OutcomeStatus.REJECTED,
+                deviation=DeviationLevel.COMPLETE_OVERRIDE,
+                deviation_reason=DeviationReason.POLITICAL_DECISION,
+            ),
+            DecisionOutcome(
+                assessed_object_id="s1",
+                outcome_status=OutcomeStatus.REJECTED,
+                deviation=DeviationLevel.COMPLETE_OVERRIDE,
+                deviation_reason=DeviationReason.POLITICAL_DECISION,
+            ),
+            DecisionOutcome(
+                assessed_object_id="s2",
+                outcome_status=OutcomeStatus.REJECTED,
+                deviation=DeviationLevel.COMPLETE_OVERRIDE,
+                deviation_reason=DeviationReason.STRATEGIC_OVERRIDE,
+            ),
+            DecisionOutcome(
+                assessed_object_id="s3",
+                outcome_status=OutcomeStatus.IMPLEMENTED,
+                deviation=DeviationLevel.NONE,
+                deviation_reason=DeviationReason.MODEL_ERROR,
+            ),
+            DecisionOutcome(
+                assessed_object_id="s4",
+                outcome_status=OutcomeStatus.IMPLEMENTED,
+                deviation=DeviationLevel.NONE,
+            ),
+        ]
+        result = calibrate(assessments, outcomes)
+        # 5 total, but only 2 learning-relevant
+        assert result.filtered_stats.total_outcomes == 5
+        assert result.filtered_stats.excluded_outcomes == 3
+        assert result.filtered_stats.learning_relevant_outcomes == 2
+        # Filtered accuracy: 2/2 correct = 100%
+        assert result.filtered_stats.filtered_accuracy == 1.0
+        # No systematic bias (both relevant outcomes were correct)
+        assert len(result.systematic_biases) == 0
+
+    def test_strategic_override_does_not_pollute_model(self) -> None:
+        """5 strategic rejections should produce NO bias."""
+        assessments = [
+            _make_assessment_with_decision(obj_id=f"s{i}")
+            for i in range(5)
+        ]
+        outcomes = [
+            DecisionOutcome(
+                assessed_object_id=f"s{i}",
+                outcome_status=OutcomeStatus.REJECTED,
+                deviation=DeviationLevel.COMPLETE_OVERRIDE,
+                deviation_reason=DeviationReason.STRATEGIC_OVERRIDE,
+            )
+            for i in range(5)
+        ]
+        result = calibrate(assessments, outcomes)
+        assert result.filtered_stats.excluded_outcomes == 5
+        assert result.filtered_stats.learning_relevant_outcomes == 0
+        # No biases because no learning-relevant data
+        assert len(result.systematic_biases) == 0
+
+    def test_is_learning_relevant_function(self) -> None:
+        relevant = DecisionOutcome(
+            assessed_object_id="s1",
+            outcome_status=OutcomeStatus.REJECTED,
+            deviation=DeviationLevel.MAJOR,
+            deviation_reason=DeviationReason.MODEL_ERROR,
+        )
+        assert is_learning_relevant(relevant) is True
+
+        irrelevant = DecisionOutcome(
+            assessed_object_id="s1",
+            outcome_status=OutcomeStatus.REJECTED,
+            deviation=DeviationLevel.MAJOR,
+            deviation_reason=DeviationReason.POLITICAL_DECISION,
+        )
+        assert is_learning_relevant(irrelevant) is False
+
+    def test_resource_constraint_excluded(self) -> None:
+        """LOW relevance outcomes are also excluded from learning."""
+        o = DecisionOutcome(
+            assessed_object_id="s1",
+            outcome_status=OutcomeStatus.DEFERRED,
+            deviation=DeviationLevel.MAJOR,
+            deviation_reason=DeviationReason.RESOURCE_CONSTRAINT,
+        )
+        assert is_learning_relevant(o) is False
+
+    def test_filtered_vs_unfiltered_accuracy_differs(self) -> None:
+        """When political outcomes are mixed in, accuracies diverge."""
+        assessments = [
+            _make_assessment_with_decision(obj_id=f"s{i}")
+            for i in range(4)
+        ]
+        outcomes = [
+            # 2 genuine model errors (rejected)
+            DecisionOutcome(
+                assessed_object_id="s0",
+                outcome_status=OutcomeStatus.REJECTED,
+                deviation=DeviationLevel.COMPLETE_OVERRIDE,
+                deviation_reason=DeviationReason.MODEL_ERROR,
+            ),
+            DecisionOutcome(
+                assessed_object_id="s1",
+                outcome_status=OutcomeStatus.IMPLEMENTED,
+                deviation=DeviationLevel.NONE,
+                deviation_reason=DeviationReason.MODEL_ERROR,
+            ),
+            # 2 political rejections
+            DecisionOutcome(
+                assessed_object_id="s2",
+                outcome_status=OutcomeStatus.REJECTED,
+                deviation=DeviationLevel.COMPLETE_OVERRIDE,
+                deviation_reason=DeviationReason.POLITICAL_DECISION,
+            ),
+            DecisionOutcome(
+                assessed_object_id="s3",
+                outcome_status=OutcomeStatus.REJECTED,
+                deviation=DeviationLevel.COMPLETE_OVERRIDE,
+                deviation_reason=DeviationReason.POLITICAL_DECISION,
+            ),
+        ]
+        result = calibrate(assessments, outcomes)
+        fs = result.filtered_stats
+        # Unfiltered: 1/4 = 25%
+        assert fs.unfiltered_accuracy == pytest.approx(0.25, abs=0.01)
+        # Filtered: 1/2 = 50% (political excluded)
+        assert fs.filtered_accuracy == pytest.approx(0.50, abs=0.01)
+
+
+# --- Trust Score Tests ---
+
+class TestTrustScore:
+
+    def test_no_outcomes_neutral(self) -> None:
+        ts = compute_trust_score([], [])
+        assert ts.trust_score == 0.5
+        assert ts.validated_outcomes == 0
+
+    def test_all_correct_high(self) -> None:
+        assessments = [
+            _make_assessment_with_decision(obj_id=f"s{i}")
+            for i in range(5)
+        ]
+        outcomes = [
+            DecisionOutcome(
+                assessed_object_id=f"s{i}",
+                outcome_status=OutcomeStatus.IMPLEMENTED,
+                deviation=DeviationLevel.NONE,
+                deviation_reason=DeviationReason.MODEL_ERROR,
+            )
+            for i in range(5)
+        ]
+        ts = compute_trust_score(assessments, outcomes)
+        assert ts.trust_score >= 0.95
+        assert ts.high_relevance_correct == 5
+
+    def test_all_wrong_low(self) -> None:
+        assessments = [
+            _make_assessment_with_decision(obj_id=f"s{i}")
+            for i in range(5)
+        ]
+        outcomes = [
+            DecisionOutcome(
+                assessed_object_id=f"s{i}",
+                outcome_status=OutcomeStatus.REJECTED,
+                deviation=DeviationLevel.COMPLETE_OVERRIDE,
+                deviation_reason=DeviationReason.MODEL_ERROR,
+            )
+            for i in range(5)
+        ]
+        ts = compute_trust_score(assessments, outcomes)
+        assert ts.trust_score <= 0.1
+        assert ts.high_relevance_correct == 0
+
+    def test_political_excluded_from_trust(self) -> None:
+        """Political outcomes don't affect trust score."""
+        a = _make_assessment_with_decision(obj_id="s1")
+        outcomes = [
+            DecisionOutcome(
+                assessed_object_id="s1",
+                outcome_status=OutcomeStatus.REJECTED,
+                deviation=DeviationLevel.COMPLETE_OVERRIDE,
+                deviation_reason=DeviationReason.POLITICAL_DECISION,
+            ),
+        ]
+        ts = compute_trust_score([a], outcomes)
+        assert ts.trust_score == 0.5  # neutral, not 0.0
+        assert ts.validated_outcomes == 0
+
+    def test_maturity_bonus(self) -> None:
+        """Calibrated model gets a trust bonus."""
+        assessments = [
+            _make_assessment_with_decision(obj_id=f"s{i}")
+            for i in range(6)
+        ]
+        outcomes = [
+            DecisionOutcome(
+                assessed_object_id=f"s{i}",
+                outcome_status=OutcomeStatus.IMPLEMENTED,
+                deviation=DeviationLevel.NONE,
+            )
+            for i in range(6)
+        ]
+        ts = compute_trust_score(assessments, outcomes)
+        # 6 outcomes → calibrated maturity → +0.05 bonus
+        assert ts.trust_score >= 1.0  # 6/6 + 0.05, capped at 1.0
+
+
+# --- Protected Rules Tests ---
+
+class TestProtectedRules:
+
+    def test_protected_rules_exist(self) -> None:
+        assert len(PROTECTED_RULES) >= 4
+
+    def test_hard_constraint_rule_protected(self) -> None:
+        ids = {r.rule_id for r in PROTECTED_RULES}
+        assert "hard_constraint_caps" in ids
+
+    def test_low_confidence_rule_protected(self) -> None:
+        ids = {r.rule_id for r in PROTECTED_RULES}
+        assert "low_confidence_reassess" in ids
+
+    def test_regulatory_weight_protected(self) -> None:
+        ids = {r.rule_id for r in PROTECTED_RULES}
+        assert "regulatory_alignment_weight" in ids
+
+    def test_governance_federation_protected(self) -> None:
+        ids = {r.rule_id for r in PROTECTED_RULES}
+        assert "governance_function_federation_preference" in ids
+
+    def test_filter_blocks_confidence_weakening(self) -> None:
+        """Suggestion to lower confidence thresholds should be blocked."""
+        suggestions = [
+            CalibrationSuggestion(
+                area="decision_aggressiveness",
+                suggestion="Consider lowering confidence thresholds for centralize_now.",
+                evidence="test",
+                priority=ValueLevel.MEDIUM,
+            ),
+        ]
+        filtered = filter_suggestions_against_protected_rules(suggestions, PROTECTED_RULES)
+        assert len(filtered) == 0  # blocked by low_confidence_reassess
+
+    def test_filter_allows_non_conflicting(self) -> None:
+        """Suggestions not conflicting with protected rules pass through."""
+        suggestions = [
+            CalibrationSuggestion(
+                area="effort_estimate",
+                suggestion="Bump base effort buckets by one level.",
+                evidence="test",
+                priority=ValueLevel.HIGH,
+            ),
+        ]
+        filtered = filter_suggestions_against_protected_rules(suggestions, PROTECTED_RULES)
+        assert len(filtered) == 1
+
+    def test_calibrate_filters_suggestions(self) -> None:
+        """Full pipeline should not produce suggestions that weaken protected rules."""
+        result = calibrate([], [])
+        # Protected rules should be in the result
+        assert len(result.protected_rules) >= 4

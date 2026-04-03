@@ -6,23 +6,30 @@ Provides:
 3. Concrete adjustment suggestions for the decision engine
 4. Model maturity assessment based on outcome count
 5. Confidence adjustment factor derived from prediction accuracy
+6. Learning relevance filtering (political/strategic overrides excluded)
+7. Trust score based on validated high-relevance outcomes
+8. Protected rules that cannot be weakened by calibration
+9. Filtered vs unfiltered calibration statistics
 
 Design principles:
 - Deterministic: same outcome data always produces same calibration
 - Transparent: every comparison and suggestion has traceable evidence
 - No statistical models — uses simple rule-based deviation detection
 - Calibration adjustments are suggestions, not automatic changes
+- Political/strategic overrides NEVER influence model calibration
 
-Assumption: Calibration requires at least 1 outcome to produce any
-comparison, but meaningful bias detection requires 5+ outcomes.
+Assumption: Not every deviation is a model error. Deviations caused by
+political decisions, strategic overrides, or resource constraints are
+legitimate governance actions and must be separated from genuine model
+errors before calibration.
 
-Assumption: The effort bucket comparison uses ordinal mapping
-("0-1"=0, "1-3"=1, "3-6"=2, "6-12"=3, "12+"=4) to detect systematic
-over/underestimation.
+Assumption: Only outcomes with learning_relevance high or medium should
+influence bias detection. Low-relevance outcomes are recorded but do not
+affect the model. None-relevance outcomes are fully excluded.
 
-Assumption: A "correct" decision is one where outcome_status is
-"implemented" with deviation "none" or "minor". All other outcomes
-indicate the model was partially or fully wrong for that case.
+Assumption: Protected rules (regulatory constraints, hard constraint
+handling, minimum confidence) must never be weakened even if calibration
+data suggests otherwise. These are governance-mandated guardrails.
 """
 
 from harmonizer.models.assessment import (
@@ -35,9 +42,14 @@ from harmonizer.models.assessment import (
     Decision,
     DecisionOutcome,
     DeviationLevel,
+    DeviationReason,
     DurationCategory,
+    FilteredCalibrationStats,
+    LearningRelevance,
     ModelMaturityLevel,
     OutcomeStatus,
+    ProtectedRule,
+    TrustScoreResult,
     ValueLevel,
 )
 
@@ -71,6 +83,110 @@ def _compare_ordinal(predicted: int, actual: int) -> str:
     elif predicted < actual:
         return "underestimated"
     return "accurate"
+
+
+# --- Learning Relevance Mapping ---
+
+DEVIATION_REASON_RELEVANCE: dict[DeviationReason, LearningRelevance] = {
+    DeviationReason.MODEL_ERROR: LearningRelevance.HIGH,
+    DeviationReason.INCOMPLETE_DATA: LearningRelevance.MEDIUM,
+    DeviationReason.CHANGED_CONTEXT: LearningRelevance.MEDIUM,
+    DeviationReason.POLITICAL_DECISION: LearningRelevance.NONE,
+    DeviationReason.STRATEGIC_OVERRIDE: LearningRelevance.NONE,
+    DeviationReason.RESOURCE_CONSTRAINT: LearningRelevance.LOW,
+}
+
+
+def resolve_learning_relevance(outcome: DecisionOutcome) -> LearningRelevance:
+    """Determine learning relevance for an outcome.
+
+    If explicitly set on the outcome, use that value.
+    If deviation_reason is set, derive from the mapping.
+    Otherwise, default to HIGH (assume model error unless proven otherwise).
+    """
+    if outcome.learning_relevance is not None:
+        return outcome.learning_relevance
+    if outcome.deviation_reason is not None:
+        return DEVIATION_REASON_RELEVANCE[outcome.deviation_reason]
+    # Default: if no reason given, assume the deviation is learning-relevant
+    return LearningRelevance.HIGH
+
+
+def is_learning_relevant(outcome: DecisionOutcome) -> bool:
+    """Check if an outcome should influence model calibration.
+
+    Only outcomes with learning_relevance HIGH or MEDIUM are used
+    for bias detection. LOW and NONE are excluded.
+    """
+    relevance = resolve_learning_relevance(outcome)
+    return relevance in (LearningRelevance.HIGH, LearningRelevance.MEDIUM)
+
+
+# --- Protected Rules ---
+
+# These rules are governance-mandated and must not be weakened by calibration.
+# Even if outcome data suggests these rules are "too strict", they remain
+# because they serve regulatory, compliance, or risk management purposes.
+
+PROTECTED_RULES: list[ProtectedRule] = [
+    ProtectedRule(
+        rule_id="hard_constraint_caps",
+        description="Hard constraints always cap classification downward",
+        reason="Regulatory and structural constraints are non-negotiable governance guardrails",
+    ),
+    ProtectedRule(
+        rule_id="low_confidence_reassess",
+        description="Low confidence always produces reassess_after_data_completion decision",
+        reason="Decisions on insufficient data create false precision and unacceptable risk",
+    ),
+    ProtectedRule(
+        rule_id="regulatory_alignment_weight",
+        description="Regulatory alignment dimension weight must not drop below 0.10",
+        reason="Regulatory requirements are legally binding and must always factor into scoring",
+    ),
+    ProtectedRule(
+        rule_id="governance_function_federation_preference",
+        description="Governance functions prefer federated model unless centralization degree > 0.80",
+        reason="Governance inherently requires local accountability; premature centralization "
+               "creates compliance gaps",
+    ),
+]
+
+
+def filter_suggestions_against_protected_rules(
+    suggestions: list[CalibrationSuggestion],
+    protected: list[ProtectedRule],
+) -> list[CalibrationSuggestion]:
+    """Remove or flag suggestions that would weaken protected rules.
+
+    Mapping from suggestion areas to protected rule IDs:
+    - Suggestions targeting "decision_aggressiveness" that recommend LOWERING
+      thresholds are checked against low_confidence_reassess
+    - Suggestions targeting regulatory weights are checked against
+      regulatory_alignment_weight
+    """
+    protected_ids = {r.rule_id for r in protected}
+    filtered: list[CalibrationSuggestion] = []
+
+    for sug in suggestions:
+        blocked = False
+
+        # Check if suggestion conflicts with protected rules
+        if sug.area == "decision_aggressiveness" and "lower" in sug.suggestion.lower():
+            if "low_confidence_reassess" in protected_ids:
+                # Don't block all aggressiveness suggestions, only those
+                # that would weaken the reassess-on-low-confidence rule
+                if "confidence" in sug.suggestion.lower():
+                    blocked = True
+
+        if sug.area == "regulatory_alignment" and "reduce" in sug.suggestion.lower():
+            if "regulatory_alignment_weight" in protected_ids:
+                blocked = True
+
+        if not blocked:
+            filtered.append(sug)
+
+    return filtered
 
 
 # --- Model Maturity ---
@@ -138,7 +254,7 @@ def compare_single_outcome(
             dimension="decision",
             predicted=dr.decision.value,
             actual="deferred",
-            direction="overestimated",  # recommended action was too aggressive
+            direction="overestimated",
         ))
 
     # Effort comparison
@@ -209,7 +325,6 @@ def detect_systematic_biases(
     Threshold: if >=60% of outcomes for a dimension deviate in
     the same direction, it's a systematic bias.
     """
-    # Group deviations by dimension
     by_dimension: dict[str, list[str]] = {}
     for dev in all_deviations:
         by_dimension.setdefault(dev.dimension, []).append(dev.direction)
@@ -243,10 +358,7 @@ def generate_suggestions(
     all_deviations: list[CalibrationDeviation],
     outcome_count: int,
 ) -> list[CalibrationSuggestion]:
-    """Generate concrete adjustment suggestions from detected biases.
-
-    Maps known bias patterns to actionable suggestions.
-    """
+    """Generate concrete adjustment suggestions from detected biases."""
     suggestions: list[CalibrationSuggestion] = []
 
     for bias in biases:
@@ -362,19 +474,7 @@ def compute_confidence_adjustment(
 ) -> float:
     """Compute a confidence adjustment factor based on calibration accuracy.
 
-    Returns a value in [-0.5, +0.5] that can be applied to completeness
-    scores to reflect historical model accuracy.
-
-    Rules:
-    - initial maturity: no adjustment (0.0)
-    - accuracy >= 0.80 and maturity >= calibrated: boost +0.1
-    - accuracy >= 0.60 and maturity >= learning: no change (0.0)
-    - accuracy < 0.60 and maturity >= learning: penalty -0.1
-    - accuracy < 0.40 and maturity >= calibrated: penalty -0.2
-
-    Assumption: These adjustments are intentionally conservative.
-    The goal is to flag potential issues, not to dramatically change
-    the confidence system.
+    Returns a value in [-0.5, +0.5].
     """
     if model_maturity == ModelMaturityLevel.INITIAL:
         return 0.0
@@ -393,28 +493,123 @@ def compute_confidence_adjustment(
         return -0.10
 
 
+# --- Trust Score ---
+
+def compute_trust_score(
+    assessments: list[Assessment],
+    outcomes: list[DecisionOutcome],
+) -> TrustScoreResult:
+    """Compute model trust score based on validated high-relevance outcomes.
+
+    Trust is built on outcomes where:
+    1. The deviation reason is model_error or incomplete_data (high/medium relevance)
+    2. The model predicted correctly
+
+    Score formula:
+    - Base: high_relevance_correct / high_relevance_total
+    - Bonus: +0.05 if maturity >= calibrated
+    - Capped at 1.0
+
+    If no high-relevance outcomes exist, trust defaults to 0.5 (neutral).
+    """
+    assessment_index = {a.assessed_object_id: a for a in assessments}
+
+    high_correct = 0
+    high_total = 0
+    validated = 0
+
+    for outcome in outcomes:
+        assessment = assessment_index.get(outcome.assessed_object_id)
+        if assessment is None or assessment.decision_result is None:
+            continue
+
+        relevance = resolve_learning_relevance(outcome)
+        if relevance not in (LearningRelevance.HIGH, LearningRelevance.MEDIUM):
+            continue
+
+        validated += 1
+        high_total += 1
+        if (
+            outcome.outcome_status == OutcomeStatus.IMPLEMENTED
+            and outcome.deviation in (DeviationLevel.NONE, DeviationLevel.MINOR)
+        ):
+            high_correct += 1
+
+    if high_total == 0:
+        return TrustScoreResult(
+            trust_score=0.5,
+            validated_outcomes=0,
+            high_relevance_correct=0,
+            high_relevance_total=0,
+            rationale="No high-relevance outcomes — trust score is neutral (0.50).",
+        )
+
+    base = high_correct / high_total
+    maturity = determine_model_maturity(high_total)
+    bonus = 0.05 if maturity in (ModelMaturityLevel.CALIBRATED, ModelMaturityLevel.STABLE) else 0.0
+    score = round(min(1.0, base + bonus), 4)
+
+    parts = [f"Trust score: {score:.2f}"]
+    parts.append(f"{high_correct}/{high_total} high-relevance outcomes correct")
+    if bonus > 0:
+        parts.append(f"+{bonus:.2f} maturity bonus ({maturity.value})")
+
+    return TrustScoreResult(
+        trust_score=score,
+        validated_outcomes=validated,
+        high_relevance_correct=high_correct,
+        high_relevance_total=high_total,
+        rationale=". ".join(parts) + ".",
+    )
+
+
+# --- Deviation Reason Summary ---
+
+def summarize_deviation_reasons(outcomes: list[DecisionOutcome]) -> list[str]:
+    """Summarize why decisions deviated from recommendations."""
+    reason_counts: dict[str, int] = {}
+    for outcome in outcomes:
+        if outcome.deviation in (DeviationLevel.NONE,):
+            continue  # No deviation, no reason needed
+        reason = outcome.deviation_reason
+        if reason:
+            label = reason.value
+        else:
+            label = "unclassified"
+        reason_counts[label] = reason_counts.get(label, 0) + 1
+
+    return [f"{reason}: {count} outcome(s)" for reason, count in sorted(reason_counts.items())]
+
+
 # --- Main Calibration Function ---
 
 def calibrate(
     assessments: list[Assessment],
     outcomes: list[DecisionOutcome],
 ) -> CalibrationResult:
-    """Run calibration by comparing all outcomes against their predictions.
+    """Run calibration by comparing outcomes against predictions.
 
-    Steps:
-    1. Match outcomes to assessments by assessed_object_id
-    2. Compare each outcome against its prediction
-    3. Detect systematic biases
-    4. Generate adjustment suggestions
-    5. Compute confidence adjustment factor
-
-    Returns a CalibrationResult with all findings.
+    Phase 7 filtering logic:
+    1. ALL outcomes are compared for the full deviation picture
+    2. Only learning-relevant outcomes (high/medium) influence bias detection
+    3. Political/strategic overrides are recorded but excluded from learning
+    4. Suggestions are filtered against protected rules
+    5. Trust score is computed from high-relevance outcomes only
     """
     assessment_index = {a.assessed_object_id: a for a in assessments}
 
+    # --- Pass 1: Compare ALL outcomes (unfiltered) ---
     all_deviations: list[CalibrationDeviation] = []
-    correct_count = 0
+    unfiltered_correct = 0
     total_matched = 0
+
+    # --- Pass 2: Filtered deviations (learning-relevant only) ---
+    filtered_deviations: list[CalibrationDeviation] = []
+    filtered_correct = 0
+    filtered_total = 0
+
+    excluded_count = 0
+    excluded_reasons: list[str] = []
 
     for outcome in outcomes:
         assessment = assessment_index.get(outcome.assessed_object_id)
@@ -425,33 +620,84 @@ def calibrate(
         deviations = compare_single_outcome(assessment, outcome)
         all_deviations.extend(deviations)
 
-        # Count as correct if implemented with none/minor deviation
-        if (
+        is_correct = (
             outcome.outcome_status == OutcomeStatus.IMPLEMENTED
             and outcome.deviation in (DeviationLevel.NONE, DeviationLevel.MINOR)
-        ):
-            correct_count += 1
+        )
+        if is_correct:
+            unfiltered_correct += 1
 
-    # Accuracy
-    accuracy_rate = correct_count / total_matched if total_matched > 0 else 0.0
-    accuracy_rate = round(accuracy_rate, 4)
+        # Filtering
+        if is_learning_relevant(outcome):
+            filtered_total += 1
+            filtered_deviations.extend(deviations)
+            if is_correct:
+                filtered_correct += 1
+        else:
+            excluded_count += 1
+            relevance = resolve_learning_relevance(outcome)
+            reason = outcome.deviation_reason
+            reason_str = reason.value if reason else "no_reason"
+            excluded_reasons.append(
+                f"{outcome.assessed_object_id}: {reason_str} "
+                f"(learning_relevance={relevance.value})"
+            )
 
-    # Maturity
-    model_maturity = determine_model_maturity(total_matched)
+    # Accuracy rates
+    unfiltered_accuracy = round(
+        unfiltered_correct / total_matched if total_matched > 0 else 0.0, 4,
+    )
+    filtered_accuracy = round(
+        filtered_correct / filtered_total if filtered_total > 0 else 0.0, 4,
+    )
 
-    # Biases
-    biases = detect_systematic_biases(all_deviations)
+    # Use FILTERED accuracy as the official accuracy rate
+    accuracy_rate = filtered_accuracy if filtered_total > 0 else unfiltered_accuracy
 
-    # Suggestions
-    suggestions = generate_suggestions(biases, all_deviations, total_matched)
+    # Maturity based on learning-relevant outcomes
+    model_maturity = determine_model_maturity(filtered_total)
 
-    # Confidence adjustment
+    # Biases from FILTERED deviations only
+    biases = detect_systematic_biases(filtered_deviations)
+
+    # Suggestions from filtered biases, then filter against protected rules
+    raw_suggestions = generate_suggestions(biases, filtered_deviations, filtered_total)
+    suggestions = filter_suggestions_against_protected_rules(raw_suggestions, PROTECTED_RULES)
+
+    # Confidence adjustment from filtered accuracy
     conf_adj = compute_confidence_adjustment(accuracy_rate, model_maturity)
+
+    # Trust score
+    trust = compute_trust_score(assessments, outcomes)
+
+    # Filtered stats
+    filtered_stats = FilteredCalibrationStats(
+        total_outcomes=total_matched,
+        learning_relevant_outcomes=filtered_total,
+        excluded_outcomes=excluded_count,
+        excluded_reasons=excluded_reasons,
+        unfiltered_accuracy=unfiltered_accuracy,
+        filtered_accuracy=filtered_accuracy,
+        rationale=(
+            f"{filtered_total}/{total_matched} outcomes used for calibration. "
+            f"{excluded_count} excluded (political/strategic/low-relevance)."
+        ),
+    )
+
+    # Deviation reason summary
+    deviation_reasons = summarize_deviation_reasons(outcomes)
 
     # Rationale
     parts = [f"Analyzed {total_matched} outcome(s)"]
-    parts.append(f"Accuracy: {accuracy_rate:.0%} ({correct_count}/{total_matched} correct)")
+    if excluded_count > 0:
+        parts.append(f"{excluded_count} excluded from learning (political/strategic)")
+    parts.append(
+        f"Filtered accuracy: {filtered_accuracy:.0%} "
+        f"({filtered_correct}/{filtered_total} correct)"
+        if filtered_total > 0 else f"Unfiltered accuracy: {unfiltered_accuracy:.0%}"
+    )
     parts.append(f"Model maturity: {model_maturity.value}")
+    parts.append(f"Trust score: {trust.trust_score:.2f}")
     if biases:
         parts.append(f"Systematic biases detected: {len(biases)}")
     if conf_adj != 0.0:
@@ -461,10 +707,14 @@ def calibrate(
     return CalibrationResult(
         outcomes_analyzed=total_matched,
         accuracy_rate=accuracy_rate,
-        deviations=all_deviations,
+        deviations=all_deviations,  # ALL deviations for full picture
         systematic_biases=biases,
         suggestions=suggestions,
         model_maturity=model_maturity,
         confidence_adjustment=conf_adj,
         rationale=". ".join(parts) + ".",
+        trust_score=trust,
+        protected_rules=list(PROTECTED_RULES),
+        filtered_stats=filtered_stats,
+        deviation_reasons_summary=deviation_reasons,
     )

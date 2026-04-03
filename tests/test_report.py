@@ -19,6 +19,7 @@ from harmonizer.models.assessment import (
     CalibrationDeviation,
     CalibrationResult,
     CalibrationSuggestion,
+    FilteredCalibrationStats,
     CompletenessResult,
     ConfidenceLevel,
     Decision,
@@ -37,6 +38,8 @@ from harmonizer.models.assessment import (
     ModelMaturityLevel,
     NoActionImpact,
     PrioritizationResult,
+    ProtectedRule,
+    TrustScoreResult,
     TargetOperatingModel,
     ValueIndicators,
     ValueLevel,
@@ -498,15 +501,48 @@ class TestGenerateReport:
             model_maturity=ModelMaturityLevel.CALIBRATED,
             confidence_adjustment=-0.10,
             rationale="Test calibration.",
+            trust_score=TrustScoreResult(
+                trust_score=0.75,
+                validated_outcomes=3,
+                high_relevance_correct=2,
+                high_relevance_total=3,
+                rationale="Good.",
+            ),
+            protected_rules=[
+                ProtectedRule(
+                    rule_id="hard_constraint_caps",
+                    description="Hard constraints always cap",
+                    reason="Governance guardrail",
+                ),
+            ],
+            filtered_stats=FilteredCalibrationStats(
+                total_outcomes=5,
+                learning_relevant_outcomes=3,
+                excluded_outcomes=2,
+                excluded_reasons=["s2: political_decision"],
+                unfiltered_accuracy=0.4,
+                filtered_accuracy=0.6,
+                rationale="3/5 used.",
+            ),
+            deviation_reasons_summary=["model_error: 2 outcome(s)", "political_decision: 2 outcome(s)"],
         )
         report = generate_report(areas, streams, sps, ifaces, [], calibration=cal)
         assert "Decision Accuracy & Calibration" in report
         assert "Calibrated" in report
         assert "60%" in report
-        assert "Where the Model Was Wrong" in report
+        assert "Model vs Reality Gap" in report
         assert "Improvement Suggestions" in report
         assert "effort_estimate" in report
         assert "Prediction vs Actual" in report
+        # Phase 7 sections
+        assert "Trust Score" in report
+        assert "0.75" in report
+        assert "Filtered vs Unfiltered" in report
+        assert "Learning-relevant outcomes" in report
+        assert "Why Decisions Deviated" in report
+        assert "model_error" in report
+        assert "Protected Rules" in report
+        assert "hard_constraint_caps" in report
 
     def test_report_no_calibration_when_none(self) -> None:
         areas, streams, sps, ifaces = _minimal_data()
