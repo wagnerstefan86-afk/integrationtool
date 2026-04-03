@@ -189,6 +189,136 @@ class TestCRUDValidation:
         assert resp.status_code == 200
 
 
+class TestAssessmentValidation:
+    """Tests for assessment save validation."""
+
+    def test_save_assessment_requires_object_type(self, client) -> None:
+        resp = client.put("/api/assessments", json={
+            "assessed_object_id": "policies_processes",
+        })
+        assert resp.status_code == 400
+        assert "assessed_object_type" in resp.json()["detail"]
+
+    def test_save_assessment_validates_stream_exists(self, client) -> None:
+        resp = client.put("/api/assessments", json={
+            "assessed_object_id": "nonexistent",
+            "assessed_object_type": "stream",
+            "answers": [],
+        })
+        assert resp.status_code == 400
+        assert "not found" in resp.json()["detail"].lower()
+
+    def test_save_assessment_validates_dimension(self, client) -> None:
+        resp = client.put("/api/assessments", json={
+            "assessed_object_id": "policies_processes",
+            "assessed_object_type": "stream",
+            "answers": [{"dimension": "bogus_dimension", "score": 3}],
+        })
+        assert resp.status_code == 400
+        assert "dimension" in resp.json()["detail"].lower()
+
+    def test_save_assessment_validates_score_range(self, client) -> None:
+        resp = client.put("/api/assessments", json={
+            "assessed_object_id": "policies_processes",
+            "assessed_object_type": "stream",
+            "answers": [{"dimension": "maturity", "score": 9}],
+        })
+        assert resp.status_code == 400
+        assert "score" in resp.json()["detail"].lower()
+
+    def test_save_assessment_validates_hard_constraint(self, client) -> None:
+        resp = client.put("/api/assessments", json={
+            "assessed_object_id": "policies_processes",
+            "assessed_object_type": "stream",
+            "answers": [],
+            "hard_constraints": ["bogus_constraint"],
+        })
+        assert resp.status_code == 400
+        assert "constraint" in resp.json()["detail"].lower()
+
+    def test_completed_requires_all_dimensions(self, client) -> None:
+        resp = client.put("/api/assessments", json={
+            "assessed_object_id": "policies_processes",
+            "assessed_object_type": "stream",
+            "answers": [{"dimension": "maturity", "score": 3}],
+            "status": "completed",
+        })
+        assert resp.status_code == 400
+        assert "missing" in resp.json()["detail"].lower()
+
+    def test_save_draft_assessment_success(self, client) -> None:
+        resp = client.put("/api/assessments", json={
+            "assessed_object_id": "it_bcm",
+            "assessed_object_type": "stream",
+            "answers": [{"dimension": "maturity", "score": 4, "rationale": "test"}],
+            "status": "draft",
+        })
+        assert resp.status_code == 200
+        assert resp.json()["status"] == "draft"
+
+
+class TestLiveScoreEndpoint:
+    """Tests for the enhanced live scoring endpoint."""
+
+    def test_basic_score(self, client) -> None:
+        resp = client.post("/api/score", json={
+            "answers": [{"dimension": d, "score": 4} for d in [
+                "regulatory_alignment", "operational_alignment",
+                "tooling_alignment", "governance_alignment",
+                "maturity", "local_necessity",
+            ]],
+        })
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["blended_score"] > 0
+        assert data["classification"]
+        assert data["confidence"]
+        assert data["missing_dimensions"] == []
+
+    def test_hard_constraint_caps_classification(self, client) -> None:
+        resp = client.post("/api/score", json={
+            "answers": [{"dimension": d, "score": 5} for d in [
+                "regulatory_alignment", "operational_alignment",
+                "tooling_alignment", "governance_alignment",
+                "maturity", "local_necessity",
+            ]],
+            "hard_constraints": ["legal_local_difference"],
+        })
+        assert resp.status_code == 200
+        data = resp.json()
+        # legal_local_difference should cap classification
+        assert len(data["constraint_reasons"]) > 0
+
+    def test_missing_dimensions_reported(self, client) -> None:
+        resp = client.post("/api/score", json={
+            "answers": [{"dimension": "maturity", "score": 3}],
+        })
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["dimensions_answered"] == 1
+        assert len(data["missing_dimensions"]) == 5
+
+
+class TestQuestionsEndpoint:
+    """Tests for the type-specific questions endpoint."""
+
+    def test_get_process_questions(self, client) -> None:
+        resp = client.get("/api/questions/process")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert len(data) == 5
+        assert data[0]["id"] == "proc_trigger_uniform"
+
+    def test_get_governance_questions(self, client) -> None:
+        resp = client.get("/api/questions/governance_function")
+        assert resp.status_code == 200
+        assert len(resp.json()) == 5
+
+    def test_invalid_stream_type(self, client) -> None:
+        resp = client.get("/api/questions/nonexistent")
+        assert resp.status_code == 400
+
+
 class TestCalibrateEndpoint:
     def test_calibrate_no_outcomes(self, client) -> None:
         resp = client.post("/calibrate", json={"data_dir": "examples"})

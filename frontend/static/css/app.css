@@ -215,5 +215,46 @@ select.form-control { appearance: auto; }
 .dimension-row:last-child { border-bottom: none; }
 .dimension-label { font-size: 13px; font-weight: 500; }
 
+/* === Score Panel (live results) === */
+.score-panel { display: flex; gap: 24px; align-items: flex-start; flex-wrap: wrap; padding: 8px 0; }
+.score-panel-empty { padding: 16px 0; }
+.score-panel-item { text-align: center; min-width: 80px; }
+.score-panel-value { font-size: 18px; font-weight: 600; }
+.score-panel-label { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+.score-warnings { display: flex; flex-direction: column; gap: 4px; }
+.score-warning { font-size: 12px; color: var(--danger); padding: 6px 10px;
+  background: #fef2f2; border-radius: 4px; border-left: 3px solid var(--danger); }
+
+/* === Dimension Input (score buttons) === */
+.dim-input-group { display: flex; flex-direction: column; gap: 2px; }
+.dim-input-row { padding: 10px 0; border-bottom: 1px solid #f3f4f6; }
+.dim-input-row:last-child { border-bottom: none; }
+.dim-input-header { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.dim-input-label { font-size: 13px; font-weight: 500; flex: 1; }
+.dim-input-score { display: flex; align-items: center; gap: 4px; }
+.score-btn-group { display: flex; gap: 3px; align-items: center; }
+.score-btn { width: 32px; height: 32px; border: 1px solid var(--border); border-radius: 4px;
+  background: #fff; cursor: pointer; font-size: 13px; font-weight: 600; color: var(--text-muted);
+  transition: all 0.15s; }
+.score-btn:hover { border-color: var(--primary); color: var(--primary); }
+.score-btn.active { background: var(--primary); color: #fff; border-color: var(--primary); }
+.score-btn-label { font-size: 14px; font-weight: 700; min-width: 24px; text-align: center;
+  color: var(--primary); }
+.dim-rationale { margin-top: 4px; }
+
+/* === Hard Constraint Checkbox === */
+.hc-check { display: flex; align-items: center; gap: 8px; padding: 6px 0;
+  font-size: 13px; cursor: pointer; }
+.hc-check input[type="checkbox"] { width: 16px; height: 16px; accent-color: var(--danger); }
+.hc-check.checked { color: var(--danger); font-weight: 500; }
+
+/* === Assessment Status === */
+.status-select { display: flex; gap: 6px; }
+.status-option { padding: 6px 14px; border: 1px solid var(--border); border-radius: 4px;
+  background: #fff; cursor: pointer; font-size: 12px; font-weight: 500; }
+.status-option.active { background: var(--primary); color: #fff; border-color: var(--primary); }
+.status-option[data-status="completed"].active { background: var(--success); border-color: var(--success); }
+.status-option[data-status="reviewed"].active { background: #7c3aed; border-color: #7c3aed; }
+
 /* Print styles */
 @media print { #sidebar { display: none; } main { margin-left: 0; } }

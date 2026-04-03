@@ -191,17 +191,30 @@ async function renderDetail(streamId) {
 
   const regulatoryBadges = (stream.regulatory_context || []).map(r => badge('badge-muted', r)).join(' ');
 
-  const spRows = streamSPs.map(sp => `
-    <tr>
+  // Build subprocess assessment status map
+  const spAssMap = {};
+  for (const a of allAssessments) {
+    if (a.assessed_object_type === 'subprocess' && spIds.has(a.assessed_object_id)) {
+      spAssMap[a.assessed_object_id] = a;
+    }
+  }
+
+  const spRows = streamSPs.map(sp => {
+    const spAss = spAssMap[sp.id];
+    const spStatus = spAss?.status || 'not_started';
+    const statusCls = { draft: 'badge-warning', completed: 'badge-success', reviewed: 'badge-info' };
+    return `<tr>
       <td><strong>${esc(sp.name)}</strong>
         <br><code style="font-size:11px;color:var(--text-muted)">${esc(sp.id)}</code></td>
-      <td style="color:var(--text-muted);font-size:12px;max-width:250px">${esc(sp.purpose || sp.description || '—')}</td>
-      <td>${badge('badge-muted', sp.country_scope || '')} ${badge('badge-muted', sp.tenant_scope || '')}</td>
+      <td style="color:var(--text-muted);font-size:12px;max-width:200px">${esc(sp.purpose || sp.description || '—')}</td>
+      <td>${badge(statusCls[spStatus] || 'badge-muted', spStatus.replace(/_/g, ' '))}</td>
       <td style="white-space:nowrap">
+        <a href="#/assessments/${encodeURIComponent(sp.id)}" class="btn btn-sm">${spAss ? 'Edit Assess.' : 'Assess'}</a>
         <button class="btn btn-sm" data-edit-sp="${esc(sp.id)}">Edit</button>
         <button class="btn btn-sm btn-danger" data-delete-sp="${esc(sp.id)}">Delete</button>
       </td>
-    </tr>`).join('');
+    </tr>`;
+  }).join('');
 
   const ifaceRows = streamIfaces.map(i => `
     <tr>
@@ -215,8 +228,13 @@ async function renderDetail(streamId) {
       </td>
     </tr>`).join('');
 
+  const assStatus = assessment?.status || 'not_started';
+  const assStatusCls = { draft: 'badge-warning', completed: 'badge-success', reviewed: 'badge-info' };
   const assessSection = assessment
-    ? _renderAssessmentSummary(assessment)
+    ? `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+         ${badge(assStatusCls[assStatus] || 'badge-muted', assStatus.replace(/_/g, ' '))}
+         ${assessment.assessor ? `<span style="font-size:12px;color:var(--text-muted)">by ${esc(assessment.assessor)}</span>` : ''}
+       </div>` + _renderAssessmentSummary(assessment)
     : '<p style="color:var(--text-muted)">No assessment recorded for this stream.</p>';
 
   setContent(`
@@ -249,7 +267,12 @@ async function renderDetail(streamId) {
           </dl>
         </div>
         <div class="detail-section">
-          <h3>Assessment</h3>
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <h3>Assessment</h3>
+            <a href="#/assessments/${encodeURIComponent(streamId)}" class="btn btn-sm btn-primary">
+              ${assessment ? 'Edit Assessment' : 'Create Assessment'}
+            </a>
+          </div>
           ${assessSection}
         </div>
       </div>
@@ -262,7 +285,7 @@ async function renderDetail(streamId) {
           ${streamSPs.length === 0
             ? '<p style="color:var(--text-muted)">No subprocesses defined.</p>'
             : `<div class="table-wrap"><table>
-                <thead><tr><th>Name</th><th>Purpose</th><th>Scope</th><th></th></tr></thead>
+                <thead><tr><th>Name</th><th>Purpose</th><th>Assessment</th><th></th></tr></thead>
                 <tbody>${spRows}</tbody>
               </table></div>`}
         </div>

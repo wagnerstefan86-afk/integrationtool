@@ -28,12 +28,15 @@ from harmonizer.scoring.engine import (
     compute_type_specific_score,
     compute_blended_score,
     classify_score,
+    apply_hard_constraints,
     get_weights_for_stream_type,
 )
+from harmonizer.scoring.questions import get_required_questions
 from harmonizer.models.process import StreamType
 from harmonizer.models.assessment import (
     AlignmentDimension,
     AssessmentAnswer,
+    HardConstraint,
     TypeSpecificAnswer,
 )
 
@@ -294,11 +297,59 @@ def get_assessment(obj_id: str, dataset: str = "examples"):
         raise HTTPException(404, f"Assessment not found: {obj_id}")
     return a
 
+VALID_DIMENSIONS = {d.value for d in AlignmentDimension}
+VALID_HARD_CONSTRAINTS = {c.value for c in HardConstraint}
+VALID_STATUSES = {"not_started", "draft", "completed", "reviewed"}
+
 @app.put("/api/assessments")
 def save_assessment(assessment: dict, dataset: str = "examples"):
-    if "assessed_object_id" not in assessment:
+    obj_id = assessment.get("assessed_object_id", "").strip()
+    if not obj_id:
         raise HTTPException(400, "Assessment requires 'assessed_object_id'")
-    return _get_store(dataset).save_assessment(assessment)
+    assessment["assessed_object_id"] = obj_id
+
+    obj_type = assessment.get("assessed_object_type", "").strip()
+    if obj_type not in ("stream", "subprocess"):
+        raise HTTPException(400, "assessed_object_type must be 'stream' or 'subprocess'")
+
+    # Validate the referenced object exists
+    store = _get_store(dataset)
+    if obj_type == "stream" and not store.get_stream(obj_id):
+        raise HTTPException(400, f"Stream not found: '{obj_id}'")
+    if obj_type == "subprocess" and not store.get_subprocess(obj_id):
+        raise HTTPException(400, f"Subprocess not found: '{obj_id}'")
+
+    # Validate dimension scores
+    for ans in assessment.get("answers", []):
+        dim = ans.get("dimension", "")
+        if dim and dim not in VALID_DIMENSIONS:
+            raise HTTPException(400, f"Invalid dimension: '{dim}'")
+        score = ans.get("score")
+        if score is not None and (not isinstance(score, int) or score < 1 or score > 5):
+            raise HTTPException(400, f"Dimension score must be integer 1-5, got: {score}")
+
+    # Validate hard constraints
+    for hc in assessment.get("hard_constraints", []):
+        if hc not in VALID_HARD_CONSTRAINTS:
+            raise HTTPException(400, f"Invalid hard constraint: '{hc}'")
+
+    # Validate status
+    status = assessment.get("status", "draft")
+    if status not in VALID_STATUSES:
+        raise HTTPException(400, f"Invalid status: '{status}'. Must be one of: {', '.join(sorted(VALID_STATUSES))}")
+
+    # Status 'completed' requires all 6 base dimensions
+    if status == "completed":
+        answered = {a.get("dimension") for a in assessment.get("answers", [])}
+        missing = VALID_DIMENSIONS - answered
+        if missing:
+            raise HTTPException(
+                400,
+                f"Cannot set status to 'completed': missing dimensions: {', '.join(sorted(missing))}"
+            )
+
+    assessment["status"] = status
+    return store.save_assessment(assessment)
 
 @app.delete("/api/assessments/{obj_id}")
 def delete_assessment(obj_id: str, dataset: str = "examples"):
@@ -330,6 +381,7 @@ def save_outcome(outcome: dict, dataset: str = "examples"):
 class LiveScoreRequest(BaseModel):
     answers: list[dict]  # [{dimension, score}]
     type_specific_answers: list[dict] = []  # [{question_id, score}]
+    hard_constraints: list[str] = []
     stream_type: Optional[str] = None
 
 @app.post("/api/score")
@@ -365,22 +417,69 @@ def live_score(req: LiveScoreRequest):
         except (KeyError, ValueError):
             continue
 
+    # Parse hard constraints
+    hc_parsed = []
+    for hc in req.hard_constraints:
+        try:
+            hc_parsed.append(HardConstraint(hc))
+        except ValueError:
+            continue
+
     base = compute_weighted_score(parsed, weights)
     ts_score = compute_type_specific_score(ts_parsed)
     blended = compute_blended_score(base, ts_score, bool(ts_parsed))
-    classification = classify_score(blended)
+    base_classification = classify_score(blended)
+
+    # Apply hard constraint caps
+    final_classification, constraint_reasons = apply_hard_constraints(
+        base_classification, hc_parsed
+    )
 
     dims_answered = len({a.dimension for a in parsed})
-    completeness_est = int(min(100, (dims_answered / 6) * 50 + (len(ts_parsed) / 4) * 30 + 20))
+    ts_expected = len(get_required_questions(st)) if st else 0
+    # Better completeness estimate
+    dim_pct = (dims_answered / 6) * 40
+    ts_pct = (len(ts_parsed) / max(ts_expected, 1)) * 25 if ts_expected else 15
+    hc_pct = 15 if req.hard_constraints is not None else 0
+    base_pct = 20
+    completeness_est = int(min(100, dim_pct + ts_pct + hc_pct + base_pct))
+
+    # Confidence
+    if completeness_est >= 75:
+        confidence = "high"
+    elif completeness_est >= 45:
+        confidence = "medium"
+    else:
+        confidence = "low"
+
+    # Missing dimensions
+    answered_dims = {a.dimension.value for a in parsed}
+    missing_dims = sorted(set(d.value for d in AlignmentDimension) - answered_dims)
 
     return {
         "base_score": round(base, 4),
         "type_specific_score": round(ts_score, 4),
         "blended_score": round(blended, 4),
-        "classification": classification.value,
+        "base_classification": base_classification.value,
+        "classification": final_classification.value,
+        "constraint_reasons": constraint_reasons,
         "dimensions_answered": dims_answered,
+        "missing_dimensions": missing_dims,
         "completeness_estimate": completeness_est,
+        "confidence": confidence,
     }
+
+# ===================== Type-Specific Questions =====================
+
+@app.get("/api/questions/{stream_type}")
+def get_questions(stream_type: str):
+    """Return type-specific questions for a given stream type."""
+    try:
+        st = StreamType(stream_type)
+    except ValueError:
+        raise HTTPException(400, f"Invalid stream type: '{stream_type}'")
+    questions = get_required_questions(st)
+    return [{"id": q.id, "text": q.text, "focus": q.focus} for q in questions]
 
 # ===================== Analysis =====================
 
