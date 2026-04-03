@@ -141,13 +141,83 @@ CONSTRAINT_TYPES = [
 
 # ─── Recommendation constants ────────────────────────────────────────────────
 
-RECOMMENDATION_TYPES = [
-    "keep_local",
-    "harmonize",
-    "centralize",
-    "investigate_further",
-    "remediate_control_gap",
+# Legacy English types (kept for backward compat in stored data)
+RECOMMENDATION_TYPES_LEGACY = [
+    "keep_local", "harmonize", "centralize",
+    "investigate_further", "remediate_control_gap",
 ]
+
+# Current German operational types
+RECOMMENDATION_TYPES = [
+    "fehlende_information_erfassen",
+    "begründung_klären",
+    "evidenz_nachziehen",
+    "kontrolllücke_beheben",
+    "harmonisierung_prüfen",
+    "lokal_beibehalten",
+    "management_entscheidung_herbeiführen",
+]
+
+RECOMMENDATION_LABELS_DE = {
+    "fehlende_information_erfassen": "Informationen erfassen",
+    "begründung_klären": "Begründung klären",
+    "evidenz_nachziehen": "Evidenz nachziehen",
+    "kontrolllücke_beheben": "Kontrolllücke beheben",
+    "harmonisierung_prüfen": "Harmonisierung prüfen",
+    "lokal_beibehalten": "Lokal beibehalten",
+    "management_entscheidung_herbeiführen": "Management-Entscheidung herbeiführen",
+}
+
+# ─── Maturity model constants ────────────────────────────────────────────────
+
+MATURITY_LEVELS = [
+    "nicht_begonnen",
+    "grundlegend_erfasst",
+    "strukturiert_erfasst",
+    "begründet",
+    "nachgewiesen",
+    "reviewfähig",
+    "freigegeben",
+]
+
+MATURITY_LABELS_DE = {
+    "nicht_begonnen": "Nicht begonnen",
+    "grundlegend_erfasst": "Grundlegend erfasst",
+    "strukturiert_erfasst": "Strukturiert erfasst",
+    "begründet": "Begründet",
+    "nachgewiesen": "Nachgewiesen",
+    "reviewfähig": "Reviewfähig",
+    "freigegeben": "Freigegeben",
+}
+
+MATURITY_NEXT_STEP_DE = {
+    "nicht_begonnen": "Beschreibung, Systeme und Rollen erfassen",
+    "grundlegend_erfasst": "Systeme und Rollen ergänzen",
+    "strukturiert_erfasst": "Begründung dokumentieren (WHY-Feld ausfüllen)",
+    "begründet": "Evidenznachweise hinzufügen",
+    "nachgewiesen": "Review vorbereiten: Pflichtfelder prüfen",
+    "reviewfähig": "Review abschließen und freigeben",
+    "freigegeben": "Keine weiteren Schritte erforderlich",
+}
+
+# ─── Task engine constants ────────────────────────────────────────────────────
+
+TASK_TYPES = [
+    "missing_description",
+    "missing_systems",
+    "missing_roles",
+    "missing_why",
+    "weak_why",
+    "missing_evidence",
+    "missing_output",
+    "review_blocker",
+    "harmonization_check",
+    "control_gap_remediation",
+    "management_decision_needed",
+]
+
+TASK_PRIORITIES = ["hoch", "mittel", "niedrig"]
+TASK_STATUSES = ["offen", "in_bearbeitung", "erledigt", "verworfen"]
 
 # ─── WHY quality assessment ──────────────────────────────────────────────────
 
@@ -685,7 +755,7 @@ def generate_recommendations(analysis: dict, deltas: list[dict] | None = None) -
 
 def _rule_based_recommendation(delta: dict, step_id: str, step: dict,
                                variant_map: dict) -> dict | None:
-    """Apply rules to a single delta to produce a recommendation."""
+    """Apply rules to a single delta to produce a recommendation (German types)."""
     d_type = delta.get("delta_type", "")
     nature = delta.get("delta_nature", "procedural")
     constraint = delta.get("constraint_type", "none")
@@ -693,156 +763,157 @@ def _rule_based_recommendation(delta: dict, step_id: str, step: dict,
     dimension = delta.get("delta_dimension", "")
     delta_id = f"{step_id}:{d_type}"
 
-    # Rule: control_gap → remediate_control_gap
+    dim_de = {
+        "tooling": "System/Werkzeug", "channel": "Kanal", "role_model": "Rollenmodell",
+        "governance": "Governance", "documentation": "Dokumentation",
+        "escalation": "Eskalation", "reporting": "Reporting",
+        "capacity": "Kapazität", "control_design": "Kontrolldesign",
+    }.get(dimension, dimension)
+
+    # Kontrolllücke beheben
     if d_type == "control_gap":
         return {
             "id": _next_rec_id(),
-            "title": f"Remediate control gap: {dimension} in {step_id}",
-            "recommendation_type": "remediate_control_gap",
+            "title": f"Kontrolllücke beheben: {dim_de} in Schritt '{step_id}'",
+            "recommendation_type": "kontrolllücke_beheben",
             "rationale": delta.get("description", ""),
             "based_on_step_ids": [step_id],
             "based_on_delta_ids": [delta_id],
-            "priority": "high",
+            "priority": "hoch",
             "assumptions": [],
             "blockers": [],
-            "expected_benefit": f"Close control gap in {dimension}",
-            "implementation_complexity": "medium",
+            "expected_benefit": f"Kontrolllücke im Bereich {dim_de} schließen",
+            "implementation_complexity": "mittel",
         }
 
-    # Rule: missing_rationale → investigate_further
+    # Begründung klären (fehlende WHY)
     if d_type == "missing_rationale":
         return {
             "id": _next_rec_id(),
-            "title": f"Investigate missing WHY in {step_id}",
-            "recommendation_type": "investigate_further",
-            "rationale": "Cannot make harmonization decision without understanding WHY",
+            "title": f"Begründung klären: Schritt '{step_id}'",
+            "recommendation_type": "begründung_klären",
+            "rationale": "Ohne Begründung ist keine fundierte Harmonisierungsentscheidung möglich.",
             "based_on_step_ids": [step_id],
             "based_on_delta_ids": [delta_id],
-            "priority": "high",
-            "assumptions": ["WHY can be captured through follow-up interviews"],
+            "priority": "hoch",
+            "assumptions": ["Begründung kann in Follow-up-Gespräch erhoben werden"],
             "blockers": [],
-            "expected_benefit": "Enable informed standardization decision",
-            "implementation_complexity": "low",
+            "expected_benefit": "Fundierte Entscheidungsgrundlage schaffen",
+            "implementation_complexity": "niedrig",
         }
 
-    # Rule: hard constraint (legal/regulatory/technical) → keep_local
+    # Lokal beibehalten (harter Constraint)
     if constraint in ("legal", "regulatory", "technical"):
+        constraint_de = {"legal": "rechtlich", "regulatory": "regulatorisch", "technical": "technisch"}[constraint]
         return {
             "id": _next_rec_id(),
-            "title": f"Keep local: {dimension} difference in {step_id} ({constraint} constraint)",
-            "recommendation_type": "keep_local",
-            "rationale": f"Hard constraint ({constraint}) justifies local variant",
+            "title": f"Lokal beibehalten: {dim_de} ({constraint_de} begründet)",
+            "recommendation_type": "lokal_beibehalten",
+            "rationale": f"Harter {constraint_de}er Constraint rechtfertigt lokale Variante.",
             "based_on_step_ids": [step_id],
             "based_on_delta_ids": [delta_id],
-            "priority": "low",
-            "assumptions": [f"The {constraint} constraint has been validated"],
+            "priority": "niedrig",
+            "assumptions": [f"Der {constraint_de}e Constraint ist validiert"],
             "blockers": [],
-            "expected_benefit": "Documented acceptance of justified local difference",
-            "implementation_complexity": "low",
+            "expected_benefit": "Dokumentierte Akzeptanz der begründeten lokalen Abweichung",
+            "implementation_complexity": "niedrig",
         }
 
-    # Rule: cosmetic nature → keep_local or harmonize low priority
-    if nature == "cosmetic":
-        return {
-            "id": _next_rec_id(),
-            "title": f"Harmonize naming: {dimension} in {step_id}",
-            "recommendation_type": "harmonize",
-            "rationale": "Cosmetic difference — different naming/labeling without process impact",
-            "based_on_step_ids": [step_id],
-            "based_on_delta_ids": [delta_id],
-            "priority": "low",
-            "assumptions": ["No hidden process difference behind naming"],
-            "blockers": [],
-            "expected_benefit": "Consistent terminology across entities",
-            "implementation_complexity": "low",
-        }
-
-    # Rule: operationally_significant without hard constraint → harmonize high
+    # Harmonisierung prüfen (operativ signifikant, kein harter Constraint)
     if nature == "operationally_significant" and constraint in ("none", "organizational", "unclear"):
-        # Check for weak WHY / evidence
-        has_weak = False
-        for v in variant_map.values():
-            wq = assess_why_quality(v)
-            ev = assess_evidence_strength(v)
-            if wq["quality"] == "weak" or ev["strength"] == "low":
-                has_weak = True
-                break
-
+        has_weak = any(
+            assess_why_quality(v)["quality"] == "weak" or assess_evidence_strength(v)["strength"] == "low"
+            for v in variant_map.values()
+        )
         if has_weak:
             return {
                 "id": _next_rec_id(),
-                "title": f"Investigate: {dimension} difference in {step_id} (weak evidence/WHY)",
-                "recommendation_type": "investigate_further",
-                "rationale": "Significant operational difference but weak WHY or evidence — needs clarification",
+                "title": f"Evidenz nachziehen: {dim_de} in Schritt '{step_id}' (schwache Begründung/Evidenz)",
+                "recommendation_type": "evidenz_nachziehen",
+                "rationale": "Operativ bedeutsame Abweichung, aber Begründung oder Evidenz zu schwach für Entscheidung.",
                 "based_on_step_ids": [step_id],
                 "based_on_delta_ids": [delta_id],
-                "priority": "high",
-                "assumptions": ["Additional evidence may change recommendation"],
-                "blockers": ["Weak WHY or missing evidence"],
-                "expected_benefit": "Informed decision after evidence gathering",
-                "implementation_complexity": "low",
+                "priority": "hoch",
+                "assumptions": ["Zusätzliche Evidenz kann Empfehlung verändern"],
+                "blockers": ["Schwache Begründung oder fehlende Evidenz"],
+                "expected_benefit": "Fundierte Entscheidung nach Nacherhebung",
+                "implementation_complexity": "niedrig",
             }
-
         return {
             "id": _next_rec_id(),
-            "title": f"Harmonize: {dimension} in {step_id}",
-            "recommendation_type": "harmonize",
-            "rationale": f"Operationally significant difference without hard constraint — harmonization candidate",
+            "title": f"Harmonisierung prüfen: {dim_de} in Schritt '{step_id}'",
+            "recommendation_type": "harmonisierung_prüfen",
+            "rationale": "Operativ bedeutsame Abweichung ohne harten Constraint — Harmonisierungskandidat.",
             "based_on_step_ids": [step_id],
             "based_on_delta_ids": [delta_id],
-            "priority": "high",
-            "assumptions": ["No undiscovered hard constraints"],
+            "priority": "hoch",
+            "assumptions": ["Keine unentdeckten harten Constraints vorhanden"],
             "blockers": [],
-            "expected_benefit": f"Standardized {dimension} across entities",
-            "implementation_complexity": "high" if dimension == "tooling" else "medium",
+            "expected_benefit": f"Standardisiertes {dim_de} über alle Einheiten",
+            "implementation_complexity": "hoch" if dimension == "tooling" else "mittel",
         }
 
-    # Rule: capacity/staffing only → investigate_further
+    # Management-Entscheidung herbeiführen
     if constraint == "organizational":
         return {
             "id": _next_rec_id(),
-            "title": f"Investigate: {dimension} in {step_id} (organizational constraint)",
-            "recommendation_type": "investigate_further",
-            "rationale": "Difference driven by capacity/staffing — may be resolvable",
+            "title": f"Management-Entscheidung: {dim_de} in Schritt '{step_id}'",
+            "recommendation_type": "management_entscheidung_herbeiführen",
+            "rationale": "Abweichung durch Kapazitäts-/Ressourcenengpass bedingt — Klärung auf Managementebene erforderlich.",
             "based_on_step_ids": [step_id],
             "based_on_delta_ids": [delta_id],
-            "priority": "medium",
-            "assumptions": ["Staffing constraints can potentially be addressed"],
-            "blockers": ["Budget/headcount approval needed"],
-            "expected_benefit": "Potential for harmonization if constraint is lifted",
-            "implementation_complexity": "medium",
+            "priority": "mittel",
+            "assumptions": ["Ressourcenengpass kann behoben werden"],
+            "blockers": ["Budget-/Personalentscheidung erforderlich"],
+            "expected_benefit": "Harmonisierung bei Behebung des Engpasses möglich",
+            "implementation_complexity": "mittel",
         }
 
-    # Rule: unclear constraint → investigate
+    # Begründung klären (unklarer Constraint)
     if constraint == "unclear":
         return {
             "id": _next_rec_id(),
-            "title": f"Investigate: unclear constraint for {dimension} in {step_id}",
-            "recommendation_type": "investigate_further",
-            "rationale": "Constraint basis unclear — needs validation before decision",
+            "title": f"Begründung klären: unklarer Constraint für {dim_de} in '{step_id}'",
+            "recommendation_type": "begründung_klären",
+            "rationale": "Constraint-Basis unklar — Validierung vor Entscheidung erforderlich.",
             "based_on_step_ids": [step_id],
             "based_on_delta_ids": [delta_id],
-            "priority": "medium",
+            "priority": "mittel",
             "assumptions": [],
-            "blockers": ["Constraint validation pending"],
-            "expected_benefit": "Clarity on whether local variant is justified",
-            "implementation_complexity": "low",
+            "blockers": ["Constraint-Validierung ausstehend"],
+            "expected_benefit": "Klarheit, ob lokale Variante begründet ist",
+            "implementation_complexity": "niedrig",
         }
 
-    # Default: procedural → harmonize medium
+    # Harmonisierung prüfen (kosmetisch/prozedural)
+    if nature == "cosmetic":
+        return {
+            "id": _next_rec_id(),
+            "title": f"Harmonisierung prüfen: Benennung {dim_de} in '{step_id}'",
+            "recommendation_type": "harmonisierung_prüfen",
+            "rationale": "Kosmetische Abweichung — unterschiedliche Benennung ohne Prozessauswirkung.",
+            "based_on_step_ids": [step_id],
+            "based_on_delta_ids": [delta_id],
+            "priority": "niedrig",
+            "assumptions": ["Keine versteckte Prozessabweichung hinter der Benennung"],
+            "blockers": [],
+            "expected_benefit": "Einheitliche Terminologie über alle Einheiten",
+            "implementation_complexity": "niedrig",
+        }
+
     if nature == "procedural" and impact != "low":
         return {
             "id": _next_rec_id(),
-            "title": f"Harmonize: {dimension} procedure in {step_id}",
-            "recommendation_type": "harmonize",
-            "rationale": "Procedural difference without hard constraint",
+            "title": f"Harmonisierung prüfen: {dim_de}-Vorgehen in '{step_id}'",
+            "recommendation_type": "harmonisierung_prüfen",
+            "rationale": "Prozessuale Abweichung ohne harten Constraint.",
             "based_on_step_ids": [step_id],
             "based_on_delta_ids": [delta_id],
-            "priority": "medium",
+            "priority": "mittel",
             "assumptions": [],
             "blockers": [],
-            "expected_benefit": f"Unified {dimension} procedure",
-            "implementation_complexity": "medium",
+            "expected_benefit": f"Einheitliches {dim_de}-Vorgehen",
+            "implementation_complexity": "mittel",
         }
 
     return None
@@ -866,7 +937,7 @@ def _deduplicate_recommendations(recs: list[dict]) -> list[dict]:
                 if b not in existing["blockers"]:
                     existing["blockers"].append(b)
             # Keep higher priority
-            prio_order = {"high": 0, "medium": 1, "low": 2}
+            prio_order = {"hoch": 0, "mittel": 1, "niedrig": 2}
             if prio_order.get(r["priority"], 1) < prio_order.get(existing["priority"], 1):
                 existing["priority"] = r["priority"]
         else:
@@ -922,8 +993,8 @@ def compute_analysis_summary(analysis: dict) -> dict:
         rt = r["recommendation_type"]
         rec_type_counts[rt] = rec_type_counts.get(rt, 0) + 1
 
-    standardization_candidates = rec_type_counts.get("harmonize", 0) + rec_type_counts.get("centralize", 0)
-    likely_keep_local = rec_type_counts.get("keep_local", 0)
+    standardization_candidates = rec_type_counts.get("harmonisierung_prüfen", 0)
+    likely_keep_local = rec_type_counts.get("lokal_beibehalten", 0)
     control_gaps = sum(1 for d in deltas if d.get("delta_type") == "control_gap")
     mgmt_decisions = sum(1 for d in deltas if d.get("needs_management_decision"))
 
@@ -956,6 +1027,23 @@ def compute_analysis_summary(analysis: dict) -> dict:
                     "issues": issues,
                 })
     open_gaps = open_gaps[:5]
+
+    # Maturity distribution across all variants
+    maturity_distribution: dict[str, int] = {lvl: 0 for lvl in MATURITY_LEVELS}
+    for step in steps:
+        for v in step.get("entity_variants", []):
+            m = assess_variant_maturity(v)
+            maturity_distribution[m["level"]] = maturity_distribution.get(m["level"], 0) + 1
+
+    # Task counts
+    tasks = generate_tasks(analysis)
+    task_counts = {
+        "total": len(tasks),
+        "hoch": sum(1 for t in tasks if t["priority"] == "hoch"),
+        "mittel": sum(1 for t in tasks if t["priority"] == "mittel"),
+        "niedrig": sum(1 for t in tasks if t["priority"] == "niedrig"),
+        "blocking": sum(1 for t in tasks if t["blocking_flag"]),
+    }
 
     # Overall tendency
     if completeness["score"] < 40 or evidence_gap_count > len(all_variants) * 0.5:
@@ -995,6 +1083,8 @@ def compute_analysis_summary(analysis: dict) -> dict:
         "open_gaps": open_gaps,
         "tendency": tendency,
         "recommendations": recs,
+        "maturity_distribution": maturity_distribution,
+        "task_counts": task_counts,
     }
 
 
@@ -1049,3 +1139,374 @@ def _empty_variant(entity_id: str) -> dict:
         "performed_in": entity_id,
         "maturity_notes": "",
     }
+
+
+# ─── Maturity model ──────────────────────────────────────────────────────────
+
+
+def assess_variant_maturity(variant: dict) -> dict:
+    """Compute maturity level for a single entity variant.
+
+    Returns dict with level, label, next_step, and index (0-based).
+    """
+    review_status = variant.get("review_status", "draft")
+
+    # Level 6: freigegeben — approved in review
+    if review_status == "approved":
+        level = "freigegeben"
+        return {
+            "level": level,
+            "label": MATURITY_LABELS_DE[level],
+            "next_step": MATURITY_NEXT_STEP_DE[level],
+            "index": MATURITY_LEVELS.index(level),
+        }
+
+    # Check required fields
+    has_description = bool((variant.get("description") or "").strip())
+    systems = variant.get("systems_used") or []
+    roles = variant.get("roles_involved") or []
+    has_systems = bool(systems if not isinstance(systems, str) else systems.strip())
+    has_roles = bool(roles if not isinstance(roles, str) else roles.strip())
+
+    why_q = assess_why_quality(variant)
+    has_why = why_q["has_freetext"] or bool(why_q["categories"])
+
+    ev = assess_evidence_strength(variant)
+    has_evidence = ev["count"] > 0
+
+    # Level 5: reviewfähig — all required fields + evidence, not yet approved
+    if has_description and has_systems and has_roles and has_why and has_evidence and review_status in ("reviewed", "challenged"):
+        level = "reviewfähig"
+        return {
+            "level": level,
+            "label": MATURITY_LABELS_DE[level],
+            "next_step": MATURITY_NEXT_STEP_DE[level],
+            "index": MATURITY_LEVELS.index(level),
+        }
+
+    # Level 4: nachgewiesen — all required + evidence, but not ready for review
+    if has_description and has_systems and has_roles and has_why and has_evidence:
+        level = "nachgewiesen"
+        return {
+            "level": level,
+            "label": MATURITY_LABELS_DE[level],
+            "next_step": MATURITY_NEXT_STEP_DE[level],
+            "index": MATURITY_LEVELS.index(level),
+        }
+
+    # Level 3: begründet — required fields present + WHY, but no evidence
+    if has_description and has_systems and has_roles and has_why:
+        level = "begründet"
+        return {
+            "level": level,
+            "label": MATURITY_LABELS_DE[level],
+            "next_step": MATURITY_NEXT_STEP_DE[level],
+            "index": MATURITY_LEVELS.index(level),
+        }
+
+    # Level 2: strukturiert_erfasst — description + systems + roles
+    if has_description and has_systems and has_roles:
+        level = "strukturiert_erfasst"
+        return {
+            "level": level,
+            "label": MATURITY_LABELS_DE[level],
+            "next_step": MATURITY_NEXT_STEP_DE[level],
+            "index": MATURITY_LEVELS.index(level),
+        }
+
+    # Level 1: grundlegend_erfasst — at least description present
+    if has_description:
+        level = "grundlegend_erfasst"
+        return {
+            "level": level,
+            "label": MATURITY_LABELS_DE[level],
+            "next_step": MATURITY_NEXT_STEP_DE[level],
+            "index": MATURITY_LEVELS.index(level),
+        }
+
+    # Level 0: nicht_begonnen
+    level = "nicht_begonnen"
+    return {
+        "level": level,
+        "label": MATURITY_LABELS_DE[level],
+        "next_step": MATURITY_NEXT_STEP_DE[level],
+        "index": MATURITY_LEVELS.index(level),
+    }
+
+
+# ─── Task engine ─────────────────────────────────────────────────────────────
+
+_TASK_COUNTER = 0
+
+
+def _next_task_id() -> str:
+    global _TASK_COUNTER
+    _TASK_COUNTER += 1
+    return f"task_{_TASK_COUNTER:04d}"
+
+
+def generate_tasks(analysis: dict) -> list[dict]:
+    """Generate computed GuidanceTask objects from analysis data gaps and deltas.
+
+    Tasks are read-only and fully computed from the current state of the analysis.
+    """
+    tasks: list[dict] = []
+    stream_id = analysis.get("stream_id", "")
+
+    for step in analysis.get("process_steps", []):
+        step_id = step.get("step_id", "")
+        for variant in step.get("entity_variants", []):
+            entity_id = variant.get("entity_id", "")
+            tasks.extend(_tasks_for_variant(stream_id, step_id, variant, entity_id))
+
+    # Generate cross-variant tasks from deltas
+    deltas = compute_analysis_deltas(analysis)
+    steps = {s["step_id"]: s for s in analysis.get("process_steps", [])}
+    for delta in deltas:
+        step_id = delta.get("step_id", "")
+        d_type = delta.get("delta_type", "")
+        nature = delta.get("delta_nature", "")
+        step = steps.get(step_id, {})
+        step_name = step.get("step_name", step_id)
+
+        if d_type == "control_gap":
+            entities_involved = delta.get("entities_involved", [])
+            entity_id = entities_involved[0] if entities_involved else "?"
+            tasks.append({
+                "id": _next_task_id(),
+                "stream_id": stream_id,
+                "step_id": step_id,
+                "entity_id": entity_id,
+                "task_type": "control_gap_remediation",
+                "priority": "hoch",
+                "title": f"Kontrolllücke beheben: {step_name}",
+                "description": delta.get("description", ""),
+                "rationale": "Eine formale Kontrolle fehlt — dies stellt ein Kontrolldefizit dar.",
+                "based_on": f"delta:{step_id}:{d_type}",
+                "status": "offen",
+                "suggested_owner_role": "Process Owner",
+                "blocking_flag": True,
+            })
+
+        elif d_type == "missing_rationale":
+            for entity_id in delta.get("entities_involved", []):
+                entity_variant = next(
+                    (v for v in step.get("entity_variants", []) if v.get("entity_id") == entity_id),
+                    {}
+                )
+                why_q = assess_why_quality(entity_variant)
+                if why_q["has_freetext"] or why_q["categories"]:
+                    continue  # already has WHY
+                tasks.append({
+                    "id": _next_task_id(),
+                    "stream_id": stream_id,
+                    "step_id": step_id,
+                    "entity_id": entity_id,
+                    "task_type": "missing_why",
+                    "priority": "hoch",
+                    "title": f"WHY-Begründung erfassen: {step_name} ({entity_id})",
+                    "description": "Begründung fehlt — ohne WHY ist keine Harmonisierungsentscheidung möglich.",
+                    "rationale": "Fehlende Begründung blockiert Standardisierungsanalyse.",
+                    "based_on": f"delta:{step_id}:missing_rationale",
+                    "status": "offen",
+                    "suggested_owner_role": "Process Owner",
+                    "blocking_flag": True,
+                })
+
+        elif nature in ("operationally_significant", "control_relevant") and d_type not in ("control_gap", "missing_rationale"):
+            needs_mgmt = delta.get("needs_management_decision", False)
+            if needs_mgmt:
+                tasks.append({
+                    "id": _next_task_id(),
+                    "stream_id": stream_id,
+                    "step_id": step_id,
+                    "entity_id": "",
+                    "task_type": "management_decision_needed",
+                    "priority": "mittel",
+                    "title": f"Management-Entscheidung: {step_name}",
+                    "description": delta.get("description", ""),
+                    "rationale": "Operativ bedeutsame Abweichung erfordert Entscheidung auf Managementebene.",
+                    "based_on": f"delta:{step_id}:{d_type}",
+                    "status": "offen",
+                    "suggested_owner_role": "Management",
+                    "blocking_flag": False,
+                })
+            else:
+                tasks.append({
+                    "id": _next_task_id(),
+                    "stream_id": stream_id,
+                    "step_id": step_id,
+                    "entity_id": "",
+                    "task_type": "harmonization_check",
+                    "priority": "mittel",
+                    "title": f"Harmonisierung prüfen: {step_name}",
+                    "description": delta.get("description", ""),
+                    "rationale": "Operativ bedeutsame Abweichung ohne harten Constraint — Harmonisierungspotenzial prüfen.",
+                    "based_on": f"delta:{step_id}:{d_type}",
+                    "status": "offen",
+                    "suggested_owner_role": "Process Owner",
+                    "blocking_flag": False,
+                })
+
+    # Sort: blocking first, then by priority
+    prio_order = {"hoch": 0, "mittel": 1, "niedrig": 2}
+    tasks.sort(key=lambda t: (0 if t["blocking_flag"] else 1, prio_order.get(t["priority"], 1)))
+    return tasks
+
+
+def _tasks_for_variant(stream_id: str, step_id: str, variant: dict, entity_id: str) -> list[dict]:
+    """Generate tasks for a single entity variant based on data gaps."""
+    tasks = []
+    maturity = assess_variant_maturity(variant)
+    maturity_index = maturity["index"]
+
+    # missing_description (priority: hoch)
+    if not (variant.get("description") or "").strip():
+        tasks.append({
+            "id": _next_task_id(),
+            "stream_id": stream_id,
+            "step_id": step_id,
+            "entity_id": entity_id,
+            "task_type": "missing_description",
+            "priority": "hoch",
+            "title": f"Beschreibung erfassen: Schritt '{step_id}' ({entity_id})",
+            "description": "Keine Beschreibung vorhanden. Bitte den Prozessschritt beschreiben.",
+            "rationale": "Ohne Beschreibung kann der Prozessschritt nicht analysiert werden.",
+            "based_on": f"variant:{step_id}:{entity_id}:description",
+            "status": "offen",
+            "suggested_owner_role": "Process Owner",
+            "blocking_flag": True,
+        })
+
+    # missing_systems (priority: hoch if no description yet, else mittel)
+    systems = variant.get("systems_used") or []
+    if not systems:
+        tasks.append({
+            "id": _next_task_id(),
+            "stream_id": stream_id,
+            "step_id": step_id,
+            "entity_id": entity_id,
+            "task_type": "missing_systems",
+            "priority": "hoch" if maturity_index < 2 else "mittel",
+            "title": f"Systeme ergänzen: Schritt '{step_id}' ({entity_id})",
+            "description": "Keine genutzten Systeme angegeben.",
+            "rationale": "Systemangaben sind für die Technologieanalyse und Harmonisierung erforderlich.",
+            "based_on": f"variant:{step_id}:{entity_id}:systems_used",
+            "status": "offen",
+            "suggested_owner_role": "Process Owner",
+            "blocking_flag": False,
+        })
+
+    # missing_roles (priority: mittel)
+    roles = variant.get("roles_involved") or []
+    if not roles:
+        tasks.append({
+            "id": _next_task_id(),
+            "stream_id": stream_id,
+            "step_id": step_id,
+            "entity_id": entity_id,
+            "task_type": "missing_roles",
+            "priority": "mittel",
+            "title": f"Rollen erfassen: Schritt '{step_id}' ({entity_id})",
+            "description": "Keine beteiligten Rollen angegeben.",
+            "rationale": "Rollen sind für Verantwortlichkeitsanalyse und Governance erforderlich.",
+            "based_on": f"variant:{step_id}:{entity_id}:roles_involved",
+            "status": "offen",
+            "suggested_owner_role": "Process Owner",
+            "blocking_flag": False,
+        })
+
+    # missing_why / weak_why (priority: hoch)
+    why_q = assess_why_quality(variant)
+    if not why_q["has_freetext"] and not why_q["categories"]:
+        tasks.append({
+            "id": _next_task_id(),
+            "stream_id": stream_id,
+            "step_id": step_id,
+            "entity_id": entity_id,
+            "task_type": "missing_why",
+            "priority": "hoch",
+            "title": f"Begründung erfassen (WHY): Schritt '{step_id}' ({entity_id})",
+            "description": "Keine Begründung (WHY) vorhanden.",
+            "rationale": "Ohne Begründung ist keine fundierte Harmonisierungsentscheidung möglich.",
+            "based_on": f"variant:{step_id}:{entity_id}:why_is_it_done_this_way",
+            "status": "offen",
+            "suggested_owner_role": "Process Owner",
+            "blocking_flag": True,
+        })
+    elif why_q["quality"] == "weak":
+        tasks.append({
+            "id": _next_task_id(),
+            "stream_id": stream_id,
+            "step_id": step_id,
+            "entity_id": entity_id,
+            "task_type": "weak_why",
+            "priority": "mittel",
+            "title": f"Begründung stärken: Schritt '{step_id}' ({entity_id})",
+            "description": "WHY-Begründung vorhanden, aber schwach (nur 'historisch gewachsen' oder 'unklar').",
+            "rationale": "Schwache Begründung reicht für fundierte Standardisierungsentscheidung nicht aus.",
+            "based_on": f"variant:{step_id}:{entity_id}:why_quality",
+            "status": "offen",
+            "suggested_owner_role": "Process Owner",
+            "blocking_flag": False,
+        })
+
+    # missing_evidence (priority: mittel)
+    ev = assess_evidence_strength(variant)
+    if ev["count"] == 0:
+        tasks.append({
+            "id": _next_task_id(),
+            "stream_id": stream_id,
+            "step_id": step_id,
+            "entity_id": entity_id,
+            "task_type": "missing_evidence",
+            "priority": "mittel",
+            "title": f"Evidenz hinzufügen: Schritt '{step_id}' ({entity_id})",
+            "description": "Keine Evidenznachweise vorhanden.",
+            "rationale": "Evidenz ist für reviewfähige Dokumentation erforderlich.",
+            "based_on": f"variant:{step_id}:{entity_id}:evidence_references",
+            "status": "offen",
+            "suggested_owner_role": "Process Owner",
+            "blocking_flag": False,
+        })
+
+    # missing_output (priority: niedrig)
+    if not (variant.get("output") or "").strip():
+        tasks.append({
+            "id": _next_task_id(),
+            "stream_id": stream_id,
+            "step_id": step_id,
+            "entity_id": entity_id,
+            "task_type": "missing_output",
+            "priority": "niedrig",
+            "title": f"Output definieren: Schritt '{step_id}' ({entity_id})",
+            "description": "Kein Output definiert.",
+            "rationale": "Output-Definition ist für vollständige Prozessdokumentation erforderlich.",
+            "based_on": f"variant:{step_id}:{entity_id}:output",
+            "status": "offen",
+            "suggested_owner_role": "Process Owner",
+            "blocking_flag": False,
+        })
+
+    # review_blocker (priority: mittel, only if review_status in draft/captured)
+    rs = variant.get("review_status", "draft")
+    if rs in ("draft", "captured"):
+        vr_check = validate_review_status(variant, "approved")
+        if not vr_check["valid"]:
+            tasks.append({
+                "id": _next_task_id(),
+                "stream_id": stream_id,
+                "step_id": step_id,
+                "entity_id": entity_id,
+                "task_type": "review_blocker",
+                "priority": "niedrig",
+                "title": f"Review vorbereiten: Schritt '{step_id}' ({entity_id})",
+                "description": f"Review-Status: {rs}. Blocker: {vr_check.get('reason', '')}",
+                "rationale": "Review-Freigabe ist für abgeschlossene Analyse erforderlich.",
+                "based_on": f"variant:{step_id}:{entity_id}:review_status",
+                "status": "offen",
+                "suggested_owner_role": "Reviewer",
+                "blocking_flag": False,
+            })
+
+    return tasks

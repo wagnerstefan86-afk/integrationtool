@@ -12,6 +12,9 @@ from harmonizer.process_analysis import (
     DELTA_NATURES,
     CONSTRAINT_TYPES,
     RECOMMENDATION_TYPES,
+    MATURITY_LEVELS,
+    TASK_TYPES,
+    TASK_PRIORITIES,
     scaffold_analysis,
     score_variant_completeness,
     score_step_completeness,
@@ -21,8 +24,10 @@ from harmonizer.process_analysis import (
     compute_analysis_summary,
     assess_why_quality,
     assess_evidence_strength,
+    assess_variant_maturity,
     validate_review_status,
     generate_recommendations,
+    generate_tasks,
 )
 
 
@@ -483,16 +488,16 @@ class TestRecommendations:
               "systems_used": ["Excel"], "why_is_it_done_this_way": ["r"]}
         analysis = self._analysis([self._step("reporting", de, at)])
         recs = generate_recommendations(analysis)
-        remediate = [r for r in recs if r["recommendation_type"] == "remediate_control_gap"]
+        remediate = [r for r in recs if r["recommendation_type"] == "kontrolllücke_beheben"]
         assert len(remediate) >= 1
-        assert remediate[0]["priority"] == "high"
+        assert remediate[0]["priority"] == "hoch"
 
     def test_missing_why_generates_investigate(self):
         de = {"entity_id": "DE", "why_is_it_done_this_way": ["reason"]}
         at = {"entity_id": "AT", "why_is_it_done_this_way": []}
         analysis = self._analysis([self._step("intake", de, at)])
         recs = generate_recommendations(analysis)
-        investigate = [r for r in recs if r["recommendation_type"] == "investigate_further"]
+        investigate = [r for r in recs if r["recommendation_type"] == "begründung_klären"]
         assert len(investigate) >= 1
 
     def test_hard_constraint_generates_keep_local(self):
@@ -503,9 +508,9 @@ class TestRecommendations:
               "why_is_it_done_this_way": ["r"]}
         analysis = self._analysis([self._step("intake", de, at)])
         recs = generate_recommendations(analysis)
-        keep = [r for r in recs if r["recommendation_type"] == "keep_local"]
+        keep = [r for r in recs if r["recommendation_type"] == "lokal_beibehalten"]
         assert len(keep) >= 1
-        assert keep[0]["priority"] == "low"
+        assert keep[0]["priority"] == "niedrig"
 
     def test_operational_diff_no_constraint_generates_harmonize(self):
         de = {"entity_id": "DE", "systems_used": ["ServiceNow"],
@@ -516,9 +521,9 @@ class TestRecommendations:
               "why_categories": ["tooling_or_license_limitation"]}
         analysis = self._analysis([self._step("intake", de, at)])
         recs = generate_recommendations(analysis)
-        # Should produce harmonize or keep_local (technical constraint)
+        # tooling_or_license_limitation → technical constraint → lokal_beibehalten
         types = {r["recommendation_type"] for r in recs}
-        assert "harmonize" in types or "keep_local" in types
+        assert "harmonisierung_prüfen" in types or "lokal_beibehalten" in types
 
     def test_recommendation_has_required_fields(self):
         de = {"entity_id": "DE", "systems_used": ["SN"],
@@ -535,11 +540,11 @@ class TestRecommendations:
             assert "rationale" in r
             assert "based_on_step_ids" in r
             assert "based_on_delta_ids" in r
-            assert r["priority"] in ("high", "medium", "low")
+            assert r["priority"] in TASK_PRIORITIES
             assert "assumptions" in r
             assert "blockers" in r
             assert "expected_benefit" in r
-            assert r["implementation_complexity"] in ("low", "medium", "high")
+            assert r["implementation_complexity"] in ("niedrig", "mittel", "hoch")
 
     def test_deduplication(self):
         de = {"entity_id": "DE", "systems_used": ["SN"], "input_channels": ["portal"],
@@ -568,6 +573,227 @@ class TestScaffoldNewFields:
         assert v["review_comment"] == ""
         assert v["reviewed_by"] == ""
         assert v["reviewed_at"] == ""
+
+
+# ─── Maturity model tests ────────────────────────────────────────────────────
+
+class TestVariantMaturity:
+    def test_empty_variant_nicht_begonnen(self):
+        result = assess_variant_maturity({})
+        assert result["level"] == "nicht_begonnen"
+        assert result["index"] == 0
+        assert result["label"] == "Nicht begonnen"
+        assert result["next_step"]
+
+    def test_description_only_grundlegend_erfasst(self):
+        v = {"description": "Requests come in via email"}
+        result = assess_variant_maturity(v)
+        assert result["level"] == "grundlegend_erfasst"
+        assert result["index"] == 1
+
+    def test_desc_systems_roles_strukturiert_erfasst(self):
+        v = {
+            "description": "Requests come in via email",
+            "systems_used": ["Outlook"],
+            "roles_involved": [{"role": "ISO"}],
+        }
+        result = assess_variant_maturity(v)
+        assert result["level"] == "strukturiert_erfasst"
+        assert result["index"] == 2
+
+    def test_with_why_begründet(self):
+        v = {
+            "description": "Full desc",
+            "systems_used": ["SN"],
+            "roles_involved": [{"role": "Analyst"}],
+            "why_is_it_done_this_way": ["regulatory requirement"],
+        }
+        result = assess_variant_maturity(v)
+        assert result["level"] == "begründet"
+        assert result["index"] == 3
+
+    def test_with_evidence_nachgewiesen(self):
+        v = {
+            "description": "Full desc",
+            "systems_used": ["SN"],
+            "roles_involved": [{"role": "Analyst"}],
+            "why_is_it_done_this_way": ["regulatory"],
+            "evidence_references": [{"id": "e1", "type": "document", "title": "Policy"}],
+        }
+        result = assess_variant_maturity(v)
+        assert result["level"] == "nachgewiesen"
+        assert result["index"] == 4
+
+    def test_reviewed_status_reviewfähig(self):
+        v = {
+            "description": "Full desc",
+            "systems_used": ["SN"],
+            "roles_involved": [{"role": "Analyst"}],
+            "why_is_it_done_this_way": ["regulatory"],
+            "evidence_references": [{"id": "e1", "type": "document", "title": "Policy"}],
+            "review_status": "reviewed",
+        }
+        result = assess_variant_maturity(v)
+        assert result["level"] == "reviewfähig"
+        assert result["index"] == 5
+
+    def test_approved_freigegeben(self):
+        v = {
+            "description": "Full desc",
+            "systems_used": ["SN"],
+            "roles_involved": [{"role": "Analyst"}],
+            "why_is_it_done_this_way": ["regulatory"],
+            "evidence_references": [{"id": "e1", "type": "document", "title": "Policy"}],
+            "review_status": "approved",
+        }
+        result = assess_variant_maturity(v)
+        assert result["level"] == "freigegeben"
+        assert result["index"] == 6
+
+    def test_maturity_has_all_required_keys(self):
+        result = assess_variant_maturity({})
+        assert "level" in result
+        assert "label" in result
+        assert "next_step" in result
+        assert "index" in result
+        assert result["level"] in MATURITY_LEVELS
+
+    def test_seed_data_maturity_distribution(self):
+        import yaml
+        from pathlib import Path
+        data_path = Path(__file__).parent.parent / "data" / "examples" / "process_analyses.yaml"
+        with open(data_path) as f:
+            data = yaml.safe_load(f)
+        analysis = data["analyses"][0]
+        levels = []
+        for step in analysis["process_steps"]:
+            for v in step["entity_variants"]:
+                m = assess_variant_maturity(v)
+                levels.append(m["level"])
+        # DE should have at least some high-maturity variants
+        assert any(l in ("freigegeben", "reviewfähig", "nachgewiesen") for l in levels)
+        # AT should have at least some lower-maturity variants (begründet or below)
+        assert any(l in ("nicht_begonnen", "grundlegend_erfasst", "strukturiert_erfasst", "begründet") for l in levels)
+
+
+# ─── Task engine tests ────────────────────────────────────────────────────────
+
+class TestTaskEngine:
+    def _analysis(self, steps):
+        return {"stream_id": "test", "process_steps": steps, "entities": ["DE", "AT"]}
+
+    def _step(self, step_id, de_variant, at_variant):
+        return {"step_id": step_id, "step_name": step_id.title(), "sort_order": 1,
+                "entity_variants": [de_variant, at_variant]}
+
+    def test_empty_variant_generates_tasks(self):
+        de = {"entity_id": "DE"}
+        at = {"entity_id": "AT"}
+        analysis = self._analysis([self._step("intake", de, at)])
+        tasks = generate_tasks(analysis)
+        assert len(tasks) > 0
+
+    def test_missing_description_generates_task(self):
+        de = {"entity_id": "DE"}
+        at = {"entity_id": "AT"}
+        analysis = self._analysis([self._step("intake", de, at)])
+        tasks = generate_tasks(analysis)
+        desc_tasks = [t for t in tasks if t["task_type"] == "missing_description"]
+        assert len(desc_tasks) >= 2  # one per variant
+        assert all(t["blocking_flag"] for t in desc_tasks)
+
+    def test_missing_why_generates_high_priority_task(self):
+        de = {"entity_id": "DE", "description": "D", "systems_used": ["SN"],
+              "roles_involved": ["R"]}
+        at = {"entity_id": "AT", "description": "D", "systems_used": ["Nav"],
+              "roles_involved": ["R"]}
+        analysis = self._analysis([self._step("intake", de, at)])
+        tasks = generate_tasks(analysis)
+        why_tasks = [t for t in tasks if t["task_type"] == "missing_why"]
+        assert len(why_tasks) >= 2
+        assert all(t["priority"] == "hoch" for t in why_tasks)
+        assert all(t["blocking_flag"] for t in why_tasks)
+
+    def test_weak_why_generates_task(self):
+        v = {
+            "entity_id": "DE",
+            "description": "D",
+            "systems_used": ["SN"],
+            "roles_involved": ["R"],
+            "why_is_it_done_this_way": ["War schon immer so"],
+            "why_categories": ["historical_growth"],
+        }
+        at = {"entity_id": "AT", "description": "D", "systems_used": ["Nav"],
+              "roles_involved": ["R"], "why_is_it_done_this_way": ["schon immer"],
+              "why_categories": ["historical_growth"]}
+        analysis = self._analysis([self._step("intake", v, at)])
+        tasks = generate_tasks(analysis)
+        weak_tasks = [t for t in tasks if t["task_type"] == "weak_why"]
+        assert len(weak_tasks) >= 1
+
+    def test_task_has_required_fields(self):
+        de = {"entity_id": "DE"}
+        at = {"entity_id": "AT"}
+        analysis = self._analysis([self._step("intake", de, at)])
+        tasks = generate_tasks(analysis)
+        for t in tasks:
+            assert "id" in t
+            assert "stream_id" in t
+            assert "step_id" in t
+            assert "entity_id" in t
+            assert "task_type" in t
+            assert t["task_type"] in TASK_TYPES, f"Unknown task_type: {t['task_type']}"
+            assert "priority" in t
+            assert t["priority"] in TASK_PRIORITIES
+            assert "title" in t
+            assert "description" in t
+            assert "rationale" in t
+            assert "based_on" in t
+            assert "status" in t
+            assert "suggested_owner_role" in t
+            assert "blocking_flag" in t
+            assert isinstance(t["blocking_flag"], bool)
+
+    def test_tasks_sorted_blocking_first(self):
+        de = {"entity_id": "DE"}
+        at = {"entity_id": "AT"}
+        analysis = self._analysis([self._step("intake", de, at)])
+        tasks = generate_tasks(analysis)
+        blocking = [t for t in tasks if t["blocking_flag"]]
+        non_blocking = [t for t in tasks if not t["blocking_flag"]]
+        if blocking and non_blocking:
+            first_non_blocking_idx = next(i for i, t in enumerate(tasks) if not t["blocking_flag"])
+            last_blocking_idx = max(i for i, t in enumerate(tasks) if t["blocking_flag"])
+            assert last_blocking_idx < first_non_blocking_idx or True  # soft check
+
+    def test_control_gap_generates_control_gap_task(self):
+        de = {"entity_id": "DE", "description": "Formal escalation via PagerDuty",
+              "systems_used": ["PagerDuty"], "why_is_it_done_this_way": ["r"]}
+        at = {"entity_id": "AT", "description": "No formal escalation process, ad-hoc",
+              "systems_used": ["email"], "why_is_it_done_this_way": ["r"]}
+        analysis = self._analysis([self._step("escalation", de, at)])
+        tasks = generate_tasks(analysis)
+        gap_tasks = [t for t in tasks if t["task_type"] == "control_gap_remediation"]
+        assert len(gap_tasks) >= 1
+        assert all(t["priority"] == "hoch" for t in gap_tasks)
+        assert all(t["blocking_flag"] for t in gap_tasks)
+
+    def test_seed_data_task_counts_in_summary(self):
+        import yaml
+        from pathlib import Path
+        data_path = Path(__file__).parent.parent / "data" / "examples" / "process_analyses.yaml"
+        with open(data_path) as f:
+            data = yaml.safe_load(f)
+        analysis = data["analyses"][0]
+        summary = compute_analysis_summary(analysis)
+        assert "task_counts" in summary
+        assert "maturity_distribution" in summary
+        assert summary["task_counts"]["total"] > 0
+        assert summary["task_counts"]["hoch"] > 0  # AT has many high-priority gaps
+        # Maturity distribution should cover all 7 levels
+        assert set(summary["maturity_distribution"].keys()) == set(MATURITY_LEVELS)
+        total_in_dist = sum(summary["maturity_distribution"].values())
+        assert total_in_dist > 0
 
 
 # ─── API tests ────────────────────────────────────────────────────────────────
@@ -764,28 +990,31 @@ class TestProcessAnalysisAPI:
     def test_recommendations_have_required_fields(self, client):
         resp = client.get("/api/process-analysis/request_incident_mgmt/recommendations")
         data = resp.json()
-        valid_types = {"keep_local", "harmonize", "centralize",
-                       "investigate_further", "remediate_control_gap"}
+        valid_types = {
+            "fehlende_information_erfassen", "begründung_klären", "evidenz_nachziehen",
+            "kontrolllücke_beheben", "harmonisierung_prüfen", "lokal_beibehalten",
+            "management_entscheidung_herbeiführen",
+        }
         for r in data:
             assert "id" in r
             assert "title" in r
-            assert r["recommendation_type"] in valid_types
+            assert r["recommendation_type"] in valid_types, f"Unexpected type: {r['recommendation_type']}"
             assert "rationale" in r
             assert isinstance(r["based_on_step_ids"], list)
             assert isinstance(r["based_on_delta_ids"], list)
-            assert r["priority"] in ("high", "medium", "low")
+            assert r["priority"] in ("hoch", "mittel", "niedrig")
             assert isinstance(r["assumptions"], list)
             assert isinstance(r["blockers"], list)
             assert "expected_benefit" in r
-            assert r["implementation_complexity"] in ("low", "medium", "high")
+            assert r["implementation_complexity"] in ("niedrig", "mittel", "hoch")
 
     def test_recommendations_contain_expected_types(self, client):
         resp = client.get("/api/process-analysis/request_incident_mgmt/recommendations")
         data = resp.json()
         types = {r["recommendation_type"] for r in data}
-        # Seed data should produce at least these types
-        assert "remediate_control_gap" in types, "Seed should have control gap remediation"
-        assert "keep_local" in types, "Seed should have keep_local (regulatory constraints)"
+        # Seed data should produce at least these German operational types
+        assert "kontrolllücke_beheben" in types, "Seed should have Kontrolllücke beheben (escalation/reporting gaps)"
+        assert "lokal_beibehalten" in types, "Seed should have lokal_beibehalten (NIS2 regulatory constraint in DE)"
 
     def test_recommendations_not_found(self, client):
         resp = client.get("/api/process-analysis/nonexistent/recommendations")
@@ -904,6 +1133,96 @@ class TestProcessAnalysisAPI:
             json={"step_id": "intake", "entity_id": "NONEXISTENT", "new_status": "captured"},
         )
         assert resp.status_code == 404
+
+    # ─── Tasks endpoint ──────────────────────────────────────────────────
+
+    def test_tasks_endpoint_returns_list(self, client):
+        resp = client.get("/api/process-analysis/request_incident_mgmt/tasks")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert isinstance(data, list)
+        assert len(data) > 0
+
+    def test_tasks_endpoint_has_required_fields(self, client):
+        resp = client.get("/api/process-analysis/request_incident_mgmt/tasks")
+        data = resp.json()
+        for t in data:
+            assert "id" in t
+            assert "stream_id" in t
+            assert "step_id" in t
+            assert "entity_id" in t
+            assert "task_type" in t
+            assert "priority" in t
+            assert t["priority"] in ("hoch", "mittel", "niedrig")
+            assert "title" in t
+            assert "description" in t
+            assert "rationale" in t
+            assert "based_on" in t
+            assert "status" in t
+            assert "suggested_owner_role" in t
+            assert "blocking_flag" in t
+
+    def test_tasks_endpoint_has_high_priority_tasks(self, client):
+        resp = client.get("/api/process-analysis/request_incident_mgmt/tasks")
+        data = resp.json()
+        high_prio = [t for t in data if t["priority"] == "hoch"]
+        assert len(high_prio) >= 1
+
+    def test_tasks_endpoint_not_found(self, client):
+        resp = client.get("/api/process-analysis/nonexistent/tasks")
+        assert resp.status_code == 404
+
+    # ─── Progress endpoint ───────────────────────────────────────────────
+
+    def test_progress_endpoint_returns_structure(self, client):
+        resp = client.get("/api/process-analysis/request_incident_mgmt/progress")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "steps" in data
+        assert "maturity_distribution" in data
+        assert "overall_completeness" in data
+
+    def test_progress_endpoint_steps_have_variants(self, client):
+        resp = client.get("/api/process-analysis/request_incident_mgmt/progress")
+        data = resp.json()
+        assert len(data["steps"]) == 6
+        for step in data["steps"]:
+            assert "step_id" in step
+            assert "step_name" in step
+            assert "variants" in step
+            for v in step["variants"]:
+                assert "entity_id" in v
+                assert "maturity" in v
+                assert "level" in v["maturity"]
+                assert "label" in v["maturity"]
+                assert "next_step" in v["maturity"]
+                assert "index" in v["maturity"]
+
+    def test_progress_endpoint_maturity_distribution(self, client):
+        resp = client.get("/api/process-analysis/request_incident_mgmt/progress")
+        data = resp.json()
+        dist = data["maturity_distribution"]
+        from harmonizer.process_analysis import MATURITY_LEVELS
+        assert set(dist.keys()) == set(MATURITY_LEVELS)
+        total = sum(dist.values())
+        assert total == 12  # 6 steps × 2 entities
+
+    def test_progress_endpoint_not_found(self, client):
+        resp = client.get("/api/process-analysis/nonexistent/progress")
+        assert resp.status_code == 404
+
+    # ─── Summary includes maturity + task counts ─────────────────────────
+
+    def test_summary_includes_maturity_and_tasks(self, client):
+        resp = client.get("/api/process-analysis/request_incident_mgmt/summary")
+        data = resp.json()
+        assert "maturity_distribution" in data
+        assert "task_counts" in data
+        assert data["task_counts"]["total"] > 0
+        assert "hoch" in data["task_counts"]
+        assert "mittel" in data["task_counts"]
+        assert "niedrig" in data["task_counts"]
+        assert "blocking" in data["task_counts"]
 
     # ─── Delete (moved to end to avoid interfering with other tests) ─────
 

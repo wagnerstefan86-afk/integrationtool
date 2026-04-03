@@ -392,6 +392,61 @@ def delete_analysis(stream_id: str, dataset: str = "examples"):
     return {"deleted": stream_id}
 
 
+@app.get("/api/process-analysis/{stream_id}/tasks")
+def get_analysis_tasks(stream_id: str, dataset: str = "examples"):
+    """Return computed GuidanceTask list for a process analysis.
+
+    Response: list of task objects, each with:
+      id, stream_id, step_id, entity_id, task_type, priority,
+      title, description, rationale, based_on, status,
+      suggested_owner_role, blocking_flag
+    """
+    from harmonizer.process_analysis import generate_tasks
+    store = _get_store(dataset)
+    analysis = store.get_analysis(stream_id)
+    if not analysis:
+        raise HTTPException(404, f"Process analysis not found for stream: {stream_id}")
+    return generate_tasks(analysis)
+
+
+@app.get("/api/process-analysis/{stream_id}/progress")
+def get_analysis_progress(stream_id: str, dataset: str = "examples"):
+    """Return per-variant maturity levels and overall progress for a process analysis.
+
+    Response: {
+      steps: [{step_id, step_name, variants: [{entity_id, maturity: {level, label, next_step, index}}]}],
+      maturity_distribution: {level: count},
+      overall_completeness: int
+    }
+    """
+    from harmonizer.process_analysis import assess_variant_maturity, score_analysis_completeness, MATURITY_LEVELS
+    store = _get_store(dataset)
+    analysis = store.get_analysis(stream_id)
+    if not analysis:
+        raise HTTPException(404, f"Process analysis not found for stream: {stream_id}")
+
+    steps_out = []
+    maturity_distribution = {lvl: 0 for lvl in MATURITY_LEVELS}
+    for step in analysis.get("process_steps", []):
+        variants_out = []
+        for v in step.get("entity_variants", []):
+            m = assess_variant_maturity(v)
+            maturity_distribution[m["level"]] = maturity_distribution.get(m["level"], 0) + 1
+            variants_out.append({"entity_id": v.get("entity_id", ""), "maturity": m})
+        steps_out.append({
+            "step_id": step.get("step_id", ""),
+            "step_name": step.get("step_name", step.get("step_id", "")),
+            "variants": variants_out,
+        })
+
+    completeness = score_analysis_completeness(analysis)
+    return {
+        "steps": steps_out,
+        "maturity_distribution": maturity_distribution,
+        "overall_completeness": completeness["score"],
+    }
+
+
 @app.get("/api/process-analysis/{stream_id}/recommendations")
 def get_analysis_recommendations(stream_id: str, dataset: str = "examples"):
     """Return rule-based recommendations for a process analysis.
