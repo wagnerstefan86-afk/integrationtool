@@ -5,8 +5,8 @@
  * and boots the router.
  */
 
-import { state } from './api.js';
-import { setContent } from './utils.js';
+import { API, state } from './api.js';
+import { setContent, esc } from './utils.js';
 import { register, initRouter, route } from './router.js';
 import { initModal } from './components/modal.js';
 import { render as renderDashboard } from './pages/dashboard.js';
@@ -66,12 +66,35 @@ function initMermaid() {
   }
 }
 
+// ─── Version info ────────────────────────────────────────────────────────────
+
+async function initVersionInfo() {
+  try {
+    const h = await API.getGlobal('health');
+    const versionEl = document.getElementById('app-version');
+    if (versionEl && h.version) versionEl.textContent = 'v' + h.version;
+
+    const buildEl = document.getElementById('build-info');
+    if (buildEl) {
+      const parts = [];
+      if (h.git_commit && h.git_commit !== 'unknown') parts.push(h.git_commit);
+      if (h.build_date && h.build_date !== 'unknown') parts.push(h.build_date.slice(0, 10));
+      if (h.app_env) parts.push(h.app_env);
+      buildEl.textContent = parts.join(' \u00b7 ');
+    }
+
+    // Store globally for dashboard use
+    window._harmonizer_health = h;
+  } catch { /* ignore — version display is non-critical */ }
+}
+
 // ─── Boot ─────────────────────────────────────────────────────────────────────
 
 document.addEventListener('DOMContentLoaded', () => {
   initMermaid();
   initModal();
   initDatasetSelector();
+  initVersionInfo();
   initRouter();
   route();
 });

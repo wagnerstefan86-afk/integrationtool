@@ -60,17 +60,33 @@ export async function render() {
       </div>
 
       <div class="card">
-        <div class="card-header">Quick Navigation</div>
+        <div class="card-header">System Info</div>
         <div class="card-body">
-          <div style="display:flex;flex-direction:column;gap:8px">
+          ${_renderSystemInfo()}
+          <div style="display:flex;flex-direction:column;gap:8px;margin-top:12px">
             <a href="#/streams" class="btn">View all Streams</a>
             <a href="#/areas" class="btn">View all Areas</a>
+            <a href="#/decisions" class="btn">View Decisions</a>
             <a href="#/reports" class="btn">View Reports</a>
           </div>
         </div>
       </div>
     </div>
   `);
+}
+
+function _renderSystemInfo() {
+  const h = window._harmonizer_health;
+  if (!h) return '<p style="color:var(--text-muted);font-size:12px">Loading...</p>';
+  const rows = [
+    ['Version', h.version || '---'],
+    ['Git Commit', h.git_commit && h.git_commit !== 'unknown' ? h.git_commit : '---'],
+    ['Build Date', h.build_date && h.build_date !== 'unknown' ? h.build_date.slice(0, 10) : '---'],
+    ['Environment', h.app_env || '---'],
+  ];
+  return `<dl class="key-value" style="font-size:12px;margin:0">${rows.map(([k, v]) =>
+    `<dt>${esc(k)}</dt><dd><code>${esc(v)}</code></dd>`
+  ).join('')}</dl>`;
 }
 
 function _updateDatasetOptions(datasets) {

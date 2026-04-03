@@ -45,7 +45,9 @@ from harmonizer.models.assessment import (
 DATA_PATH = Path(os.environ.get("DATA_PATH", "/data"))
 REPORT_PATH = Path(os.environ.get("REPORT_PATH", "/reports"))
 LOG_PATH = Path(os.environ.get("LOG_PATH", "/logs"))
-APP_VERSION = "0.8.0"
+APP_VERSION = os.environ.get("APP_VERSION", "0.9.0")
+GIT_COMMIT = os.environ.get("GIT_COMMIT", "")
+BUILD_DATE = os.environ.get("BUILD_DATE", "")
 
 # --- Logging ---
 
@@ -103,8 +105,16 @@ app.add_middleware(
 
 @app.get("/health")
 def health():
-    return {"status": "ok", "version": APP_VERSION,
-            "data_path": str(DATA_PATH), "report_path": str(REPORT_PATH)}
+    commit = GIT_COMMIT or _get_git_commit()
+    return {
+        "status": "ok",
+        "version": APP_VERSION,
+        "git_commit": commit,
+        "build_date": BUILD_DATE,
+        "app_env": os.environ.get("APP_ENV", ""),
+        "data_path": str(DATA_PATH),
+        "report_path": str(REPORT_PATH),
+    }
 
 # ===================== Dashboard =====================
 
