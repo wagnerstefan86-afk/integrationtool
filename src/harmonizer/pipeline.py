@@ -166,6 +166,101 @@ def run_analysis_and_report(
     )
 
 
+def run_single_stream_decision(data_dir: Path, stream_id: str) -> Optional[dict]:
+    """Run the pipeline for a single stream and return its decision result as a dict.
+
+    Returns None if the stream has no assessment or no result can be computed.
+    """
+    areas, streams, subprocesses, interfaces, assessments, _ = run_analysis(data_dir)
+
+    assessment_index = {a.assessed_object_id: a for a in assessments}
+    assessment = assessment_index.get(stream_id)
+    if not assessment or assessment.result is None:
+        return None
+
+    dr = assessment.decision_result
+    if dr is None:
+        return None
+
+    # Serialize DecisionResult to a clean dict
+    result = {
+        "stream_id": stream_id,
+        "decision": dr.decision.value,
+        "decision_rationale": dr.decision_rationale,
+        "target_operating_model": dr.target_operating_model.value,
+        "blocking_factors": dr.blocking_factors,
+        "prerequisites": dr.prerequisites,
+        "expected_benefit": dr.expected_benefit,
+        "implementation_risk": dr.implementation_risk,
+        "interface_complexity": dr.interface_complexity.complexity_score,
+        "harmonization_degree": {
+            "harmonizable": dr.harmonization_degree.harmonizable,
+            "standardizable": dr.harmonization_degree.standardizable,
+            "centralizable": dr.harmonization_degree.centralizable,
+            "harmonization_degree": dr.harmonization_degree.harmonization_degree,
+            "standardization_degree": dr.harmonization_degree.standardization_degree,
+            "centralization_degree": dr.harmonization_degree.centralization_degree,
+        },
+        "score": assessment.result.harmonization_score,
+        "classification": assessment.result.classification.value,
+    }
+
+    # Optional Phase 5 fields
+    if dr.alternative_options:
+        result["alternative_options"] = [
+            {
+                "label": ao.label,
+                "description": ao.description,
+                "is_recommended": ao.is_recommended,
+                "pros": ao.pros,
+                "cons": ao.cons,
+                "risks": ao.risks,
+            }
+            for ao in dr.alternative_options
+        ]
+    if dr.no_action_impact:
+        nai = dr.no_action_impact
+        result["no_action_impact"] = {
+            "regulatory_risk": nai.regulatory_risk.value,
+            "operational_risk": nai.operational_risk.value,
+            "inefficiency_cost": nai.inefficiency_cost.value,
+            "audit_exposure": nai.audit_exposure.value,
+            "rationale": nai.rationale,
+        }
+    if dr.governance:
+        result["governance"] = {
+            "decision_owner": dr.governance.decision_owner,
+            "involved_stakeholders": dr.governance.involved_stakeholders,
+            "required_approvals": dr.governance.required_approvals,
+            "decision_type": dr.governance.decision_type.value,
+        }
+    if dr.effort_estimate:
+        result["effort_estimate"] = {
+            "person_months_bucket": dr.effort_estimate.person_months_bucket,
+            "implementation_duration": dr.effort_estimate.implementation_duration.value,
+            "cost_category": dr.effort_estimate.cost_category.value,
+            "rationale": dr.effort_estimate.rationale,
+        }
+    if dr.decision_trace:
+        dt = dr.decision_trace
+        result["decision_trace"] = {
+            "input_factors": dt.input_factors,
+            "rules_triggered": dt.rules_triggered,
+            "constraints_applied": dt.constraints_applied,
+            "confidence_basis": dt.confidence_basis,
+        }
+
+    # Completeness/confidence
+    if assessment.completeness:
+        result["completeness_score"] = assessment.completeness.completeness_score
+        result["confidence"] = assessment.completeness.confidence_level.value
+    if assessment.prioritization_result:
+        result["priority"] = assessment.prioritization_result.priority.value
+        result["priority_score"] = assessment.prioritization_result.priority_score
+
+    return result
+
+
 def run_calibration(data_dir: Path) -> Optional[CalibrationResult]:
     """Run calibration only and return the result."""
     _, _, _, _, assessments = load_all_from_directory(data_dir)

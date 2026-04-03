@@ -16,6 +16,7 @@ import { render as renderSubprocesses } from './pages/subprocesses.js';
 import { render as renderInterfaces } from './pages/interfaces.js';
 import { render as renderReports } from './pages/reports.js';
 import { render as renderAssessments } from './pages/assessments.js';
+import { render as renderDecisions } from './pages/decisions.js';
 
 // ─── Route registration ───────────────────────────────────────────────────────
 
@@ -25,10 +26,10 @@ register('streams',      (id)  => renderStreams(id));
 register('subprocesses', (_id) => renderSubprocesses());
 register('interfaces',   (_id) => renderInterfaces());
 register('assessments',  (id)  => renderAssessments(id));
+register('decisions',    (id)  => renderDecisions(id));
 register('reports',      (id)  => renderReports(id));
 
 // Stub handlers for future phases
-register('decisions',   () => Promise.resolve(_comingSoon('Decisions')));
 register('outcomes',    () => Promise.resolve(_comingSoon('Outcomes')));
 
 function _comingSoon(name) {

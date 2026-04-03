@@ -21,7 +21,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import PlainTextResponse
 from pydantic import BaseModel
 
-from harmonizer.pipeline import run_analysis, run_analysis_and_report, run_calibration
+from harmonizer.pipeline import run_analysis, run_analysis_and_report, run_calibration, run_single_stream_decision
 from harmonizer.store import YAMLStore
 from harmonizer.scoring.engine import (
     compute_weighted_score,
@@ -480,6 +480,114 @@ def get_questions(stream_type: str):
         raise HTTPException(400, f"Invalid stream type: '{stream_type}'")
     questions = get_required_questions(st)
     return [{"id": q.id, "text": q.text, "focus": q.focus} for q in questions]
+
+# ===================== Decisions (computed) =====================
+
+@app.post("/api/decisions/compute/{stream_id}")
+def compute_stream_decision(stream_id: str, dataset: str = "examples"):
+    """Run the analysis pipeline for a single stream and return its decision."""
+    store = _get_store(dataset)
+    if not store.get_stream(stream_id):
+        raise HTTPException(404, f"Stream not found: {stream_id}")
+    if not store.get_assessment(stream_id):
+        raise HTTPException(400, f"No assessment found for stream '{stream_id}'. Create an assessment first.")
+    try:
+        result = run_single_stream_decision(DATA_PATH / dataset, stream_id)
+    except Exception as e:
+        logger.error("Decision computation failed for %s: %s", stream_id, e, exc_info=True)
+        raise HTTPException(500, f"Decision computation failed: {e}")
+    if result is None:
+        raise HTTPException(400, f"Could not compute decision for '{stream_id}'. Assessment may lack required data.")
+    return result
+
+
+@app.get("/api/decisions/{stream_id}")
+def get_decision(stream_id: str, dataset: str = "examples"):
+    """Get computed decision + review state for a stream."""
+    store = _get_store(dataset)
+    if not store.get_stream(stream_id):
+        raise HTTPException(404, f"Stream not found: {stream_id}")
+    review = store.get_review(stream_id)
+    return {
+        "stream_id": stream_id,
+        "review": review,
+    }
+
+
+# ===================== Reviews =====================
+
+VALID_REVIEW_STATUSES = {"draft", "completed", "reviewed"}
+VALID_DECISIONS = {
+    "centralize_now", "centralize_later", "harmonize_only",
+    "standardize_only", "keep_local", "reassess_after_data_completion",
+}
+VALID_OPERATING_MODELS = {
+    "centralized_execution", "central_method_local_execution",
+    "federated_standardized", "local_independent",
+}
+
+@app.get("/api/reviews")
+def list_reviews(dataset: str = "examples"):
+    return _get_store(dataset).list_reviews()
+
+@app.get("/api/reviews/{stream_id}")
+def get_review(stream_id: str, dataset: str = "examples"):
+    r = _get_store(dataset).get_review(stream_id)
+    if not r:
+        raise HTTPException(404, f"Review not found for stream: {stream_id}")
+    return r
+
+@app.put("/api/reviews")
+def save_review(review: dict, dataset: str = "examples"):
+    stream_id = review.get("stream_id", "").strip()
+    if not stream_id:
+        raise HTTPException(400, "Review requires 'stream_id'")
+
+    store = _get_store(dataset)
+    if not store.get_stream(stream_id):
+        raise HTTPException(400, f"Stream not found: '{stream_id}'")
+
+    # Validate review status
+    status = review.get("review_status", "draft")
+    if status not in VALID_REVIEW_STATUSES:
+        raise HTTPException(400, f"Invalid review_status: '{status}'")
+
+    # Override requires rationale
+    override = review.get("override_applied", False)
+    if override:
+        rationale = (review.get("override_rationale") or "").strip()
+        if not rationale:
+            raise HTTPException(400, "Override requires 'override_rationale'")
+        reviewed_decision = review.get("reviewed_decision", "")
+        if reviewed_decision and reviewed_decision not in VALID_DECISIONS:
+            raise HTTPException(400, f"Invalid reviewed_decision: '{reviewed_decision}'")
+        reviewed_tom = review.get("reviewed_operating_model", "")
+        if reviewed_tom and reviewed_tom not in VALID_OPERATING_MODELS:
+            raise HTTPException(400, f"Invalid reviewed_operating_model: '{reviewed_tom}'")
+
+    # Reviewed status requires reviewer name
+    if status == "reviewed":
+        reviewer = (review.get("reviewer_name") or "").strip()
+        if not reviewer:
+            raise HTTPException(400, "Reviewed status requires 'reviewer_name'")
+        # Reviewed requires completed assessment
+        assessment = store.get_assessment(stream_id)
+        if not assessment or assessment.get("status") != "completed":
+            raise HTTPException(
+                400,
+                "Cannot set review to 'reviewed': stream assessment must exist and be 'completed'"
+            )
+
+    review["stream_id"] = stream_id
+    review["review_status"] = status
+    return store.save_review(review)
+
+@app.delete("/api/reviews/{stream_id}")
+def delete_review(stream_id: str, dataset: str = "examples"):
+    if not _get_store(dataset).delete_review(stream_id):
+        raise HTTPException(404, f"Review not found for stream: {stream_id}")
+    return {"deleted": stream_id}
+
 
 # ===================== Analysis =====================
 

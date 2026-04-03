@@ -255,6 +255,46 @@ class YAMLStore:
         self._write_outcomes_data(data)
         return outcome
 
+    # --- Reviews ---
+
+    def _read_reviews_data(self) -> dict:
+        return self._read_yaml(self.data_dir / "reviews.yaml")
+
+    def _write_reviews_data(self, data: dict) -> None:
+        self._write_yaml(self.data_dir / "reviews.yaml", data)
+
+    def list_reviews(self) -> list[dict]:
+        return self._read_reviews_data().get("reviews", [])
+
+    def get_review(self, stream_id: str) -> Optional[dict]:
+        for r in self.list_reviews():
+            if r.get("stream_id") == stream_id:
+                return r
+        return None
+
+    def save_review(self, review: dict) -> dict:
+        data = self._read_reviews_data()
+        reviews = data.setdefault("reviews", [])
+        sid = review.get("stream_id")
+        for i, r in enumerate(reviews):
+            if r.get("stream_id") == sid:
+                reviews[i] = review
+                self._write_reviews_data(data)
+                return review
+        reviews.append(review)
+        self._write_reviews_data(data)
+        return review
+
+    def delete_review(self, stream_id: str) -> bool:
+        data = self._read_reviews_data()
+        reviews = data.get("reviews", [])
+        new = [r for r in reviews if r.get("stream_id") != stream_id]
+        if len(new) == len(reviews):
+            return False
+        data["reviews"] = new
+        self._write_reviews_data(data)
+        return True
+
     # --- Dashboard Stats ---
 
     def get_dashboard_stats(self) -> dict:

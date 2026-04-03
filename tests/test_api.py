@@ -319,6 +319,84 @@ class TestQuestionsEndpoint:
         assert resp.status_code == 400
 
 
+class TestDecisionEndpoints:
+    """Tests for decision computation and review endpoints."""
+
+    def test_compute_decision_for_stream(self, client) -> None:
+        resp = client.post("/api/decisions/compute/policies_processes")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["stream_id"] == "policies_processes"
+        assert data["decision"] in [
+            "centralize_now", "centralize_later", "harmonize_only",
+            "standardize_only", "keep_local", "reassess_after_data_completion",
+        ]
+        assert "target_operating_model" in data
+        assert "blocking_factors" in data
+        assert "harmonization_degree" in data
+
+    def test_compute_decision_nonexistent_stream(self, client) -> None:
+        resp = client.post("/api/decisions/compute/nonexistent")
+        assert resp.status_code == 404
+
+    def test_compute_decision_no_assessment(self, client) -> None:
+        # Create a stream without assessment
+        client.put("/api/areas", json={"id": "tmp_area", "name": "Tmp"})
+        client.put("/api/streams", json={"id": "tmp_no_ass", "name": "No Ass", "area_id": "tmp_area"})
+        resp = client.post("/api/decisions/compute/tmp_no_ass")
+        assert resp.status_code == 400
+
+    def test_save_review_basic(self, client) -> None:
+        resp = client.put("/api/reviews", json={
+            "stream_id": "policies_processes",
+            "review_status": "draft",
+            "review_notes": "Initial review",
+        })
+        assert resp.status_code == 200
+        assert resp.json()["review_status"] == "draft"
+
+    def test_save_review_override_requires_rationale(self, client) -> None:
+        resp = client.put("/api/reviews", json={
+            "stream_id": "policies_processes",
+            "override_applied": True,
+        })
+        assert resp.status_code == 400
+        assert "rationale" in resp.json()["detail"].lower()
+
+    def test_save_review_reviewed_requires_reviewer(self, client) -> None:
+        resp = client.put("/api/reviews", json={
+            "stream_id": "policies_processes",
+            "review_status": "reviewed",
+        })
+        assert resp.status_code == 400
+        assert "reviewer" in resp.json()["detail"].lower()
+
+    def test_save_review_reviewed_requires_completed_assessment(self, client) -> None:
+        # Save a draft assessment
+        client.put("/api/assessments", json={
+            "assessed_object_id": "it_risk",
+            "assessed_object_type": "stream",
+            "answers": [{"dimension": "maturity", "score": 3}],
+            "status": "draft",
+        })
+        resp = client.put("/api/reviews", json={
+            "stream_id": "it_risk",
+            "review_status": "reviewed",
+            "reviewer_name": "Tester",
+        })
+        assert resp.status_code == 400
+        assert "completed" in resp.json()["detail"].lower()
+
+    def test_list_reviews(self, client) -> None:
+        client.put("/api/reviews", json={
+            "stream_id": "policies_processes",
+            "review_status": "draft",
+        })
+        resp = client.get("/api/reviews")
+        assert resp.status_code == 200
+        assert any(r["stream_id"] == "policies_processes" for r in resp.json())
+
+
 class TestCalibrateEndpoint:
     def test_calibrate_no_outcomes(self, client) -> None:
         resp = client.post("/calibrate", json={"data_dir": "examples"})

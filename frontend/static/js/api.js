@@ -57,6 +57,16 @@ export const API = {
   },
 
   /**
+   * POST /api/{endpoint}?dataset=X — action endpoints
+   */
+  async post(endpoint, data = {}, extra = {}) {
+    return _fetch(`/api/${endpoint}?${datasetQS(extra)}`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  /**
    * DELETE /api/{endpoint}?dataset=X
    */
   async del(endpoint, extra = {}) {
