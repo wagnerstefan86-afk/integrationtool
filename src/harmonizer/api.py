@@ -32,7 +32,7 @@ from harmonizer.scoring.engine import (
     get_weights_for_stream_type,
 )
 from harmonizer.scoring.questions import get_required_questions
-from harmonizer.models.process import StreamType, TargetOption, GapLevel
+from harmonizer.models.process import StreamType, TargetOption, GapLevel, is_as_is_complete, get_as_is_errors
 from harmonizer.models.assessment import (
     AlignmentDimension,
     AssessmentAnswer,
@@ -372,16 +372,22 @@ def save_assessment(assessment: dict, dataset: str = "examples"):
                 f"Cannot set status to 'completed': missing dimensions: {', '.join(sorted(missing))}"
             )
 
-    # For completed stream assessments with target_option, AS-IS DE+AT must exist
-    if status == "completed" and obj_type == "stream" and target_option:
+    # Hard gate: stream assessments with target_option require complete AS-IS DE+AT
+    if obj_type == "stream" and target_option:
         stream = store.get_stream(obj_id)
         as_is = stream.get("as_is", {}) if stream else {}
-        de_filled = bool(as_is.get("de", {}).get("description", "").strip())
-        at_filled = bool(as_is.get("at", {}).get("description", "").strip())
-        if not (de_filled and at_filled):
+        de_ok = is_as_is_complete(as_is.get("de", {}))
+        at_ok = is_as_is_complete(as_is.get("at", {}))
+        if not (de_ok and at_ok):
+            missing = []
+            if not de_ok:
+                missing.append(f"DE: {', '.join(get_as_is_errors(as_is.get('de', {})))}")
+            if not at_ok:
+                missing.append(f"AT: {', '.join(get_as_is_errors(as_is.get('at', {})))}")
             raise HTTPException(
                 400,
-                "Cannot complete option assessment: stream must have AS-IS descriptions for both DE and AT"
+                "AS-IS documentation incomplete for DE/AT. "
+                f"Complete the AS-IS before creating option assessments. {'; '.join(missing)}"
             )
 
     assessment["status"] = status
@@ -544,24 +550,69 @@ def save_stream_as_is(stream_id: str, body: dict, dataset: str = "examples"):
         raise HTTPException(404, f"Stream not found: {stream_id}")
 
     as_is = body.get("as_is", {})
-    # Validate structure: only 'de' and 'at' keys with known sub-fields
     for country in ("de", "at"):
         entry = as_is.get(country, {})
         if not isinstance(entry, dict):
             raise HTTPException(400, f"as_is.{country} must be an object")
 
+    # Asymmetry check: if one country has content, the other must too
+    de = as_is.get("de", {})
+    at = as_is.get("at", {})
+    de_has_content = bool(de.get("description", "").strip())
+    at_has_content = bool(at.get("description", "").strip())
+    if de_has_content != at_has_content:
+        filled = "DE" if de_has_content else "AT"
+        empty = "AT" if de_has_content else "DE"
+        raise HTTPException(400, f"AS-IS {filled} is filled but {empty} is empty. Both countries must be documented together.")
+
     # Validate delta if provided
     delta = body.get("delta", {})
     for key in ("structural_diff", "tooling_gap", "regulatory_gap", "role_model_diff"):
-        val = delta.get(key)
-        if val and val not in VALID_GAP_LEVELS:
-            raise HTTPException(400, f"Invalid gap level for delta.{key}: '{val}'")
+        v = delta.get(key)
+        if v and v not in VALID_GAP_LEVELS:
+            raise HTTPException(400, f"Invalid gap level for delta.{key}: '{v}'")
+
+    # Compute completeness status
+    de_complete = is_as_is_complete(de)
+    at_complete = is_as_is_complete(at)
+    de_errors = get_as_is_errors(de) if de_has_content and not de_complete else []
+    at_errors = get_as_is_errors(at) if at_has_content and not at_complete else []
 
     stream["as_is"] = as_is
     if delta:
         stream["delta"] = delta
     store.save_stream(stream)
-    return {"stream_id": stream_id, "as_is": as_is, "delta": delta}
+    return {
+        "stream_id": stream_id,
+        "as_is": as_is,
+        "delta": delta,
+        "completeness": {
+            "de_complete": de_complete,
+            "at_complete": at_complete,
+            "de_errors": de_errors,
+            "at_errors": at_errors,
+        },
+    }
+
+
+@app.get("/api/streams/{stream_id}/as-is/status")
+def get_stream_as_is_status(stream_id: str, dataset: str = "examples"):
+    """Return AS-IS completeness status for a stream."""
+    store = _get_store(dataset)
+    stream = store.get_stream(stream_id)
+    if not stream:
+        raise HTTPException(404, f"Stream not found: {stream_id}")
+    as_is = stream.get("as_is", {})
+    de = as_is.get("de", {})
+    at = as_is.get("at", {})
+    return {
+        "stream_id": stream_id,
+        "de_complete": is_as_is_complete(de),
+        "at_complete": is_as_is_complete(at),
+        "complete": is_as_is_complete(de) and is_as_is_complete(at),
+        "de_errors": get_as_is_errors(de),
+        "at_errors": get_as_is_errors(at),
+    }
 
 
 # ===================== Option Assessments (stream-level) =====================
@@ -588,6 +639,17 @@ def compare_stream_options(stream_id: str, dataset: str = "examples"):
     stream = store.get_stream(stream_id)
     if not stream:
         raise HTTPException(404, f"Stream not found: {stream_id}")
+
+    # Hard gate: AS-IS must be complete before comparing options
+    as_is = stream.get("as_is", {})
+    de_ok = is_as_is_complete(as_is.get("de", {}))
+    at_ok = is_as_is_complete(as_is.get("at", {}))
+    if not (de_ok and at_ok):
+        raise HTTPException(
+            400,
+            "AS-IS documentation incomplete for DE/AT. "
+            "Complete the AS-IS before comparing target options."
+        )
 
     option_assessments = store.get_assessments_for_stream(stream_id)
     if not option_assessments:

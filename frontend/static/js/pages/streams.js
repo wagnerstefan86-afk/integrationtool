@@ -55,6 +55,7 @@ async function renderList() {
       <td>${esc(areaMap[s.area_id] || s.area_id || '—')}</td>
       <td>${badge('badge-info', s.stream_type || '—')}</td>
       <td>${badge('badge-muted', s.country_scope || '—')} ${badge('badge-muted', s.tenant_scope || '—')}</td>
+      <td>${_asIsStatusBadge(s.as_is || {})}</td>
       <td>${assessedIds.has(s.id) ? badge('badge-success', 'assessed') : badge('badge-muted', 'pending')}</td>
       <td onclick="event.stopPropagation()" style="white-space:nowrap">
         <button class="btn btn-sm" data-edit-stream="${esc(s.id)}">Edit</button>
@@ -77,7 +78,7 @@ async function renderList() {
     </div>
     <div class="card"><div class="table-wrap">
       <table><thead><tr>
-        <th>Name</th><th>Area</th><th>Type</th><th>Scope</th><th>Assessment</th><th></th>
+        <th>Name</th><th>Area</th><th>Type</th><th>Scope</th><th>AS-IS</th><th>Assessment</th><th></th>
       </tr></thead><tbody id="streams-body">${rows}</tbody></table>
     </div></div>
   `);
@@ -238,6 +239,8 @@ async function renderDetail(streamId) {
        </div>` + _renderAssessmentSummary(assessment)
     : '<p style="color:var(--text-muted)">No assessment recorded for this stream.</p>';
 
+  const streamAsIs = stream.as_is || asIsData?.as_is || {};
+
   setContent(`
     <div class="detail-header">
       <div>
@@ -246,6 +249,7 @@ async function renderDetail(streamId) {
           ${badge('badge-info', stream.stream_type || '—')}
           ${badge('badge-muted', stream.country_scope || '')}
           ${badge('badge-muted', stream.tenant_scope || '')}
+          ${_asIsStatusBadge(streamAsIs)}
         </div>
       </div>
       <div class="actions">
@@ -344,7 +348,70 @@ async function renderDetail(streamId) {
   });
 }
 
-// ─── AS-IS form ──────────────────────────────────────────────────────────────
+// ─── AS-IS form (structured) ─────────────────────────────────────────────────
+
+function _asIsCountryFields(prefix, data) {
+  const j = (arr) => (arr || []).join('\n');
+  return `
+    <div class="form-group">
+      <label for="f-${prefix}-desc">Description <span style="color:var(--danger)">*</span></label>
+      <textarea class="form-control" id="f-${prefix}-desc" rows="2">${esc(data.description || '')}</textarea>
+    </div>
+    <h5 style="margin:12px 0 4px;font-size:12px;color:var(--text-muted)">Process Context</h5>
+    ${textArea('f-' + prefix + '-triggers', 'Triggers (one per line)', j(data.triggers), { rows: 2 })}
+    ${formRow(
+      textArea('f-' + prefix + '-inputs', 'Inputs (one per line)', j(data.inputs), { rows: 2 }),
+      textArea('f-' + prefix + '-outputs', 'Outputs (one per line)', j(data.outputs), { rows: 2 })
+    )}
+    <h5 style="margin:12px 0 4px;font-size:12px;color:var(--text-muted)">Process Flow</h5>
+    <div class="form-group">
+      <label for="f-${prefix}-steps">Steps (one per line, min 3) <span style="color:var(--danger)">*</span></label>
+      <textarea class="form-control" id="f-${prefix}-steps" rows="4">${esc(j(data.steps))}</textarea>
+    </div>
+    <h5 style="margin:12px 0 4px;font-size:12px;color:var(--text-muted)">Organization</h5>
+    ${formRow(
+      textArea('f-' + prefix + '-roles', 'Roles (one per line) *', j(data.roles), { rows: 2 }),
+      textArea('f-' + prefix + '-responsibilities', 'Responsibilities (one per line)', j(data.responsibilities), { rows: 2 })
+    )}
+    <h5 style="margin:12px 0 4px;font-size:12px;color:var(--text-muted)">Tooling</h5>
+    <div class="form-group">
+      <label for="f-${prefix}-tools">Tools / Systems (one per line) <span style="color:var(--danger)">*</span></label>
+      <textarea class="form-control" id="f-${prefix}-tools" rows="2">${esc(j(data.tools))}</textarea>
+    </div>
+    <h5 style="margin:12px 0 4px;font-size:12px;color:var(--text-muted)">Controls & Evidence</h5>
+    ${formRow(
+      textArea('f-' + prefix + '-controls', 'Controls / References (one per line)', j(data.controls), { rows: 2 }),
+      textArea('f-' + prefix + '-evidence', 'Evidence (one per line)', j(data.evidence), { rows: 2 })
+    )}
+    ${textArea('f-' + prefix + '-notes', 'Notes', data.notes || '', { rows: 2 })}
+  `;
+}
+
+function _readAsIsCountry(prefix) {
+  const toList = (id) => document.getElementById(id)?.value.split('\n').map(l => l.trim()).filter(Boolean) || [];
+  return {
+    description: val('f-' + prefix + '-desc'),
+    triggers: toList('f-' + prefix + '-triggers'),
+    inputs: toList('f-' + prefix + '-inputs'),
+    outputs: toList('f-' + prefix + '-outputs'),
+    steps: toList('f-' + prefix + '-steps'),
+    roles: toList('f-' + prefix + '-roles'),
+    responsibilities: toList('f-' + prefix + '-responsibilities'),
+    tools: toList('f-' + prefix + '-tools'),
+    controls: toList('f-' + prefix + '-controls'),
+    evidence: toList('f-' + prefix + '-evidence'),
+    notes: val('f-' + prefix + '-notes') || null,
+  };
+}
+
+function _validateAsIs(data, label) {
+  const errors = [];
+  if (!data.description.trim()) errors.push(`${label}: description is required`);
+  if (data.steps.length < 3) errors.push(`${label}: steps must have at least 3 entries (has ${data.steps.length})`);
+  if (!data.roles.length) errors.push(`${label}: roles must not be empty`);
+  if (!data.tools.length) errors.push(`${label}: tools must not be empty`);
+  return errors;
+}
 
 async function openAsIsForm(streamId, asIsData) {
   const asIs = asIsData?.as_is || {};
@@ -355,26 +422,17 @@ async function openAsIsForm(streamId, asIsData) {
   const gapOpts = (e.gap_levels || ['low', 'medium', 'high']).map(g => ({ value: g, label: g }));
 
   openModal('Edit AS-IS: DE / AT', `
-    <h4 style="margin:0 0 8px;color:var(--primary)">DE (Germany)</h4>
-    ${textArea('f-asis-de-desc', 'Description', de.description || '', { rows: 2 })}
-    ${textArea('f-asis-de-steps', 'Steps (one per line)', (de.steps || []).join('\\n'), { rows: 3 })}
-    ${formRow(
-      textArea('f-asis-de-tools', 'Tools (one per line)', (de.tools || []).join('\\n'), { rows: 2 }),
-      textArea('f-asis-de-roles', 'Roles (one per line)', (de.roles || []).join('\\n'), { rows: 2 })
-    )}
-    ${textArea('f-asis-de-controls', 'Controls (one per line)', (de.controls || []).join('\\n'), { rows: 2 })}
+    <div id="asis-errors" style="display:none;padding:8px 12px;margin-bottom:12px;background:#fef2f2;border:1px solid var(--danger);border-radius:4px;font-size:12px;color:var(--danger)"></div>
 
-    <hr style="border:none;border-top:1px solid var(--border);margin:14px 0">
-    <h4 style="margin:0 0 8px;color:var(--primary)">AT (Austria)</h4>
-    ${textArea('f-asis-at-desc', 'Description', at.description || '', { rows: 2 })}
-    ${textArea('f-asis-at-steps', 'Steps (one per line)', (at.steps || []).join('\\n'), { rows: 3 })}
-    ${formRow(
-      textArea('f-asis-at-tools', 'Tools (one per line)', (at.tools || []).join('\\n'), { rows: 2 }),
-      textArea('f-asis-at-roles', 'Roles (one per line)', (at.roles || []).join('\\n'), { rows: 2 })
-    )}
-    ${textArea('f-asis-at-controls', 'Controls (one per line)', (at.controls || []).join('\\n'), { rows: 2 })}
+    <h4 style="margin:0 0 8px;color:var(--primary);border-bottom:2px solid var(--primary);padding-bottom:4px">DE (Germany)</h4>
+    ${_asIsCountryFields('de', de)}
 
-    <hr style="border:none;border-top:1px solid var(--border);margin:14px 0">
+    <hr style="border:none;border-top:2px solid var(--border);margin:18px 0">
+
+    <h4 style="margin:0 0 8px;color:var(--primary);border-bottom:2px solid var(--primary);padding-bottom:4px">AT (Austria)</h4>
+    ${_asIsCountryFields('at', at)}
+
+    <hr style="border:none;border-top:2px solid var(--border);margin:18px 0">
     <h4 style="margin:0 0 8px;color:var(--primary)">Delta Assessment</h4>
     ${formRow(
       selectField('f-delta-structural', 'Structural Diff', gapOpts, delta.structural_diff || 'low'),
@@ -385,25 +443,32 @@ async function openAsIsForm(streamId, asIsData) {
       selectField('f-delta-rolemodel', 'Role Model Diff', gapOpts, delta.role_model_diff || 'low')
     )}
   `, async () => {
-    const toList = (id) => document.getElementById(id)?.value.split('\\n').map(l => l.trim()).filter(Boolean) || [];
+    const deData = _readAsIsCountry('de');
+    const atData = _readAsIsCountry('at');
+
+    // Client-side validation
+    const deHasContent = deData.description.trim();
+    const atHasContent = atData.description.trim();
+    let errors = [];
+
+    if (deHasContent || atHasContent) {
+      if (deHasContent) errors.push(..._validateAsIs(deData, 'DE'));
+      if (atHasContent) errors.push(..._validateAsIs(atData, 'AT'));
+      if (deHasContent && !atHasContent) errors.push('AT: description is required when DE is filled');
+      if (atHasContent && !deHasContent) errors.push('DE: description is required when AT is filled');
+    }
+
+    const errEl = document.getElementById('asis-errors');
+    if (errors.length) {
+      if (errEl) {
+        errEl.style.display = '';
+        errEl.innerHTML = errors.map(e => esc(e)).join('<br>');
+      }
+      throw new Error(errors.join('; '));
+    }
 
     const body = {
-      as_is: {
-        de: {
-          description: val('f-asis-de-desc'),
-          steps: toList('f-asis-de-steps'),
-          tools: toList('f-asis-de-tools'),
-          roles: toList('f-asis-de-roles'),
-          controls: toList('f-asis-de-controls'),
-        },
-        at: {
-          description: val('f-asis-at-desc'),
-          steps: toList('f-asis-at-steps'),
-          tools: toList('f-asis-at-tools'),
-          roles: toList('f-asis-at-roles'),
-          controls: toList('f-asis-at-controls'),
-        },
-      },
+      as_is: { de: deData, at: atData },
       delta: {
         structural_diff: val('f-delta-structural'),
         tooling_gap: val('f-delta-tooling'),
@@ -546,6 +611,28 @@ async function deleteInterface(ifaceId, streamId) {
   } catch (e) { toast(e.message, true); }
 }
 
+// ─── AS-IS completeness check (client-side mirror of backend logic) ──────────
+
+function _isAsIsComplete(data) {
+  if (!data?.description?.trim()) return false;
+  const steps = (data.steps || []).filter(s => s.trim());
+  if (steps.length < 3) return false;
+  if (!(data.roles || []).some(r => r.trim())) return false;
+  if (!(data.tools || []).some(t => t.trim())) return false;
+  return true;
+}
+
+function _asIsStatusBadge(asIs) {
+  const de = asIs?.de || {};
+  const at = asIs?.at || {};
+  const deOk = _isAsIsComplete(de);
+  const atOk = _isAsIsComplete(at);
+  if (deOk && atOk) return badge('badge-success', 'AS-IS complete');
+  if (deOk || atOk) return badge('badge-warning', 'AS-IS partial');
+  if (de.description?.trim() || at.description?.trim()) return badge('badge-warning', 'AS-IS incomplete');
+  return badge('badge-danger', 'AS-IS missing');
+}
+
 // ─── AS-IS DE/AT Section ─────────────────────────────────────────────────────
 
 function _renderAsIsSection(streamId, asIsData) {
@@ -553,27 +640,46 @@ function _renderAsIsSection(streamId, asIsData) {
   const delta = asIsData?.delta || {};
   const de = asIs.de || {};
   const at = asIs.at || {};
+  const deOk = _isAsIsComplete(de);
+  const atOk = _isAsIsComplete(at);
 
-  const listOrNone = (items) =>
-    items?.length ? items.map(i => `<li>${esc(i)}</li>`).join('') : '<li style="color:var(--text-muted)">---</li>';
+  const list = (items) => {
+    const filtered = (items || []).filter(i => i.trim());
+    return filtered.length
+      ? `<ul style="margin:2px 0 4px 16px;font-size:12px">${filtered.map(i => `<li>${esc(i)}</li>`).join('')}</ul>`
+      : '<span style="color:var(--text-muted);font-size:12px">---</span>';
+  };
 
-  const countryBlock = (label, data) => `
-    <div style="flex:1;min-width:200px">
-      <h4 style="margin:0 0 8px">${label}</h4>
+  const section = (label, items) => `
+    <div style="margin-bottom:6px">
+      <strong style="font-size:11px;color:var(--text-muted);text-transform:uppercase">${label}</strong>
+      ${list(items)}
+    </div>`;
+
+  const countryCol = (label, data, complete) => `
+    <div style="flex:1;min-width:220px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+        <h4 style="margin:0">${label}</h4>
+        ${complete ? badge('badge-success', 'complete') : badge('badge-danger', 'incomplete')}
+      </div>
       ${data.description?.trim()
-        ? `<p style="font-size:13px;margin:0 0 6px">${esc(data.description)}</p>
-           <div style="font-size:12px">
-             <strong>Steps:</strong><ul style="margin:2px 0 4px 16px">${listOrNone(data.steps)}</ul>
-             <strong>Tools:</strong><ul style="margin:2px 0 4px 16px">${listOrNone(data.tools)}</ul>
-             <strong>Roles:</strong><ul style="margin:2px 0 4px 16px">${listOrNone(data.roles)}</ul>
-             <strong>Controls:</strong><ul style="margin:2px 0 4px 16px">${listOrNone(data.controls)}</ul>
-           </div>`
+        ? `<p style="font-size:13px;margin:0 0 8px;padding:6px 8px;background:var(--bg-light);border-radius:4px">${esc(data.description)}</p>
+           ${section('Steps', data.steps)}
+           ${section('Roles', data.roles)}
+           ${section('Tools', data.tools)}
+           ${(data.triggers || []).length ? section('Triggers', data.triggers) : ''}
+           ${(data.inputs || []).length ? section('Inputs', data.inputs) : ''}
+           ${(data.outputs || []).length ? section('Outputs', data.outputs) : ''}
+           ${(data.responsibilities || []).length ? section('Responsibilities', data.responsibilities) : ''}
+           ${section('Controls', data.controls)}
+           ${(data.evidence || []).length ? section('Evidence', data.evidence) : ''}
+           ${data.notes?.trim() ? `<div style="margin-top:6px;font-size:12px;color:var(--text-muted)"><em>${esc(data.notes)}</em></div>` : ''}`
         : '<p style="color:var(--text-muted);font-size:12px">Not documented yet.</p>'}
     </div>`;
 
   const gapBadge = (level) => {
     const cls = { low: 'badge-success', medium: 'badge-warning', high: 'badge-danger' };
-    return level ? badge(cls[level] || 'badge-muted', level) : badge('badge-muted', '---');
+    return level ? badge(cls[level] || 'badge-muted', level) : '';
   };
 
   const deltaHtml = (delta.structural_diff || delta.tooling_gap || delta.regulatory_gap || delta.role_model_diff) ? `
@@ -589,12 +695,12 @@ function _renderAsIsSection(streamId, asIsData) {
 
   return `<div class="detail-section">
     <div style="display:flex;justify-content:space-between;align-items:center">
-      <h3>AS-IS Process Comparison</h3>
+      <h3>AS-IS Process Comparison ${_asIsStatusBadge(asIs)}</h3>
       <button class="btn btn-sm btn-primary" id="btn-edit-as-is">Edit AS-IS</button>
     </div>
-    <div style="display:flex;gap:16px;flex-wrap:wrap">
-      ${countryBlock('DE (Germany)', de)}
-      ${countryBlock('AT (Austria)', at)}
+    <div style="display:flex;gap:20px;flex-wrap:wrap">
+      ${countryCol('DE (Germany)', de, deOk)}
+      ${countryCol('AT (Austria)', at, atOk)}
     </div>
     ${deltaHtml}
   </div>`;

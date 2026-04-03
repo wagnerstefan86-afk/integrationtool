@@ -442,6 +442,83 @@ class TestAsIsAndDelta:
         resp2 = client.get("/api/streams/policies_processes/as-is")
         assert resp2.json()["as_is"]["at"]["tools"] == ["SharePoint"]
 
+    def test_save_as_is_with_extended_fields(self, client) -> None:
+        """New fields (triggers, inputs, outputs, responsibilities, evidence, notes) persist."""
+        body = {
+            "as_is": {
+                "de": {
+                    "description": "DE process",
+                    "triggers": ["quarterly review", "policy change"],
+                    "inputs": ["risk register", "previous audit"],
+                    "outputs": ["updated policy", "audit report"],
+                    "steps": ["gather data", "analyze", "draft"],
+                    "roles": ["CISO"],
+                    "responsibilities": ["CISO approves final version"],
+                    "tools": ["Confluence"],
+                    "controls": ["C-001"],
+                    "evidence": ["audit log", "approval ticket"],
+                    "notes": "Note for DE",
+                },
+                "at": {
+                    "description": "AT process",
+                    "triggers": ["annual review"],
+                    "inputs": ["local regs"],
+                    "outputs": ["local policy"],
+                    "steps": ["review", "adapt", "publish"],
+                    "roles": ["Local ISO"],
+                    "responsibilities": ["ISO owns local variant"],
+                    "tools": ["SharePoint"],
+                    "controls": ["C-001"],
+                    "evidence": ["review record"],
+                    "notes": "Note for AT",
+                },
+            },
+        }
+        resp = client.put("/api/streams/policies_processes/as-is", json=body)
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["as_is"]["de"]["triggers"] == ["quarterly review", "policy change"]
+        assert data["as_is"]["at"]["evidence"] == ["review record"]
+        assert data["completeness"]["de_complete"] is True
+        assert data["completeness"]["at_complete"] is True
+
+    def test_save_as_is_returns_completeness_errors(self, client) -> None:
+        """Saving partial AS-IS returns completeness errors."""
+        body = {
+            "as_is": {
+                "de": {"description": "DE process", "steps": ["one"], "roles": [], "tools": []},
+                "at": {"description": "AT process", "steps": ["a", "b", "c"], "roles": ["ISO"], "tools": ["JIRA"]},
+            },
+        }
+        resp = client.put("/api/streams/policies_processes/as-is", json=body)
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["completeness"]["de_complete"] is False
+        assert data["completeness"]["at_complete"] is True
+        assert any("steps" in e for e in data["completeness"]["de_errors"])
+
+    def test_asymmetric_as_is_rejected(self, client) -> None:
+        """One country filled, other empty → rejected."""
+        resp = client.put("/api/streams/policies_processes/as-is", json={
+            "as_is": {
+                "de": {"description": "DE only", "steps": ["a", "b", "c"], "roles": ["R"], "tools": ["T"]},
+                "at": {},
+            },
+        })
+        assert resp.status_code == 400
+        assert "empty" in resp.json()["detail"].lower()
+
+    def test_as_is_status_endpoint(self, client) -> None:
+        """GET /api/streams/{id}/as-is/status returns completeness."""
+        _setup_complete_as_is(client)
+        resp = client.get("/api/streams/policies_processes/as-is/status")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["complete"] is True
+        assert data["de_complete"] is True
+        assert data["at_complete"] is True
+        assert data["de_errors"] == []
+
     def test_save_as_is_invalid_gap(self, client) -> None:
         resp = client.put("/api/streams/policies_processes/as-is", json={
             "as_is": {"de": {}, "at": {}},
@@ -452,6 +529,58 @@ class TestAsIsAndDelta:
     def test_save_as_is_nonexistent_stream(self, client) -> None:
         resp = client.put("/api/streams/nonexistent/as-is", json={"as_is": {}})
         assert resp.status_code == 404
+
+
+class TestAsIsHardGates:
+    """Tests that incomplete AS-IS blocks downstream operations."""
+
+    def test_option_assessment_blocked_without_as_is(self, client) -> None:
+        resp = client.put("/api/assessments", json={
+            "assessed_object_id": "policies_processes",
+            "assessed_object_type": "stream",
+            "target_option": "de_standard",
+            "answers": [{"dimension": "maturity", "score": 3, "rationale": "ok"}],
+            "status": "draft",
+        })
+        assert resp.status_code == 400
+        assert "as-is" in resp.json()["detail"].lower()
+
+    def test_decision_compare_blocked_without_as_is(self, client) -> None:
+        resp = client.post("/api/decisions/compare/policies_processes")
+        assert resp.status_code == 400
+        assert "as-is" in resp.json()["detail"].lower()
+
+    def test_legacy_assessment_still_works_without_as_is(self, client) -> None:
+        """Legacy assessments (no target_option) are NOT blocked by AS-IS."""
+        resp = client.put("/api/assessments", json={
+            "assessed_object_id": "policies_processes",
+            "assessed_object_type": "stream",
+            "answers": [{"dimension": "maturity", "score": 3, "rationale": "ok"}],
+            "status": "draft",
+        })
+        assert resp.status_code == 200
+
+
+def _setup_complete_as_is(client, stream_id="policies_processes"):
+    """Set up complete AS-IS data for DE and AT on a stream (shared test helper)."""
+    resp = client.put(f"/api/streams/{stream_id}/as-is", json={
+        "as_is": {
+            "de": {
+                "description": "DE process",
+                "steps": ["step 1", "step 2", "step 3"],
+                "roles": ["CISO"],
+                "tools": ["JIRA"],
+            },
+            "at": {
+                "description": "AT process",
+                "steps": ["step A", "step B", "step C"],
+                "roles": ["Local ISO"],
+                "tools": ["SharePoint"],
+            },
+        },
+    })
+    assert resp.status_code == 200
+    return resp
 
 
 class TestOptionAssessments:
@@ -468,6 +597,7 @@ class TestOptionAssessments:
         ]
 
     def test_save_option_assessment(self, client) -> None:
+        _setup_complete_as_is(client)
         resp = client.put("/api/assessments", json={
             "assessed_object_id": "policies_processes",
             "assessed_object_type": "stream",
@@ -479,6 +609,7 @@ class TestOptionAssessments:
         assert resp.json()["target_option"] == "de_standard"
 
     def test_save_three_options(self, client) -> None:
+        _setup_complete_as_is(client)
         for opt in ("de_standard", "at_standard", "central"):
             resp = client.put("/api/assessments", json={
                 "assessed_object_id": "policies_processes",
@@ -496,6 +627,7 @@ class TestOptionAssessments:
         assert opts == {"de_standard", "at_standard", "central"}
 
     def test_filter_by_target_option(self, client) -> None:
+        _setup_complete_as_is(client)
         client.put("/api/assessments", json={
             "assessed_object_id": "policies_processes",
             "assessed_object_type": "stream",
@@ -530,27 +662,39 @@ class TestOptionAssessments:
         assert resp.status_code == 400
         assert "stream" in resp.json()["detail"].lower()
 
-    def test_completed_requires_as_is(self, client) -> None:
-        """Completing a target_option assessment requires AS-IS DE+AT on stream."""
+    def test_option_assessment_requires_complete_as_is(self, client) -> None:
+        """Option assessment (any status) requires complete AS-IS DE+AT on stream."""
         resp = client.put("/api/assessments", json={
             "assessed_object_id": "policies_processes",
             "assessed_object_type": "stream",
             "target_option": "de_standard",
             "answers": self._full_answers(),
-            "status": "completed",
+            "status": "draft",
         })
         assert resp.status_code == 400
         assert "as-is" in resp.json()["detail"].lower()
 
-    def test_completed_with_as_is(self, client) -> None:
-        """Can complete target_option assessment when AS-IS is filled."""
-        # First fill AS-IS
+    def test_incomplete_as_is_blocks_option_assessment(self, client) -> None:
+        """Partial AS-IS (description only, no steps/roles/tools) still blocks."""
         client.put("/api/streams/policies_processes/as-is", json={
             "as_is": {
                 "de": {"description": "DE policy process"},
                 "at": {"description": "AT policy process"},
             },
         })
+        resp = client.put("/api/assessments", json={
+            "assessed_object_id": "policies_processes",
+            "assessed_object_type": "stream",
+            "target_option": "de_standard",
+            "answers": self._full_answers(),
+            "status": "draft",
+        })
+        assert resp.status_code == 400
+        assert "as-is" in resp.json()["detail"].lower()
+
+    def test_completed_with_complete_as_is(self, client) -> None:
+        """Can complete target_option assessment when AS-IS is fully filled."""
+        _setup_complete_as_is(client)
         resp = client.put("/api/assessments", json={
             "assessed_object_id": "policies_processes",
             "assessed_object_type": "stream",
@@ -581,6 +725,7 @@ class TestOptionComparison:
 
     def _setup_options(self, client, stream_id="policies_processes"):
         """Create 3 option assessments with varying scores (draft status)."""
+        _setup_complete_as_is(client, stream_id)
         dims = {
             "regulatory_alignment": 4, "operational_alignment": 4,
             "tooling_alignment": 4, "governance_alignment": 4,
@@ -616,6 +761,7 @@ class TestOptionComparison:
 
     def test_compare_blocked_option(self, client) -> None:
         """Option with insufficient_documentation is blocked."""
+        _setup_complete_as_is(client)
         dims = {
             "regulatory_alignment": 4, "operational_alignment": 4,
             "tooling_alignment": 4, "governance_alignment": 4,

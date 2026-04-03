@@ -1,8 +1,79 @@
-"""Tests for the option comparison decision engine."""
+"""Tests for the option comparison decision engine and AS-IS completeness."""
 
 import pytest
 
+from harmonizer.models.process import is_as_is_complete, get_as_is_errors
 from harmonizer.scoring.option_decision import compare_options, _score_option, _apply_delta_penalty
+
+
+class TestAsIsCompleteness:
+    def test_complete(self):
+        assert is_as_is_complete({
+            "description": "Process X",
+            "steps": ["step 1", "step 2", "step 3"],
+            "roles": ["CISO"],
+            "tools": ["JIRA"],
+        }) is True
+
+    def test_missing_description(self):
+        assert is_as_is_complete({
+            "description": "",
+            "steps": ["s1", "s2", "s3"],
+            "roles": ["R"], "tools": ["T"],
+        }) is False
+
+    def test_too_few_steps(self):
+        assert is_as_is_complete({
+            "description": "X",
+            "steps": ["s1", "s2"],
+            "roles": ["R"], "tools": ["T"],
+        }) is False
+
+    def test_no_roles(self):
+        assert is_as_is_complete({
+            "description": "X",
+            "steps": ["s1", "s2", "s3"],
+            "roles": [], "tools": ["T"],
+        }) is False
+
+    def test_no_tools(self):
+        assert is_as_is_complete({
+            "description": "X",
+            "steps": ["s1", "s2", "s3"],
+            "roles": ["R"], "tools": [],
+        }) is False
+
+    def test_empty_dict(self):
+        assert is_as_is_complete({}) is False
+
+    def test_whitespace_ignored(self):
+        assert is_as_is_complete({
+            "description": "X",
+            "steps": ["s1", " ", "s2", "s3"],  # whitespace-only entry skipped
+            "roles": ["R"], "tools": ["T"],
+        }) is True
+
+    def test_errors_list(self):
+        errors = get_as_is_errors({"description": "", "steps": ["s1"], "roles": [], "tools": []})
+        assert len(errors) == 4
+        assert any("description" in e for e in errors)
+        assert any("steps" in e for e in errors)
+        assert any("roles" in e for e in errors)
+        assert any("tools" in e for e in errors)
+
+    def test_no_errors_when_complete(self):
+        errors = get_as_is_errors({
+            "description": "X",
+            "steps": ["s1", "s2", "s3"],
+            "roles": ["R"], "tools": ["T"],
+        })
+        assert errors == []
+
+    def test_backward_compatible_missing_fields(self):
+        """Old data with only description still loads (incomplete but no crash)."""
+        assert is_as_is_complete({"description": "Old data"}) is False
+        errors = get_as_is_errors({"description": "Old data"})
+        assert any("steps" in e for e in errors)
 from harmonizer.models.process import StreamType
 
 

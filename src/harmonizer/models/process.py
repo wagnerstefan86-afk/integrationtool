@@ -71,12 +71,68 @@ class TargetOption(str, Enum):
 
 
 class AsIsProcess(BaseModel):
-    """AS-IS process description for one country variant."""
+    """AS-IS process description for one country variant (DE or AT).
+
+    All list fields default to empty for backward compatibility.
+    Required for completeness: description, steps (>=3), roles, tools.
+    """
     description: str = ""
+
+    triggers: list[str] = Field(default_factory=list)
+    inputs: list[str] = Field(default_factory=list)
+    outputs: list[str] = Field(default_factory=list)
+
     steps: list[str] = Field(default_factory=list)
-    tools: list[str] = Field(default_factory=list)
+
     roles: list[str] = Field(default_factory=list)
+    responsibilities: list[str] = Field(default_factory=list)
+
+    tools: list[str] = Field(default_factory=list)
+
     controls: list[str] = Field(default_factory=list)
+    evidence: list[str] = Field(default_factory=list)
+
+    notes: Optional[str] = None
+
+
+def is_as_is_complete(process: dict) -> bool:
+    """Check whether an AS-IS process dict meets minimum completeness.
+
+    Rules:
+    - description must be non-empty
+    - steps must have at least 3 entries
+    - roles must not be empty
+    - tools must not be empty
+    """
+    if not process.get("description", "").strip():
+        return False
+    steps = [s for s in process.get("steps", []) if s.strip()]
+    if len(steps) < 3:
+        return False
+    roles = [r for r in process.get("roles", []) if r.strip()]
+    if not roles:
+        return False
+    tools = [t for t in process.get("tools", []) if t.strip()]
+    if not tools:
+        return False
+    return True
+
+
+def get_as_is_errors(process: dict) -> list[str]:
+    """Return list of completeness errors for an AS-IS process dict."""
+    errors = []
+    if not process.get("description", "").strip():
+        errors.append("description is required")
+    steps = [s for s in process.get("steps", []) if s.strip()]
+    if len(steps) < 3:
+        errors.append(f"steps must have at least 3 entries (has {len(steps)})")
+    roles = [r for r in process.get("roles", []) if r.strip()]
+    if not roles:
+        errors.append("roles must not be empty")
+    tools = [t for t in process.get("tools", []) if t.strip()]
+    if not tools:
+        errors.append("tools must not be empty")
+    return errors
 
 
 class DeltaAssessment(BaseModel):
