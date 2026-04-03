@@ -531,6 +531,99 @@ class TestAsIsAndDelta:
         assert resp.status_code == 404
 
 
+class TestComputedDeltaEndpoint:
+    """Tests for GET /api/streams/{id}/delta."""
+
+    def test_delta_without_as_is(self, client) -> None:
+        resp = client.get("/api/streams/policies_processes/delta")
+        assert resp.status_code == 400
+
+    def test_delta_nonexistent_stream(self, client) -> None:
+        resp = client.get("/api/streams/nonexistent/delta")
+        assert resp.status_code == 404
+
+    def test_delta_with_identical_processes(self, client) -> None:
+        client.put("/api/streams/policies_processes/as-is", json={
+            "as_is": {
+                "de": {
+                    "description": "Same process",
+                    "steps": ["s1", "s2", "s3"],
+                    "roles": ["CISO"],
+                    "tools": ["JIRA"],
+                },
+                "at": {
+                    "description": "Same process",
+                    "steps": ["s1", "s2", "s3"],
+                    "roles": ["CISO"],
+                    "tools": ["JIRA"],
+                },
+            },
+        })
+        resp = client.get("/api/streams/policies_processes/delta")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "items" in data
+        assert "summary" in data
+        assert data["summary"]["high_impact"] == 0
+        assert all(i["difference_type"] == "identical" for i in data["items"])
+
+    def test_delta_with_different_processes(self, client) -> None:
+        client.put("/api/streams/policies_processes/as-is", json={
+            "as_is": {
+                "de": {
+                    "description": "DE process",
+                    "steps": ["gather", "analyze", "decide"],
+                    "roles": ["CISO", "DPO"],
+                    "tools": ["ServiceNow"],
+                    "controls": ["ISO-27001"],
+                },
+                "at": {
+                    "description": "AT process",
+                    "steps": ["collect", "review", "approve"],
+                    "roles": ["Local ISO"],
+                    "tools": ["JIRA"],
+                    "controls": ["BSI-Grundschutz"],
+                },
+            },
+        })
+        resp = client.get("/api/streams/policies_processes/delta")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["summary"]["high_impact"] >= 2
+        # Check items have proper structure
+        for item in data["items"]:
+            assert "category" in item
+            assert "de_value" in item
+            assert "at_value" in item
+            assert "difference_type" in item
+            assert "impact" in item
+            assert "description" in item
+
+    def test_delta_returned_in_decision_compare(self, client) -> None:
+        """Decision comparison should include computed_delta."""
+        _setup_complete_as_is(client)
+        # Create option assessment
+        client.put("/api/assessments", json={
+            "assessed_object_id": "policies_processes",
+            "assessed_object_type": "stream",
+            "target_option": "de_standard",
+            "answers": [
+                {"dimension": d, "score": 4, "rationale": "ok"}
+                for d in ("regulatory_alignment", "operational_alignment",
+                          "tooling_alignment", "governance_alignment",
+                          "maturity", "local_necessity")
+            ],
+            "status": "draft",
+        })
+        resp = client.post("/api/decisions/compare/policies_processes")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "computed_delta" in data
+        assert data["computed_delta"] is not None
+        assert "items" in data["computed_delta"]
+        assert "summary" in data["computed_delta"]
+
+
 class TestAsIsHardGates:
     """Tests that incomplete AS-IS blocks downstream operations."""
 

@@ -174,13 +174,14 @@ async function deleteStream(streamId) {
 // ─── Detail view ──────────────────────────────────────────────────────────────
 
 async function renderDetail(streamId) {
-  const [stream, subprocesses, interfaces, allAssessments, areas, asIsData] = await Promise.all([
+  const [stream, subprocesses, interfaces, allAssessments, areas, asIsData, deltaData] = await Promise.all([
     API.get(`streams/${encodeURIComponent(streamId)}`),
     API.get('subprocesses'),
     API.get('interfaces'),
     API.get('assessments'),
     API.get('areas'),
     API.get(`streams/${encodeURIComponent(streamId)}/as-is`).catch(() => ({ as_is: {}, delta: {} })),
+    API.get(`streams/${encodeURIComponent(streamId)}/delta`).catch(() => null),
   ]);
 
   const streamSPs = subprocesses.filter(sp => sp.stream_id === streamId);
@@ -272,6 +273,7 @@ async function renderDetail(streamId) {
           </dl>
         </div>
         ${_renderAsIsSection(streamId, asIsData)}
+        ${_renderDeltaSection(deltaData)}
         <div class="detail-section">
           <div style="display:flex;justify-content:space-between;align-items:center">
             <h3>Option Assessments</h3>
@@ -703,6 +705,63 @@ function _renderAsIsSection(streamId, asIsData) {
       ${countryCol('AT (Austria)', at, atOk)}
     </div>
     ${deltaHtml}
+  </div>`;
+}
+
+function _renderDeltaSection(deltaData) {
+  if (!deltaData || !deltaData.items || deltaData.items.length === 0) {
+    return `<div class="detail-section">
+      <h3>DE vs AT Differences</h3>
+      <p style="color:var(--text-muted);font-size:12px">No delta computed. Complete AS-IS documentation for both DE and AT first.</p>
+    </div>`;
+  }
+
+  const summary = deltaData.summary || {};
+  const impactBadge = (level) => {
+    const cls = { low: 'badge-success', medium: 'badge-warning', high: 'badge-danger' };
+    return badge(cls[level] || 'badge-muted', level);
+  };
+  const diffBadge = (type) => {
+    const cls = { identical: 'badge-success', partial: 'badge-warning', different: 'badge-danger', missing: 'badge-danger' };
+    return badge(cls[type] || 'badge-muted', type);
+  };
+  const listCell = (items) => items?.length
+    ? `<span style="font-size:11px">${items.map(i => esc(i)).join(', ')}</span>`
+    : '<span style="color:var(--text-muted);font-size:11px">---</span>';
+
+  const rows = deltaData.items.map(item => `
+    <tr>
+      <td><strong style="font-size:12px">${esc(item.category)}</strong></td>
+      <td>${listCell(item.de_value)}</td>
+      <td>${listCell(item.at_value)}</td>
+      <td>${diffBadge(item.difference_type)}</td>
+      <td>${impactBadge(item.impact)}</td>
+    </tr>
+    <tr><td colspan="5" style="padding:2px 8px 8px;font-size:11px;color:var(--text-muted);border-bottom:1px solid var(--border)">${esc(item.description)}</td></tr>
+  `).join('');
+
+  return `<div class="detail-section">
+    <h3>DE vs AT Differences</h3>
+    <div style="display:flex;gap:16px;margin-bottom:12px;flex-wrap:wrap">
+      <div style="padding:8px 14px;background:var(--bg-light);border-radius:6px;font-size:13px">
+        <strong>${summary.total_items || 0}</strong> <span style="color:var(--text-muted)">categories compared</span>
+      </div>
+      ${summary.high_impact ? `<div style="padding:8px 14px;background:#fef2f2;border-radius:6px;font-size:13px;border:1px solid var(--danger)">
+        <strong style="color:var(--danger)">${summary.high_impact}</strong> <span>high impact</span>
+      </div>` : ''}
+      ${summary.medium_impact ? `<div style="padding:8px 14px;background:#fffbeb;border-radius:6px;font-size:13px;border:1px solid var(--warning)">
+        <strong style="color:var(--warning)">${summary.medium_impact}</strong> <span>medium impact</span>
+      </div>` : ''}
+      ${summary.low_impact ? `<div style="padding:8px 14px;background:#f0fdf4;border-radius:6px;font-size:13px">
+        <strong style="color:var(--success)">${summary.low_impact}</strong> <span>low impact</span>
+      </div>` : ''}
+    </div>
+    <div class="table-wrap"><table>
+      <thead><tr>
+        <th>Category</th><th>DE</th><th>AT</th><th>Difference</th><th>Impact</th>
+      </tr></thead>
+      <tbody>${rows}</tbody>
+    </table></div>
   </div>`;
 }
 

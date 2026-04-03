@@ -28,6 +28,7 @@ from harmonizer.scoring.engine import (
     get_weights_for_stream_type,
     _classification_rank,
 )
+from harmonizer.scoring.delta import compute_delta, delta_penalty_from_computed
 
 TARGET_OPTION_LABELS = {
     "de_standard": "DE standard (AT adopts DE)",
@@ -140,7 +141,15 @@ def compare_options(stream: dict, option_assessments: list[dict]) -> dict:
     except ValueError:
         pass
 
-    delta = stream.get("delta", {})
+    # Compute real delta from AS-IS data (replaces abstract gap levels)
+    as_is = stream.get("as_is", {})
+    de_asis = as_is.get("de", {})
+    at_asis = as_is.get("at", {})
+    has_asis = bool(de_asis.get("description", "").strip() or at_asis.get("description", "").strip())
+    computed_delta = compute_delta(de_asis, at_asis) if has_asis else None
+
+    # Fallback: abstract delta for backward compat when no AS-IS exists
+    abstract_delta = stream.get("delta", {})
 
     # Group assessments by target_option
     by_option = {}
@@ -167,7 +176,14 @@ def compare_options(stream: dict, option_assessments: list[dict]) -> dict:
     scored = {}
     for opt, assessment in by_option.items():
         result = _score_option(assessment, stream_type)
-        result["adjusted_score"] = _apply_delta_penalty(result["score"], delta, opt)
+        # Use computed delta when available, fall back to abstract
+        if computed_delta:
+            penalty = delta_penalty_from_computed(computed_delta, opt)
+        else:
+            penalty = _apply_delta_penalty(result["score"], abstract_delta, opt) - result["score"]
+            penalty = abs(penalty)
+        result["adjusted_score"] = max(0.0, result["score"] - penalty)
+        result["delta_penalty"] = round(penalty, 4)
         scored[opt] = result
 
     # Separate viable from blocked
@@ -248,15 +264,21 @@ def compare_options(stream: dict, option_assessments: list[dict]) -> dict:
             "classification": r["classification"].value,
         })
 
-    # Prerequisites
+    # Prerequisites — derived from computed delta items
     prerequisites = []
     if best_opt in ("de_standard", "at_standard"):
         adopting = "AT" if best_opt == "de_standard" else "DE"
         prerequisites.append(f"{adopting} must align processes to the selected standard")
-    if delta.get("tooling_gap") == "high":
-        prerequisites.append("Significant tooling gap must be addressed")
-    if delta.get("role_model_diff") == "high":
-        prerequisites.append("Role model differences must be reconciled")
+
+    if computed_delta:
+        for item in computed_delta.get("items", []):
+            if item["impact"] == "high" and item["difference_type"] in ("different", "missing"):
+                prerequisites.append(f"{item['category']}: {item['description']}")
+    else:
+        if abstract_delta.get("tooling_gap") == "high":
+            prerequisites.append("Significant tooling gap must be addressed")
+        if abstract_delta.get("role_model_diff") == "high":
+            prerequisites.append("Role model differences must be reconciled")
 
     # Incomplete assessments warning
     expected = {"de_standard", "at_standard", "central"}
@@ -280,6 +302,7 @@ def compare_options(stream: dict, option_assessments: list[dict]) -> dict:
                 "score": round(r["score"], 4),
                 "adjusted_score": round(r["adjusted_score"], 4),
                 "classification": r["classification"].value,
+                "delta_penalty": r.get("delta_penalty", 0),
                 "hard_constraints": r["hard_constraints"],
                 "blocked": r["blocked"],
                 "status": r["status"],
@@ -287,5 +310,6 @@ def compare_options(stream: dict, option_assessments: list[dict]) -> dict:
             for opt, r in scored.items()
         },
         "discarded_options": discarded,
-        "delta": delta,
+        "delta": abstract_delta,
+        "computed_delta": computed_delta,
     }

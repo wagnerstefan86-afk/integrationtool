@@ -615,6 +615,27 @@ def get_stream_as_is_status(stream_id: str, dataset: str = "examples"):
     }
 
 
+@app.get("/api/streams/{stream_id}/delta")
+def get_stream_delta(stream_id: str, dataset: str = "examples"):
+    """Compute and return structured delta between DE and AT AS-IS."""
+    store = _get_store(dataset)
+    stream = store.get_stream(stream_id)
+    if not stream:
+        raise HTTPException(404, f"Stream not found: {stream_id}")
+
+    as_is = stream.get("as_is", {})
+    de = as_is.get("de", {})
+    at = as_is.get("at", {})
+
+    if not (de.get("description", "").strip() or at.get("description", "").strip()):
+        raise HTTPException(400, "AS-IS not documented for this stream. Fill in DE and AT first.")
+
+    from harmonizer.scoring.delta import compute_delta
+    result = compute_delta(de, at)
+    result["stream_id"] = stream_id
+    return result
+
+
 # ===================== Option Assessments (stream-level) =====================
 
 @app.get("/api/streams/{stream_id}/option-assessments")
