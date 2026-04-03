@@ -18,18 +18,20 @@ import { render as renderReports } from './pages/reports.js';
 import { render as renderAssessments } from './pages/assessments.js';
 import { render as renderDecisions } from './pages/decisions.js';
 import { render as renderDirector } from './pages/director.js';
+import { render as renderProcessAnalysis } from './pages/process-analysis.js';
 
 // ─── Route registration ───────────────────────────────────────────────────────
 
-register('dashboard',    (_id) => renderDashboard());
-register('areas',        (_id) => renderAreas());
-register('streams',      (id)  => renderStreams(id));
-register('subprocesses', (_id) => renderSubprocesses());
-register('interfaces',   (_id) => renderInterfaces());
-register('assessments',  (id)  => renderAssessments(id));
-register('decisions',    (id)  => renderDecisions(id));
-register('director',     (_id) => renderDirector());
-register('reports',      (id)  => renderReports(id));
+register('dashboard',        (_id) => renderDashboard());
+register('areas',            (_id) => renderAreas());
+register('streams',          (id)  => renderStreams(id));
+register('subprocesses',     (_id) => renderSubprocesses());
+register('interfaces',       (_id) => renderInterfaces());
+register('assessments',      (id)  => renderAssessments(id));
+register('process-analysis', (id)  => renderProcessAnalysis(id));
+register('decisions',        (id)  => renderDecisions(id));
+register('director',         (_id) => renderDirector());
+register('reports',          (id)  => renderReports(id));
 
 // Stub handlers for future phases
 register('outcomes',    () => Promise.resolve(_comingSoon('Outcomes')));

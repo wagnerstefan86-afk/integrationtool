@@ -32,6 +32,7 @@ class YAMLStore:
         self._process_file = data_dir / "processes.yaml"
         self._assessment_file = data_dir / "assessments.yaml"
         self._outcome_file = data_dir / "outcomes.yaml"
+        self._analysis_file = data_dir / "process_analyses.yaml"
 
     # --- Low-level I/O ---
 
@@ -315,6 +316,46 @@ class YAMLStore:
             return False
         data["reviews"] = new
         self._write_reviews_data(data)
+        return True
+
+    # --- Process Analyses ---
+
+    def _read_analyses_data(self) -> dict:
+        return self._read_yaml(self._analysis_file)
+
+    def _write_analyses_data(self, data: dict) -> None:
+        self._write_yaml(self._analysis_file, data)
+
+    def list_analyses(self) -> list[dict]:
+        return self._read_analyses_data().get("analyses", [])
+
+    def get_analysis(self, stream_id: str) -> Optional[dict]:
+        for a in self.list_analyses():
+            if a.get("stream_id") == stream_id:
+                return a
+        return None
+
+    def save_analysis(self, analysis: dict) -> dict:
+        data = self._read_analyses_data()
+        analyses = data.setdefault("analyses", [])
+        sid = analysis.get("stream_id")
+        for i, a in enumerate(analyses):
+            if a.get("stream_id") == sid:
+                analyses[i] = analysis
+                self._write_analyses_data(data)
+                return analysis
+        analyses.append(analysis)
+        self._write_analyses_data(data)
+        return analysis
+
+    def delete_analysis(self, stream_id: str) -> bool:
+        data = self._read_analyses_data()
+        analyses = data.get("analyses", [])
+        new = [a for a in analyses if a.get("stream_id") != stream_id]
+        if len(new) == len(analyses):
+            return False
+        data["analyses"] = new
+        self._write_analyses_data(data)
         return True
 
     # --- Dashboard Stats ---

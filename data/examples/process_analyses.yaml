@@ -1,0 +1,363 @@
+analyses:
+- stream_id: request_incident_mgmt
+  stream_name: Request & Incident Mgmt
+  status: draft
+  entities:
+  - DE
+  - AT
+  process_steps:
+  - step_id: intake
+    step_name: Intake / Eingang
+    sort_order: 1
+    entity_variants:
+    - entity_id: DE
+      entity_name: DE
+      description: Requests come in via ServiceNow portal, dedicated department mailbox, and automated SOC alerts. Security-flagged tickets from other departments generate child cases automatically.
+      trigger: ServiceNow ticket creation, email to infosec@company.de, SOC alert
+      input_channels:
+      - ServiceNow Self-Service Portal
+      - Department Mailbox (infosec@company.de)
+      - SOC Alert Pipeline (automated)
+      - Child Cases from other departments
+      systems_used:
+      - ServiceNow ITSM
+      - SOC SIEM (Splunk)
+      - Microsoft Outlook
+      roles_involved:
+      - role: InfoSec Analyst
+        responsibility: Initial ticket review and acknowledgment
+      - role: SOC Analyst
+        responsibility: Automated alert triage and child case creation
+      output: Registered ticket in ServiceNow with initial categorization
+      sla_or_target: Acknowledgment within 4 hours during business hours
+      approx_volume: 80-120 requests per month
+      variants:
+      - Some requests bypass ServiceNow and arrive via direct email to team members
+      - Emergency requests via phone are manually entered by analysts
+      pain_points:
+      - Duplicate tickets when both email and ServiceNow are used
+      - SOC child cases sometimes lack sufficient context
+      why_is_it_done_this_way:
+      - ServiceNow was introduced as group-wide ITSM in 2021
+      - Mailbox kept for legacy reasons and external partner communication
+      - SOC integration added in 2023 for automated incident escalation
+      evidence_or_examples:
+      - ServiceNow ticket SN-2024-001234
+      - SOC playbook for automated child case creation
+      performed_in: DE
+      maturity_notes: Well-established process. SOC integration relatively new.
+    - entity_id: AT
+      entity_name: AT
+      description: Requests arrive primarily via email to the local security mailbox. Some tickets are created in Navision ERP by the local IT team. No automated intake from SOC.
+      trigger: Email to sicherheit@company.at, manual Navision entry by local IT
+      input_channels:
+      - Email Mailbox (sicherheit@company.at)
+      - Navision ERP (manual entry)
+      - Phone (informal)
+      systems_used:
+      - Navision ERP
+      - Microsoft Outlook
+      roles_involved:
+      - role: Local IT Administrator
+        responsibility: Creates tickets in Navision from email requests
+      - role: Local ISO
+        responsibility: Reviews security-relevant requests
+      output: Entry in Navision with basic categorization
+      sla_or_target: No formal SLA defined, best-effort within 1 business day
+      approx_volume: 15-25 requests per month
+      variants:
+      - Urgent requests handled informally via phone and Teams messages
+      pain_points:
+      - Navision is not designed for ticket management
+      - No automated intake, everything is manual
+      - No connection to group SOC
+      why_is_it_done_this_way:
+      - Navision is the only IT system available locally in AT
+      - ServiceNow license not extended to AT office yet
+      - Small team size makes informal handling practical
+      evidence_or_examples:
+      - Navision entry NAV-SEC-2024-087
+      performed_in: AT
+      maturity_notes: Low maturity. Manual process, no automation, limited tracking.
+
+  - step_id: triage
+    step_name: Klassifizierung / Triage
+    sort_order: 2
+    entity_variants:
+    - entity_id: DE
+      entity_name: DE
+      description: Incoming tickets are classified by priority (P1-P4) and category (request/incident/change) by the InfoSec analyst. SOC-generated tickets are pre-classified by the SIEM rules.
+      trigger: New ticket in ServiceNow queue
+      input_channels:
+      - ServiceNow queue
+      systems_used:
+      - ServiceNow ITSM
+      roles_involved:
+      - role: InfoSec Analyst
+        responsibility: Manual classification of non-SOC tickets
+      - role: SOC SIEM
+        responsibility: Automated pre-classification of alerts
+      output: Classified ticket with priority and category assignment
+      sla_or_target: Classification within 2 hours for P1/P2
+      approx_volume: Same as intake
+      variants: []
+      pain_points:
+      - Classification criteria not always clear for edge cases
+      why_is_it_done_this_way:
+      - ITIL-based classification model adopted company-wide
+      - SOC pre-classification reduces manual effort
+      evidence_or_examples:
+      - Classification matrix document (internal wiki)
+      performed_in: DE
+      maturity_notes: Solid classification model. Some edge cases require escalation.
+    - entity_id: AT
+      entity_name: AT
+      description: Local ISO reviews incoming items and decides on priority informally. No formal classification matrix. Categories are ad-hoc.
+      trigger: New entry in Navision or email
+      input_channels:
+      - Navision
+      - Email
+      systems_used:
+      - Navision ERP
+      roles_involved:
+      - role: Local ISO
+        responsibility: Informal priority assessment and categorization
+      output: Priority noted in Navision comments field
+      sla_or_target: No formal SLA
+      approx_volume: Same as intake
+      variants:
+      - Critical issues escalated immediately via phone to DE
+      pain_points:
+      - No structured classification
+      - Priority assessment depends on single person
+      why_is_it_done_this_way:
+      - Team too small for formal triage process
+      - No ticketing system with proper priority fields
+      evidence_or_examples: []
+      performed_in: AT
+      maturity_notes: Very low maturity. Single point of failure.
+
+  - step_id: processing
+    step_name: Bearbeitung
+    sort_order: 3
+    entity_variants:
+    - entity_id: DE
+      entity_name: DE
+      description: Requests are assigned to specialized analysts based on category. Processing follows documented procedures per request type. Status updates tracked in ServiceNow.
+      trigger: Classified ticket assigned to analyst
+      input_channels: []
+      systems_used:
+      - ServiceNow ITSM
+      - Confluence (knowledge base)
+      - Active Directory
+      roles_involved:
+      - role: InfoSec Analyst
+        responsibility: Processes requests according to documented procedures
+      - role: Senior Analyst
+        responsibility: Handles complex or escalated cases
+      output: Resolved request with documented resolution
+      sla_or_target: P1 4h, P2 8h, P3 3 days, P4 5 days
+      approx_volume: 80-120 per month
+      variants: []
+      pain_points:
+      - Knowledge base sometimes outdated
+      why_is_it_done_this_way:
+      - Specialization enables faster resolution for known request types
+      - ServiceNow workflow enforces process adherence
+      evidence_or_examples:
+      - SLA compliance report Q4 2024
+      performed_in: DE
+      maturity_notes: Mature process with SLA tracking.
+    - entity_id: AT
+      entity_name: AT
+      description: Local ISO handles most requests personally. Complex issues forwarded to DE team via email.
+      trigger: Request reviewed by Local ISO
+      input_channels: []
+      systems_used:
+      - Navision ERP
+      - Email
+      roles_involved:
+      - role: Local ISO
+        responsibility: Handles all local security requests
+      output: Resolution noted in Navision or email reply
+      sla_or_target: Best-effort
+      approx_volume: 15-25 per month
+      variants:
+      - Complex requests forwarded to DE team
+      pain_points:
+      - Single person bottleneck
+      - No formal handover process to DE
+      why_is_it_done_this_way:
+      - Only one person responsible for InfoSec in AT
+      - Budget for additional headcount not approved
+      evidence_or_examples: []
+      performed_in: AT
+      maturity_notes: High dependency on single individual.
+
+  - step_id: escalation
+    step_name: Eskalation
+    sort_order: 4
+    entity_variants:
+    - entity_id: DE
+      entity_name: DE
+      description: Escalation follows defined paths based on priority level. P1 incidents escalate to CISO within 1 hour. Regulatory incidents escalate to Legal and DPO.
+      trigger: SLA breach, P1 classification, regulatory relevance
+      input_channels: []
+      systems_used:
+      - ServiceNow ITSM
+      - PagerDuty (P1 alerts)
+      roles_involved:
+      - role: Senior Analyst
+        responsibility: First escalation level
+      - role: CISO
+        responsibility: P1 and regulatory escalation target
+      - role: DPO
+        responsibility: Data protection incident escalation
+      output: Escalated ticket with management visibility
+      sla_or_target: P1 escalation to CISO within 1 hour
+      approx_volume: 5-10 per month
+      variants: []
+      pain_points:
+      - PagerDuty alerts sometimes cause alert fatigue
+      why_is_it_done_this_way:
+      - NIS2 and DSGVO require documented escalation paths
+      - PagerDuty integrated for reliable on-call notification
+      evidence_or_examples:
+      - Escalation matrix document
+      - PagerDuty on-call schedule
+      performed_in: DE
+      maturity_notes: Well-defined escalation paths.
+    - entity_id: AT
+      entity_name: AT
+      description: Escalation is informal. Local ISO calls or emails the DE team lead directly. No documented escalation matrix.
+      trigger: Local ISO judgment
+      input_channels: []
+      systems_used:
+      - Email
+      - Microsoft Teams
+      roles_involved:
+      - role: Local ISO
+        responsibility: Decides when to escalate
+      - role: DE Team Lead
+        responsibility: Informal escalation target
+      output: Email or Teams message to DE team
+      sla_or_target: No formal SLA
+      approx_volume: 2-5 per month
+      variants: []
+      pain_points:
+      - No documented escalation criteria
+      - DE team sometimes not aware of AT escalations
+      why_is_it_done_this_way:
+      - Small team, direct communication is faster
+      - No formal escalation framework established for AT
+      evidence_or_examples: []
+      performed_in: AT
+      maturity_notes: Ad-hoc escalation. Risk of missed critical issues.
+
+  - step_id: closure
+    step_name: Abschluss / Dokumentation
+    sort_order: 5
+    entity_variants:
+    - entity_id: DE
+      entity_name: DE
+      description: Requests are closed in ServiceNow with resolution documentation. Quality check by team lead for P1/P2 tickets.
+      trigger: Resolution completed and documented
+      input_channels: []
+      systems_used:
+      - ServiceNow ITSM
+      roles_involved:
+      - role: InfoSec Analyst
+        responsibility: Documents resolution and closes ticket
+      - role: Team Lead
+        responsibility: Quality review for P1/P2 tickets
+      output: Closed ticket with full resolution documentation
+      sla_or_target: Closure within 24h of resolution
+      approx_volume: 80-120 per month
+      variants: []
+      pain_points:
+      - Documentation quality varies between analysts
+      why_is_it_done_this_way:
+      - ServiceNow enforces mandatory closure fields
+      - QC for high-priority tickets required by audit
+      evidence_or_examples:
+      - Closure rate report Q4 2024
+      performed_in: DE
+      maturity_notes: Solid process, documentation quality improving.
+    - entity_id: AT
+      entity_name: AT
+      description: Requests are closed informally. Sometimes a note in Navision, sometimes just an email reply.
+      trigger: Issue considered resolved by Local ISO
+      input_channels: []
+      systems_used:
+      - Navision ERP
+      - Email
+      roles_involved:
+      - role: Local ISO
+        responsibility: Closes request informally
+      output: Informal closure, no standardized documentation
+      sla_or_target: No formal closure process
+      approx_volume: 15-25 per month
+      variants: []
+      pain_points:
+      - No audit trail for closed requests
+      - Hard to verify resolution completeness
+      why_is_it_done_this_way:
+      - No system enforces documentation
+      - Time pressure with single-person team
+      evidence_or_examples: []
+      performed_in: AT
+      maturity_notes: Very weak. Audit risk.
+
+  - step_id: reporting
+    step_name: Reporting / Monitoring
+    sort_order: 6
+    entity_variants:
+    - entity_id: DE
+      entity_name: DE
+      description: Monthly KPI reporting from ServiceNow. Dashboard shows open tickets, SLA compliance, and trend analysis. Reported to CISO in monthly review.
+      trigger: Monthly reporting cycle
+      input_channels: []
+      systems_used:
+      - ServiceNow Reporting
+      - PowerBI Dashboard
+      roles_involved:
+      - role: InfoSec Analyst
+        responsibility: Prepares monthly report
+      - role: CISO
+        responsibility: Reviews KPIs in monthly meeting
+      output: Monthly KPI report and dashboard
+      sla_or_target: Report due by 5th of following month
+      approx_volume: 1 report per month
+      variants: []
+      pain_points:
+      - Manual data extraction for some KPIs
+      why_is_it_done_this_way:
+      - Management reporting required by InfoSec governance framework
+      - PowerBI provides better visualization than ServiceNow native
+      evidence_or_examples:
+      - Monthly InfoSec KPI Report December 2024
+      performed_in: DE
+      maturity_notes: Good reporting. Automation potential for data extraction.
+    - entity_id: AT
+      entity_name: AT
+      description: No formal reporting. Local ISO provides ad-hoc updates when requested by management.
+      trigger: Management request (ad-hoc)
+      input_channels: []
+      systems_used:
+      - Microsoft Excel
+      roles_involved:
+      - role: Local ISO
+        responsibility: Creates ad-hoc reports when requested
+      output: Excel spreadsheet (ad-hoc)
+      sla_or_target: No defined reporting cycle
+      approx_volume: 2-4 per year
+      variants: []
+      pain_points:
+      - No systematic reporting
+      - Data quality questionable due to manual tracking
+      why_is_it_done_this_way:
+      - No reporting system available
+      - Management has not required regular reporting yet
+      evidence_or_examples: []
+      performed_in: AT
+      maturity_notes: Minimal. No systematic visibility into AT operations.

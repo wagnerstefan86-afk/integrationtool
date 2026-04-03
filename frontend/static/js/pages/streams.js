@@ -255,6 +255,7 @@ async function renderDetail(streamId) {
       </div>
       <div class="actions">
         <a href="#/streams" class="btn">← Streams</a>
+        <a href="#/process-analysis/${encodeURIComponent(streamId)}" class="btn btn-primary">Process Analysis</a>
         <button class="btn" id="btn-edit-stream">Edit Stream</button>
       </div>
     </div>

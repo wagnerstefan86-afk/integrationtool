@@ -283,6 +283,125 @@ def director_overview(dataset: str = "examples"):
         "streams": stream_rows,
     }
 
+# ===================== Process Analysis =====================
+
+@app.get("/api/process-analysis")
+def list_analyses(dataset: str = "examples"):
+    return _get_store(dataset).list_analyses()
+
+
+@app.get("/api/process-analysis/{stream_id}")
+def get_analysis(stream_id: str, dataset: str = "examples"):
+    a = _get_store(dataset).get_analysis(stream_id)
+    if not a:
+        raise HTTPException(404, f"Process analysis not found for stream: {stream_id}")
+    return a
+
+
+@app.post("/api/process-analysis/{stream_id}/scaffold")
+def scaffold_stream_analysis(stream_id: str, dataset: str = "examples"):
+    """Create a new process analysis with default phases for a stream."""
+    from harmonizer.process_analysis import scaffold_analysis
+    store = _get_store(dataset)
+    stream = store.get_stream(stream_id)
+    if not stream:
+        raise HTTPException(404, f"Stream not found: {stream_id}")
+    existing = store.get_analysis(stream_id)
+    if existing:
+        raise HTTPException(400, f"Analysis already exists for stream '{stream_id}'. Use PUT to update.")
+    entities = ["DE", "AT"]
+    analysis = scaffold_analysis(stream_id, stream.get("name", stream_id), entities)
+    return store.save_analysis(analysis)
+
+
+@app.put("/api/process-analysis/{stream_id}")
+def save_analysis(stream_id: str, body: dict, dataset: str = "examples"):
+    """Save or update a process analysis."""
+    store = _get_store(dataset)
+    if not store.get_stream(stream_id):
+        raise HTTPException(404, f"Stream not found: {stream_id}")
+    body["stream_id"] = stream_id
+    return store.save_analysis(body)
+
+
+@app.put("/api/process-analysis/{stream_id}/steps/{step_id}/variants/{entity_id}")
+def save_variant(stream_id: str, step_id: str, entity_id: str, body: dict, dataset: str = "examples"):
+    """Save a single entity variant within a process step."""
+    store = _get_store(dataset)
+    analysis = store.get_analysis(stream_id)
+    if not analysis:
+        raise HTTPException(404, f"Process analysis not found for stream: {stream_id}")
+
+    step = None
+    for s in analysis.get("process_steps", []):
+        if s.get("step_id") == step_id:
+            step = s
+            break
+    if not step:
+        raise HTTPException(404, f"Step not found: {step_id}")
+
+    body["entity_id"] = entity_id
+    variants = step.setdefault("entity_variants", [])
+    for i, v in enumerate(variants):
+        if v.get("entity_id") == entity_id:
+            variants[i] = body
+            store.save_analysis(analysis)
+            return body
+    variants.append(body)
+    store.save_analysis(analysis)
+    return body
+
+
+@app.get("/api/process-analysis/{stream_id}/completeness")
+def get_analysis_completeness(stream_id: str, dataset: str = "examples"):
+    """Return completeness and quality scores for a process analysis."""
+    from harmonizer.process_analysis import score_analysis_completeness
+    store = _get_store(dataset)
+    analysis = store.get_analysis(stream_id)
+    if not analysis:
+        raise HTTPException(404, f"Process analysis not found for stream: {stream_id}")
+    return score_analysis_completeness(analysis)
+
+
+@app.get("/api/process-analysis/{stream_id}/deltas")
+def get_analysis_deltas(stream_id: str, dataset: str = "examples"):
+    """Compute and return all step-level deltas for a process analysis."""
+    from harmonizer.process_analysis import compute_analysis_deltas
+    store = _get_store(dataset)
+    analysis = store.get_analysis(stream_id)
+    if not analysis:
+        raise HTTPException(404, f"Process analysis not found for stream: {stream_id}")
+    return compute_analysis_deltas(analysis)
+
+
+@app.get("/api/process-analysis/{stream_id}/summary")
+def get_analysis_summary(stream_id: str, dataset: str = "examples"):
+    """Return management-level summary of a process analysis."""
+    from harmonizer.process_analysis import compute_analysis_summary
+    store = _get_store(dataset)
+    analysis = store.get_analysis(stream_id)
+    if not analysis:
+        raise HTTPException(404, f"Process analysis not found for stream: {stream_id}")
+    return compute_analysis_summary(analysis)
+
+
+@app.delete("/api/process-analysis/{stream_id}")
+def delete_analysis(stream_id: str, dataset: str = "examples"):
+    if not _get_store(dataset).delete_analysis(stream_id):
+        raise HTTPException(404, f"Process analysis not found for stream: {stream_id}")
+    return {"deleted": stream_id}
+
+
+@app.get("/api/process-analysis-guide/{step_id}")
+def get_guide_questions(step_id: str):
+    """Return guided interview questions for a process phase."""
+    from harmonizer.process_analysis import GUIDE_QUESTIONS
+    questions = GUIDE_QUESTIONS.get(step_id)
+    if questions is None:
+        raise HTTPException(404, f"No guide questions for step: {step_id}")
+    return questions
+
+
 # ===================== Areas CRUD =====================
 
 @app.get("/api/areas")
